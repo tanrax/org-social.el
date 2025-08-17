@@ -67,11 +67,40 @@ Creates a new post in your `social.org` file.
 
 Verifies that your file has the correct structure.
 
+## Keybindings
+
+| Keybinding | Function | Description |
+|------------|----------|-------------|
+| `C-c C-n`  | `org-social-new-post` | Create a new post |
+| `C-c C-t`  | `org-social-timeline` | Download and display the timeline |
+| `C-c C-c`  | `org-social-save-file` | Save the social file and run any hooks |
+
+## Hooks
+
+You can use the following hooks to perform additional actions automatically:
+
+| Name | Description |
+|------|------------|
+| `org-social-after-save-file-hook` | Runs after saving the social file. Useful for automating tasks like uploading to a remote server or syncing with other services. |
+
+For example, to automatically upload your social file to a remote server after saving:
+
+```elisp
+(add-hook 'org-social-after-save-file-hook (lambda () (call-process-shell-command (format "scp %s %s"
+  									 org-social-file
+  									 "user@server:/your/path/social.org"
+  									 ) nil 0)))
+```
+
 ## License
 
 GPL-3.0 - See LICENSE file for details.
 
 # Changelog
+
+## 1.1
+
+- Added hook `org-social-after-save-file-hook` to allow custom actions after saving the social file.
 
 ## 1.0
 
