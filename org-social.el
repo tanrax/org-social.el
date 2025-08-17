@@ -1,4 +1,4 @@
-;;; org-social.el --- An Org-social client for Emacs -*- lexical-binding: t -*- -*- coding: utf-8 -*-
+;;; org-social.el --- An Org-social client -*- lexical-binding: t -*- -*- coding: utf-8 -*-
 
 ;; SPDX-License-Identifier: GPL-3.0
 
@@ -203,7 +203,7 @@ Argument FOLLOW-LINE text
 					(cons 'description (org-social--get-value feed "DESCRIPTION"))
 					(cons 'avatar (org-social--get-value feed "AVATAR"))
 					(cons 'follow (mapcar #'org-social--parse-follow (delq nil follows-list)))
-					(cons 'twts (org-social--get-posts-from-feed feed)))))))
+					(cons 'posts (org-social--get-posts-from-feed feed)))))))
 
 (defun org-social--get-posts-from-feed (feed)
 	"Extract posts from an Org-social FEED."
@@ -331,7 +331,7 @@ Argument NEW-RESPONSE"
 							(cons 'nick nick)
 							(cons 'title title)
 							(cons 'url url)
-							(cons 'twts posts))))
+							(cons 'posts posts))))
 					org-social-queue))
 			;; Add own profile
 			(when org-social--my-profile
@@ -344,7 +344,7 @@ Argument NEW-RESPONSE"
 	(let* ((timeline (mapcan (lambda (feed)
 			(let ((author-id (cdr (assoc 'id feed)))
 				(author-nick (cdr (assoc 'nick feed)))
-				(posts (cdr (assoc 'twts feed))))
+				(posts (cdr (assoc 'posts feed))))
 				(mapcar (lambda (post)
 					(list
 						(cons 'id (cdr (assoc 'id post)))
