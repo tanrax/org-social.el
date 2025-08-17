@@ -130,17 +130,17 @@
     (point)))
 
 
-(defun org-social--insert-post-template ()
+(defun org-social--insert-post-template (&optional reply-p reply-to reply-url)
   "Insert a new post template at the current position."
   (let ((timestamp (org-social--generate-timestamp)))
     (insert "\n**\n:PROPERTIES:\n")
     (insert (format ":ID: %s\n" timestamp))
     (insert ":LANG: \n")
     (insert ":TAGS: \n")
-    (insert ":CONTENT_WARNING: \n")
-    (insert ":CLIENT: \n")
-    (insert ":REPLY_TO: \n")
-    (insert ":REPLY_URL: \n")
+    (insert ":CLIENT: org-social.el\n")
+    (when replyp
+      (insert (format ":REPLY_TO: %s\n" reply-to))
+      (insert (format ":REPLY_URL: %s\n" reply-url)))
     (insert ":MOOD: \n")
     (insert ":END:\n\n")
     (goto-char (point-max))))
