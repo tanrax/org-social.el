@@ -386,11 +386,6 @@ Argument NEW-RESPONSE"
 				(view-mode 1))
 			(switch-to-buffer buffer-name))))
 
-(defun org-social-mention (username feed-url)
-	"Insert a mention link for USERNAME with FEED-URL."
-	(interactive "sUsername: \nsFeed URL: ")
-	(insert (format "[[org-social:%s][%s]]" feed-url username)))
-
 (defun org-social-validate-file ()
 	"Validate the current Org-social file structure."
 	(interactive)
