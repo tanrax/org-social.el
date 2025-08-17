@@ -53,9 +53,9 @@
   :prefix "org-social-")
 
 (defcustom org-social-file "~/social.org"
-	"Path to your Org-social feed file."
-	:type 'file
-	:group 'org-social)
+  "Path to your Org-social feed file."
+  :type 'file
+  :group 'org-social)
 
 ;; Variables
 
@@ -63,10 +63,10 @@
   "List of parsed feeds from followers.")
 
 (defvar org-social--my-profile nil
-	"Current user's profile information.")
+  "Current user's profile information.")
 
 (defvar org-social-queue nil
-	"Queue for downloading feeds asynchronously.")
+  "Queue for downloading feeds asynchronously.")
 
 ;; Hooks
 
@@ -74,7 +74,7 @@
   "Hook run after all feeds have been fetched.")
 
 (defvar org-social-after-save-file-hook nil
-	"Hook run after saving the social file.")
+  "Hook run after saving the social file.")
 
 ;; Keymap for org-social mode
 
@@ -285,16 +285,16 @@ Argument FOLLOW-LINE text
   "Initialize the download queue with follower feeds."
   (setq org-social-queue
 	(mapcar (lambda (follow)
-		  `((:url . ,(cdr (assoc 'url follow)))
+		  `((:url . ,(alist-get 'url follow))
 		    (:status . :pending)
 		    (:response . nil)))
-		(cdr (assoc 'follow org-social--my-profile)))))
+		(alist-get 'follow org-social--my-profile))))
 
 
 (defun org-social--queue-update-status-by-url (queue url status)
   "Update the STATUS of a QUEUE item by URL."
   (mapcar (lambda (item)
-	    (if (string= (cdr (assoc :url item)) url)
+	    (if (string= (alist-get :url item) url)
 		(let ((new-item (copy-tree item)))
 		  (setcdr (assoc :status new-item) status)
 		  new-item)
@@ -306,7 +306,7 @@ Argument FOLLOW-LINE text
   "Update the response of a QUEUE item by URL.
 Argument NEW-RESPONSE"
   (mapcar (lambda (item)
-	    (if (string= (cdr (assoc :url item)) url)
+	    (if (string= (alist-get :url item) url)
 		(let ((new-item (copy-tree item)))
 		  (setcdr (assoc :response new-item) new-response)
 		  new-item)
@@ -317,7 +317,7 @@ Argument NEW-RESPONSE"
 (defun org-social--process-queue ()
   "Process the download queue asynchronously."
   (dolist (item org-social-queue)
-    (let ((url (cdr (assoc :url item))))
+    (let ((url (alist-get :url item)))
       (request url
 	:timeout 10
 	:success (cl-function
@@ -344,8 +344,8 @@ Argument NEW-RESPONSE"
   "Check if the download queue is complete."
   (let ((in-progress (seq-filter
 		      (lambda (i) (or
-				   (eq (cdr (assoc :status i)) :processing)
-				   (eq (cdr (assoc :status i)) :pending)))
+				   (eq (alist-get :status i) :processing)
+				   (eq (alist-get :status i) :pending)))
 		      org-social-queue)))
     (message "Downloading feeds: %s remaining"
 	     (if (> (length in-progress) 0)
@@ -354,12 +354,12 @@ Argument NEW-RESPONSE"
     (when (= (length in-progress) 0)
       ;; Remove failed downloads
       (setq org-social-queue
-	    (seq-filter (lambda (i) (not (eq (cdr (assoc :status i)) :error))) org-social-queue))
+	    (seq-filter (lambda (i) (not (eq (alist-get :status i) :error))) org-social-queue))
       ;; Process the feeds
       (setq org-social--feeds
 	    (mapcar (lambda (item)
-		      (let* ((feed (cdr (assoc :response item)))
-			     (url (cdr (assoc :url item)))
+		      (let* ((feed (alist-get :response item))
+			     (url (alist-get :url item))
 			     (nick (or (org-social--get-value feed "NICK") "Unknown"))
 			     (title (org-social--get-value feed "TITLE"))
 			     (posts (org-social--get-posts-from-feed feed)))
@@ -380,23 +380,23 @@ Argument NEW-RESPONSE"
 (defun org-social--get-timeline ()
   "Get all posts from all feeds sorted by date."
   (let* ((timeline (mapcan (lambda (feed)
-			     (let ((author-id (cdr (assoc 'id feed)))
-				   (author-nick (cdr (assoc 'nick feed)))
-				   (posts (cdr (assoc 'posts feed))))
+			     (let ((author-id (alist-get 'id feed))
+				   (author-nick (alist-get 'nick feed))
+				   (posts (alist-get 'posts feed)))
 			       (mapcar (lambda (post)
 					 (list
-					  (cons 'id (cdr (assoc 'id post)))
+					  (cons 'id (alist-get 'id post))
 					  (cons 'author-id author-id)
 					  (cons 'author-nick author-nick)
-					  (cons 'timestamp (cdr (assoc 'timestamp post)))
-					  (cons 'date (cdr (assoc 'date post)))
-					  (cons 'text (cdr (assoc 'text post)))))
+					  (cons 'timestamp (alist-get 'timestamp post))
+					  (cons 'date (alist-get 'date post))
+					  (cons 'text (alist-get 'text post))))
 				       posts)))
 			   org-social--feeds))
 	 (timeline-sorted (sort timeline
 				(lambda (a b)
-				  (> (cdr (assoc 'date a))
-				     (cdr (assoc 'date b)))))))
+				  (> (alist-get 'date a)
+				     (alist-get 'date b))))))
     timeline-sorted))
 
 
@@ -412,9 +412,9 @@ Argument NEW-RESPONSE"
 	(insert "* Timeline\n\n")
 
 	(dolist (post timeline)
-	  (let ((author (cdr (assoc 'author-nick post)))
-		(timestamp (cdr (assoc 'timestamp post)))
-		(text (cdr (assoc 'text post))))
+	  (let ((author (alist-get 'author-nick post))
+		(timestamp (alist-get 'timestamp post))
+		(text (alist-get 'text post)))
 	    (insert (format "** %s\n" (or author "Unknown")))
 	    (insert ":PROPERTIES:\n")
 	    (insert (format ":ID: %s\n" timestamp))
