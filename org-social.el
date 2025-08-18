@@ -578,7 +578,6 @@ Argument NEW-RESPONSE"
 		(timestamp (alist-get 'timestamp post))
 		(text (alist-get 'text post))
 		(mood (alist-get 'mood post))
-		(lang (alist-get 'lang post))
 		(tags (alist-get 'tags post)))
 
 	    ;; Post header with metadata
