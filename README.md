@@ -153,6 +153,15 @@ For example, to automatically upload your social file to a remote server after s
 
 GPL-3.0 - See LICENSE file for details.
 
+# TODO
+
+- Notifications buffer.
+- Input to make polls.
+- Function to adding mentions.
+- Split into small files.
+- Alternative user interface for the timeline.
+- Group integration.
+
 # Changelog
 
 ## 1.2
