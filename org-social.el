@@ -45,6 +45,7 @@
 (require 'seq)
 (require 'cl-lib)
 
+
 ;; Customization
 
 (defgroup org-social nil
@@ -86,6 +87,18 @@
     map)
   "Keymap for `org-social-mode'.")
 
+;; Keymap for timeline buffer
+
+(defvar org-social-timeline-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "r") 'org-social-reply-to-post)
+    (define-key map (kbd "n") 'org-social-next-post)
+    (define-key map (kbd "p") 'org-social-previous-post)
+    (define-key map (kbd "q") 'quit-window)
+    (define-key map (kbd "g") 'org-social-timeline-refresh)
+    map)
+  "Keymap for `org-social-timeline-mode'.")
+
 ;; Minor mode definition
 
 (define-minor-mode org-social-mode
@@ -98,6 +111,17 @@
 	(org-mode)
 	(message "Org-social mode enabled"))
     (message "Org-social mode disabled")))
+
+;; Timeline mode definition
+
+(define-minor-mode org-social-timeline-mode
+  "Minor mode for the Org-social timeline buffer."
+  :lighter " Timeline"
+  :keymap org-social-timeline-mode-map
+  :group 'org-social
+  (when org-social-timeline-mode
+    (setq buffer-read-only t)
+    (message "Org-social timeline mode enabled. Press 'r' to reply, 'n/p' to navigate, 'g' to refresh, 'q' to quit.")))
 
 ;;; Functions
 
@@ -130,17 +154,17 @@
     (point)))
 
 
-(defun org-social--insert-post-template (&optional reply-p reply-to reply-url)
-  "Insert a new post template at the current position."
+(defun org-social--insert-post-template (&optional reply-url reply-id)
+  "Insert a new post template at the current position.
+If REPLY-URL and REPLY-ID are provided, create a reply post."
   (let ((timestamp (org-social--generate-timestamp)))
     (insert "\n**\n:PROPERTIES:\n")
     (insert (format ":ID: %s\n" timestamp))
     (insert ":LANG: \n")
     (insert ":TAGS: \n")
     (insert ":CLIENT: org-social.el\n")
-    (when replyp
-      (insert (format ":REPLY_TO: %s\n" reply-to))
-      (insert (format ":REPLY_URL: %s\n" reply-url)))
+    (when (and reply-url reply-id)
+      (insert (format ":REPLY_TO: %s#%s\n" reply-url reply-id)))
     (insert ":MOOD: \n")
     (insert ":END:\n\n")
     (goto-char (point-max))))
@@ -173,8 +197,9 @@
   (message "New Org-social feed created! Please update your profile information."))
 
 
-(defun org-social-new-post ()
-  "Create a new post in your Org-social feed."
+(defun org-social-new-post (&optional reply-url reply-id)
+  "Create a new post in your Org-social feed.
+If REPLY-URL and REPLY-ID are provided, create a reply post."
   (interactive)
   (unless (and (buffer-file-name)
 	       (string= (expand-file-name (buffer-file-name))
@@ -183,7 +208,7 @@
   (save-excursion
     (org-social--find-posts-section)
     (goto-char (point-max))
-    (org-social--insert-post-template))
+    (org-social--insert-post-template reply-url reply-id))
   (goto-char (point-max)))
 
 
@@ -232,6 +257,7 @@ Argument FOLLOW-LINE text
 	 (cons 'title (org-social--get-value feed "TITLE"))
 	 (cons 'description (org-social--get-value feed "DESCRIPTION"))
 	 (cons 'avatar (org-social--get-value feed "AVATAR"))
+	 (cons 'url org-social-file)  ; Add URL for replies
 	 (cons 'follow (mapcar #'org-social--parse-follow (delq nil follows-list)))
 	 (cons 'posts (org-social--get-posts-from-feed feed)))))))
 
@@ -245,7 +271,7 @@ Argument FOLLOW-LINE text
       (when (re-search-forward "^\\* Posts" nil t)
 	(while (re-search-forward "^\\*\\*" nil t)
 	  (let ((post-start (point))
-		post-end id text date)
+		post-end id text date mood lang tags)
 	    ;; Find the end of this post (next ** or end of buffer)
 	    (if (re-search-forward "^\\*\\*" nil t)
 		(progn
@@ -255,10 +281,22 @@ Argument FOLLOW-LINE text
 	      (setq post-end (point-max))
 	      (goto-char post-start))
 
-	    ;; Extract ID from properties
+	    ;; Extract properties
 	    (when (re-search-forward ":ID:\\s-*\\(.+\\)" post-end t)
 	      (setq id (match-string 1))
 	      (setq date (date-to-time id)))
+
+	    (goto-char post-start)
+	    (when (re-search-forward ":MOOD:\\s-*\\(.+\\)" post-end t)
+	      (setq mood (string-trim (match-string 1))))
+
+	    (goto-char post-start)
+	    (when (re-search-forward ":LANG:\\s-*\\(.+\\)" post-end t)
+	      (setq lang (string-trim (match-string 1))))
+
+	    (goto-char post-start)
+	    (when (re-search-forward ":TAGS:\\s-*\\(.+\\)" post-end t)
+	      (setq tags (string-trim (match-string 1))))
 
 	    ;; Extract text content (after :END:)
 	    (goto-char post-start)
@@ -273,7 +311,10 @@ Argument FOLLOW-LINE text
 				 (cons 'id (gensym))
 				 (cons 'timestamp id)
 				 (cons 'date (float-time date))
-				 (cons 'text text)) posts)))
+				 (cons 'text text)
+				 (cons 'mood mood)
+				 (cons 'lang lang)
+				 (cons 'tags tags)) posts)))
 
 	    ;; Move to the post we found (if any)
 	    (when (< (point) post-end)
@@ -382,15 +423,20 @@ Argument NEW-RESPONSE"
   (let* ((timeline (mapcan (lambda (feed)
 			     (let ((author-id (alist-get 'id feed))
 				   (author-nick (alist-get 'nick feed))
+				   (author-url (alist-get 'url feed))
 				   (posts (alist-get 'posts feed)))
 			       (mapcar (lambda (post)
 					 (list
 					  (cons 'id (alist-get 'id post))
 					  (cons 'author-id author-id)
 					  (cons 'author-nick author-nick)
+					  (cons 'author-url author-url)
 					  (cons 'timestamp (alist-get 'timestamp post))
 					  (cons 'date (alist-get 'date post))
-					  (cons 'text (alist-get 'text post))))
+					  (cons 'text (alist-get 'text post))
+					  (cons 'mood (alist-get 'mood post))
+					  (cons 'lang (alist-get 'lang post))
+					  (cons 'tags (alist-get 'tags post))))
 				       posts)))
 			   org-social--feeds))
 	 (timeline-sorted (sort timeline
@@ -398,6 +444,121 @@ Argument NEW-RESPONSE"
 				  (> (alist-get 'date a)
 				     (alist-get 'date b))))))
     timeline-sorted))
+
+
+(defun org-social--goto-post-content ()
+  "Move to the beginning of the post content (after properties)."
+  (let ((post-start (point)))
+    ;; Look for :END: in the current post
+    (when (re-search-forward ":END:" nil t)
+      (forward-line 1)
+      ;; Skip empty lines and comments
+      (while (and (not (eobp))
+                  (or (looking-at "^$")
+                      (looking-at "^#")))
+        (forward-line 1))
+      ;; If we've moved past the next post header, go back to post start
+      (when (looking-at "^\\*\\* ")
+        (goto-char post-start)))))
+
+
+(defun org-social-next-post ()
+  "Move to the next post in the timeline."
+  (interactive)
+  (let ((current-pos (point)))
+    ;; If we're not at a post header, find the current post first
+    (unless (looking-at "^\\*\\* ")
+      (re-search-backward "^\\*\\* " nil t))
+
+    ;; Move to next post
+    (forward-line 1)
+    (if (re-search-forward "^\\*\\* " nil t)
+        (progn
+          (beginning-of-line)
+          (org-social--goto-post-content))
+      ;; If no next post found, go back to original position
+      (goto-char current-pos)
+      (message "No more posts"))))
+
+
+(defun org-social-previous-post ()
+  "Move to the previous post in the timeline."
+  (interactive)
+  (let ((current-pos (point)))
+    ;; If we're not at a post header, find the current post first
+    (unless (looking-at "^\\*\\* ")
+      (re-search-backward "^\\*\\* " nil t))
+
+    ;; Move to previous post
+    (if (re-search-backward "^\\*\\* " nil t)
+        (progn
+          (beginning-of-line)
+          (org-social--goto-post-content))
+      ;; If no previous post found, go back to original position
+      (goto-char current-pos)
+      (message "No previous posts"))))
+
+
+(defun org-social--get-post-at-point ()
+  "Get the post information at the current point in timeline."
+  (save-excursion
+    (let ((post-start nil)
+	  (post-end nil)
+	  (timestamp nil)
+	  (author-url nil))
+      ;; Find the start of current post (look for ** header)
+      (if (looking-at "^\\*\\* ")
+	  (setq post-start (point))
+	(when (re-search-backward "^\\*\\* " nil t)
+	  (setq post-start (point))))
+
+      ;; Find the end of current post
+      (goto-char post-start)
+      (forward-line 1)
+      (if (re-search-forward "^\\*\\* " nil t)
+	  (progn
+	    (beginning-of-line)
+	    (setq post-end (point)))
+	(setq post-end (point-max)))
+
+      ;; Extract ID and author information from properties
+      (goto-char post-start)
+      (when (re-search-forward ":ID:\\s-*\\(.+\\)" post-end t)
+	(setq timestamp (match-string 1)))
+
+      ;; Get author URL from the post header comment
+      (goto-char post-start)
+      (when (re-search-forward "# Author URL: \\(.+\\)" post-end t)
+	(setq author-url (match-string 1)))
+
+      ;; Return post information
+      (when (and timestamp author-url)
+	(list (cons 'timestamp timestamp)
+	      (cons 'author-url author-url))))))
+
+
+(defun org-social-reply-to-post ()
+  "Reply to the post at point in the timeline."
+  (interactive)
+  (let ((post-info (org-social--get-post-at-point)))
+    (if post-info
+	(let ((timestamp (alist-get 'timestamp post-info))
+	      (author-url (alist-get 'author-url post-info)))
+	  (message "Creating reply to post %s from %s" timestamp author-url)
+	  (org-social-new-post author-url timestamp)
+	  (message "Reply created! Write your response and save the file."))
+      (message "No post found at current position."))))
+
+
+(defun org-social-timeline-refresh ()
+  "Refresh the timeline by fetching new posts."
+  (interactive)
+  (message "Refreshing timeline...")
+  (org-social--fetch-all-feeds-async)
+  (add-hook 'org-social-after-fetch-posts-hook
+	    (lambda ()
+	      (org-social--timeline-layout)
+	      (message "Timeline refreshed!")) nil t))
 
 
 (defun org-social--timeline-layout ()
@@ -413,16 +574,35 @@ Argument NEW-RESPONSE"
 
 	(dolist (post timeline)
 	  (let ((author (alist-get 'author-nick post))
+		(author-url (alist-get 'author-url post))
 		(timestamp (alist-get 'timestamp post))
-		(text (alist-get 'text post)))
-	    (insert (format "** %s\n" (or author "Unknown")))
+		(text (alist-get 'text post))
+		(mood (alist-get 'mood post))
+		(lang (alist-get 'lang post))
+		(tags (alist-get 'tags post)))
+
+	    ;; Post header with metadata
+	    (insert (format "** %s" (or author "Unknown")))
+
+	    ;; Add mood if present
+	    (when (and mood (not (string-empty-p mood)))
+	      (insert (format " %s" mood)))
+
+	    ;; Add tags if present
+	    (when (and tags (not (string-empty-p tags)))
+	      (insert (format " #%s" (replace-regexp-in-string " " " #" tags))))
+
+	    (insert "\n")
+
 	    (insert ":PROPERTIES:\n")
 	    (insert (format ":ID: %s\n" timestamp))
-	    (insert ":END:\n\n")
+	    (insert ":END:\n")
+	    ;; Add a comment with author URL for reply functionality
+	    (insert (format "# Author URL: %s\n\n" (or author-url "unknown")))
 	    (insert (format "%s\n\n" text))))
 
 	(goto-char (point-min))
-	(view-mode 1))
+	(org-social-timeline-mode 1))
       (switch-to-buffer buffer-name))))
 
 (defun org-social-validate-file ()
