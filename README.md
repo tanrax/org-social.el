@@ -1,6 +1,6 @@
 # org-social.el
 
-An Emacs client for [Org-social](https://github.com/tanrax/org-social), a decentralized social network that works with Org Mode files over HTTP.
+An Emacs client for [Org Social](https://github.com/tanrax/org-social), a decentralized social network that works with Org Mode files over HTTP.
 
 ## Installation
 
