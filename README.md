@@ -155,12 +155,38 @@ GPL-3.0 - See LICENSE file for details.
 
 # TODO
 
-- Notifications buffer.
-- Input to make polls.
+## In progress
+
+- Add to MELPA.
+
+## 1.3
+
+- Split code into small files.
+- Notifications section.
 - Function to adding mentions.
-- Split into small files.
-- Alternative user interface for the timeline.
+- Improved format for mentions.
+
+## 1.4
+
+- Input to make polls.
+- Display the voting results.
+
+## 1.5
+
+- View thread replies.
+
+## 1.6
+
+- Save followings data in a separate file.
+- Show/hide metadata in the timeline.
+- Show the user profile.
+
+### Backlog
+
 - Group integration.
+- Logo.
+- Generate an HTML version of your timeline.
+- News section.
 
 # Changelog
 
