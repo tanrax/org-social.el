@@ -1,0 +1,156 @@
+;;; org-social-feed.el --- Feed management for Org-social -*- lexical-binding: t -*- -*- coding: utf-8 -*-
+
+;; SPDX-License-Identifier: GPL-3.0
+
+;; Author: Andros Fenollosa <hi@andros.dev>
+;; Version: 1.3
+;; URL: https://github.com/tanrax/org-social.el
+;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5"))
+
+;; This file is NOT part of GNU Emacs.
+
+;; This program is free software; you can redistribute it and/or
+;; modify it under the terms of the GNU General Public License as
+;; published by the Free Software Foundation, either version 3 of the
+;; License, or (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful, but
+;; WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;; General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see
+;; <http://www.gnu.org/licenses/>.
+
+;;; Commentary:
+
+;; Functions for managing and fetching Org-social feeds.
+
+;;; Code:
+
+(require 'org-social-variables)
+(require 'org-social-parser)
+(require 'request)
+(require 'seq)
+(require 'cl-lib)
+
+(defun org-social-feed--initialize-queue ()
+  "Initialize the download queue with follower feeds."
+  (setq org-social-variables--queue
+		(mapcar (lambda (follow)
+				  `((:url . ,(alist-get 'url follow))
+					(:status . :pending)
+					(:response . nil)))
+				(alist-get 'follow org-social-variables--my-profile))))
+
+(defun org-social-feed--queue-update-status-by-url (queue url status)
+  "Update the STATUS of a QUEUE item by URL."
+  (mapcar (lambda (item)
+			(if (string= (alist-get :url item) url)
+				(let ((new-item (copy-tree item)))
+				  (setcdr (assoc :status new-item) status)
+				  new-item)
+			  item))
+		  (copy-tree queue)))
+
+(defun org-social-feed--queue-update-response-by-url (queue url new-response)
+  "Update the response of a QUEUE item by URL.
+Argument NEW-RESPONSE"
+  (mapcar (lambda (item)
+			(if (string= (alist-get :url item) url)
+				(let ((new-item (copy-tree item)))
+				  (setcdr (assoc :response new-item) new-response)
+				  new-item)
+			  item))
+		  (copy-tree queue)))
+
+(defun org-social-feed--process-queue ()
+  "Process the download queue asynchronously."
+  (dolist (item org-social-variables--queue)
+	(let ((url (alist-get :url item)))
+	  (request url
+		:timeout 10
+		:success (cl-function
+				  (lambda (&key data &allow-other-keys)
+					(setq org-social-variables--queue
+						  (org-social-feed--queue-update-status-by-url org-social-variables--queue url :done))
+					(setq org-social-variables--queue
+						  (org-social-feed--queue-update-response-by-url org-social-variables--queue url data))
+					(org-social-feed--check-queue)))
+		:error (lambda (&rest _)
+				 (setq org-social-variables--queue
+					   (org-social-feed--queue-update-status-by-url org-social-variables--queue url :error))
+				 (org-social-feed--check-queue))))))
+
+(defun org-social-feed--fetch-all-feeds-async ()
+  "Fetch all follower feeds asynchronously."
+  (setq org-social-variables--my-profile (org-social-parser--get-my-profile))
+  (org-social-feed--initialize-queue)
+  (org-social-feed--process-queue))
+
+(defun org-social-feed--check-queue ()
+  "Check if the download queue is complete."
+  (let ((in-progress (seq-filter
+					  (lambda (i) (or
+								   (eq (alist-get :status i) :processing)
+								   (eq (alist-get :status i) :pending)))
+					  org-social-variables--queue)))
+	(message "Downloading feeds: %s remaining"
+			 (if (> (length in-progress) 0)
+				 (length in-progress)
+			   "Processing..."))
+	(when (= (length in-progress) 0)
+	  ;; Remove failed downloads
+	  (setq org-social-variables--queue
+			(seq-filter (lambda (i) (not (eq (alist-get :status i) :error))) org-social-variables--queue))
+	  ;; Process the feeds
+	  (setq org-social-variables--feeds
+			(mapcar (lambda (item)
+					  (let* ((feed (alist-get :response item))
+							 (url (alist-get :url item))
+							 (nick (or (org-social-parser--get-value feed "NICK") "Unknown"))
+							 (title (org-social-parser--get-value feed "TITLE"))
+							 (posts (org-social-parser--get-posts-from-feed feed)))
+						(list
+						 (cons 'id (gensym))
+						 (cons 'nick nick)
+						 (cons 'title title)
+						 (cons 'url url)
+						 (cons 'posts posts))))
+					org-social-variables--queue))
+	  ;; Add own profile
+	  (when org-social-variables--my-profile
+		(setq org-social-variables--feeds (cons org-social-variables--my-profile org-social-variables--feeds)))
+	  (message "All feeds downloaded!")
+	  (run-hooks 'org-social-variables--after-fetch-posts-hook))))
+
+(defun org-social-feed--get-timeline ()
+  "Get all posts from all feeds sorted by date."
+  (let* ((timeline (mapcan (lambda (feed)
+							 (let ((author-id (alist-get 'id feed))
+								   (author-nick (alist-get 'nick feed))
+								   (author-url (alist-get 'url feed))
+								   (posts (alist-get 'posts feed)))
+							   (mapcar (lambda (post)
+										 (list
+										  (cons 'id (alist-get 'id post))
+										  (cons 'author-id author-id)
+										  (cons 'author-nick author-nick)
+										  (cons 'author-url author-url)
+										  (cons 'timestamp (alist-get 'timestamp post))
+										  (cons 'date (alist-get 'date post))
+										  (cons 'text (alist-get 'text post))
+										  (cons 'mood (alist-get 'mood post))
+										  (cons 'lang (alist-get 'lang post))
+										  (cons 'tags (alist-get 'tags post))))
+									   posts)))
+						   org-social-variables--feeds))
+		 (timeline-sorted (sort timeline
+								(lambda (a b)
+								  (> (alist-get 'date a)
+									 (alist-get 'date b))))))
+	timeline-sorted))
+
+(provide 'org-social-feed)
+;;; org-social-feed.el ends here
