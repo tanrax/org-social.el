@@ -284,7 +284,7 @@ Argument FOLLOW-LINE text
 	    ;; Extract properties
 	    (when (re-search-forward ":ID:\\s-*\\(.+\\)" post-end t)
 	      (setq id (match-string 1))
-	      (setq date (date-to-time id)))
+	      (setq date (safe-date-to-time id)))
 
 	    (goto-char post-start)
 	    (when (re-search-forward ":MOOD:\\s-*\\(.+\\)" post-end t)
