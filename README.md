@@ -184,7 +184,6 @@ GPL-3.0 - See LICENSE file for details.
 ### Backlog
 
 - Group integration.
-- Logo.
 - Generate an HTML version of your timeline.
 - News section.
 
