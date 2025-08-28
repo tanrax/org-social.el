@@ -41,22 +41,35 @@
 
 ;; Autoload
 (defconst org-social--root-dir (file-name-directory (or load-file-name buffer-file-name)))
-(add-to-list 'load-path org-social--root-dir)
-(require 'org-social-variables)
-(require 'org-social-parser)
-(require 'org-social-feed)
-(require 'org-social-timeline)
-(require 'org-social-file)
 
 (defgroup org-social nil
   "An Org-social client for Emacs."
   :group 'org
   :prefix "org-social-")
 
+;; Forward declarations to avoid compiler warnings
+(declare-function org-social-file--open "org-social-file" ())
+(declare-function org-social-file--new-post "org-social-file" (reply-url reply-id))
+(declare-function org-social-timeline--display "org-social-timeline" ())
+(declare-function org-social-file--validate "org-social-file" ())
+
+(defun org-social--ensure-loaded ()
+  "Ensure all org-social modules are loaded."
+  (unless (featurep 'org-social-variables)
+    (add-to-list 'load-path org-social--root-dir)
+    (require 'org-social-variables)
+    (require 'org-social-parser)
+    (require 'org-social-feed)
+    (require 'org-social-timeline)
+    (require 'org-social-file)
+    (require 'cl-lib)
+    (require 'seq)))
+
 ;;;###autoload
 (defun org-social-open-file ()
   "Open the Org-social feed file and enable `org-social-mode'."
   (interactive)
+  (org-social--ensure-loaded)
   (org-social-file--open))
 
 ;;;###autoload
@@ -64,24 +77,28 @@
   "Create a new post in your Org-social feed.
 If REPLY-URL and REPLY-ID are provided, create a reply post."
   (interactive)
+  (org-social--ensure-loaded)
   (org-social-file--new-post reply-url reply-id))
 
 ;;;###autoload
 (defun org-social-timeline ()
   "View timeline with posts from all followers."
   (interactive)
+  (org-social--ensure-loaded)
   (org-social-timeline--display))
 
 ;;;###autoload
 (defun org-social-setup ()
   "Set up Org-social for first-time use."
   (interactive)
+  (org-social--ensure-loaded)
   (customize-group 'org-social))
 
 ;;;###autoload
 (defun org-social-validate-file ()
   "Validate the current Org-social file structure."
   (interactive)
+  (org-social--ensure-loaded)
   (org-social-file--validate))
 
 (provide 'org-social)
