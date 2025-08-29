@@ -31,6 +31,8 @@
 
 (require 'org-social-variables)
 (require 'org-social-feed)
+(require 'org-social-notifications)
+(require 'org-social-parser)
 (require 'org)
 
 ;; Timeline mode definition
@@ -42,6 +44,8 @@
   :group 'org-social
   (when org-social-timeline-mode
 	(setq buffer-read-only t)
+	;; Allow following links even in read-only buffer
+	(setq-local org-return-follows-link t)
 	(message "Org-social timeline mode enabled. Press 'r' to reply, 'n/p' to navigate, 'g' to refresh, 'q' to quit.")))
 
 (defun org-social-timeline--goto-post-content ()
@@ -162,6 +166,10 @@
 		(erase-buffer)
 		(org-mode)
 		(insert "#+TITLE: Org Social Timeline\n\n")
+
+		;; Add notifications section
+		(org-social-notifications--render-section timeline)
+
 		(insert "* Timeline\n\n")
 
 		(dolist (post timeline)
@@ -169,17 +177,15 @@
 				(author-url (alist-get 'author-url post))
 				(timestamp (alist-get 'timestamp post))
 				(text (alist-get 'text post))
-				(mood (alist-get 'mood post))
-				(lang (alist-get 'lang post))
-				(tags (alist-get 'tags post))
 				(my-nick (alist-get 'nick org-social-variables--my-profile)))
 
 			;; Post header with only author name
 			(insert (format "** %s\n" (or author "Unknown")))
 
-			;; Properties section with all available properties
+			;; Properties section
 			(insert ":PROPERTIES:\n")
 			(insert (format ":ID: %s\n" timestamp))
+			(insert (format ":CUSTOM_ID: %s\n" timestamp))
 
 			;; Add URL property for author only if it's not my own post
 			(when (and author-url
@@ -187,17 +193,35 @@
 					   (not (string= author my-nick)))
 			  (insert (format ":URL: %s\n" author-url)))
 
-			;; Add language if present
-			(when (and lang (not (string-empty-p lang)))
-			  (insert (format ":LANG: %s\n" lang)))
-
-			;; Add tags if present
-			(when (and tags (not (string-empty-p tags)))
-			  (insert (format ":TAGS: %s\n" tags)))
-
-			;; Add mood if present
-			(when (and mood (not (string-empty-p mood)))
-			  (insert (format ":MOOD: %s\n" mood)))
+			;; Add all other properties from the post, with strict validation
+			(dolist (prop post)
+			  (let ((key (car prop))
+					(value (cdr prop)))
+				(when (and value
+						   (stringp value)
+						   (not (string-empty-p value))
+						   ;; More specific validation patterns
+						   (not (string-match-p "^:END:$" value))
+						   (not (string-match-p "^:TAGS:" value))
+						   (not (string-match-p "^:CLIENT:" value))
+						   (not (string-match-p "^:REPLY_TO:" value))
+						   (not (string-match-p "^=$" value))
+						   (not (string-match-p "^:$" value))
+						   (not (string= value "e")) ; Single letter artifacts
+						   (not (string-match-p "^#" value))
+						   ;; Reject values that contain property-like patterns
+						   (not (string-match-p ":" value))
+						   (not (memq key '(id author-nick author-url timestamp text date author-id))))
+				  (let ((prop-name (upcase (symbol-name key))))
+					;; Convert property names for consistency
+					(setq prop-name
+						  (cond
+						   ((string= prop-name "REPLY-TO") "REPLY_TO")
+						   ((string= prop-name "POLL-END") "POLL_END")
+						   ((string= prop-name "POLL-OPTION") "POLL_OPTION")
+						   ((string= prop-name "CONTENT-WARNING") "CONTENT_WARNING")
+						   (t prop-name)))
+					(insert (format ":%s: %s\n" prop-name value))))))
 
 			(insert ":END:\n\n")
 

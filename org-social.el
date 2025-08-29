@@ -56,14 +56,15 @@
 (defun org-social--ensure-loaded ()
   "Ensure all org-social modules are loaded."
   (unless (featurep 'org-social-variables)
-    (add-to-list 'load-path org-social--root-dir)
-    (require 'org-social-variables)
-    (require 'org-social-parser)
-    (require 'org-social-feed)
-    (require 'org-social-timeline)
-    (require 'org-social-file)
-    (require 'cl-lib)
-    (require 'seq)))
+	(add-to-list 'load-path org-social--root-dir)
+	(require 'org-social-variables)
+	(require 'org-social-parser)
+	(require 'org-social-feed)
+	(require 'org-social-notifications)
+	(require 'org-social-timeline)
+	(require 'org-social-file)
+	(require 'cl-lib)
+	(require 'seq)))
 
 ;;;###autoload
 (defun org-social-open-file ()

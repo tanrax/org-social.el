@@ -81,6 +81,24 @@ Argument FOLLOW-LINE text."
 		 (cons 'follow (mapcar #'org-social-parser--parse-follow (delq nil follows-list)))
 		 (cons 'posts (org-social-parser--get-posts-from-feed feed)))))))
 
+(defun org-social-parser--extract-property (text prop-name)
+  "Extract a property value from TEXT.
+PROP-NAME should be the property name without colons."
+  (when (string-match (format ":%s:\\s-*\\([^\n]+\\)" (regexp-quote prop-name)) text)
+	(let ((value (string-trim (match-string 1 text))))
+	  ;; Filter out problematic values but allow long timestamps
+	  (when (and (not (string-empty-p value))
+				 (not (string-match-p "^:END:$" value))
+				 (not (string-match-p "^:TAGS:$" value))
+				 (not (string-match-p "^:CLIENT:$" value))
+				 (not (string-match-p "^#" value))
+				 (> (length value) 0)
+				 ;; Allow longer values for timestamps and other valid content
+				 (or (string= prop-name "ID")
+					 (string= prop-name "REPLY_TO")
+					 (< (length value) 100))) ; More reasonable limit
+		value))))
+
 (defun org-social-parser--get-posts-from-feed (feed)
   "Extract posts from an Org-social FEED."
   (let ((posts nil))
@@ -90,7 +108,7 @@ Argument FOLLOW-LINE text."
 	  (when (re-search-forward "^\\* Posts" nil t)
 		(while (re-search-forward "^\\*\\*" nil t)
 		  (let ((post-start (point))
-				post-end id text date mood lang tags)
+				post-end id text date properties-text)
 			;; Find the end of this post (next ** or end of buffer)
 			(if (re-search-forward "^\\*\\*" nil t)
 				(progn
@@ -100,22 +118,15 @@ Argument FOLLOW-LINE text."
 			  (setq post-end (point-max))
 			  (goto-char post-start))
 
-			;; Extract properties
-			(when (re-search-forward ":ID:\\s-*\\(.+\\)" post-end t)
-			  (setq id (match-string 1))
-			  (setq date (date-to-time id)))
+			;; Extract the full properties section
+			(when (re-search-forward ":PROPERTIES:" post-end t)
+			  (let ((prop-start (point)))
+				(when (re-search-forward ":END:" post-end t)
+				  (setq properties-text (buffer-substring-no-properties prop-start (point))))))
 
-			(goto-char post-start)
-			(when (re-search-forward ":MOOD:\\s-*\\(.+\\)" post-end t)
-			  (setq mood (string-trim (match-string 1))))
-
-			(goto-char post-start)
-			(when (re-search-forward ":LANG:\\s-*\\(.+\\)" post-end t)
-			  (setq lang (string-trim (match-string 1))))
-
-			(goto-char post-start)
-			(when (re-search-forward ":TAGS:\\s-*\\(.+\\)" post-end t)
-			  (setq tags (string-trim (match-string 1))))
+			;; Extract basic required properties
+			(setq id (org-social-parser--extract-property properties-text "ID"))
+			(when id (setq date (date-to-time id)))
 
 			;; Extract text content (after :END:)
 			(goto-char post-start)
@@ -125,15 +136,22 @@ Argument FOLLOW-LINE text."
 						  (buffer-substring-no-properties (point) post-end))))
 
 			;; Add post if we have required data
-			(when (and id text date)
-			  (setq posts (cons (list
-								 (cons 'id (gensym))
-								 (cons 'timestamp id)
-								 (cons 'date (float-time date))
-								 (cons 'text text)
-								 (cons 'mood mood)
-								 (cons 'lang lang)
-								 (cons 'tags tags)) posts)))
+			(when (and id text date properties-text)
+			  (let ((post-data (list
+								(cons 'id (gensym))
+								(cons 'timestamp id)
+								(cons 'date (float-time date))
+								(cons 'text text))))
+
+				;; Extract all possible properties
+				(dolist (prop '("LANG" "TAGS" "CLIENT" "REPLY_TO" "POLL_END"
+							   "POLL_OPTION" "MOOD" "TITLE" "CATEGORY"
+							   "URL" "CONTENT_WARNING"))
+				  (let ((value (org-social-parser--extract-property properties-text prop)))
+					(when value
+					  (setq post-data (cons (cons (intern (downcase prop)) value) post-data)))))
+
+				(setq posts (cons post-data posts))))
 
 			;; Move to the post we found (if any)
 			(when (< (point) post-end)
