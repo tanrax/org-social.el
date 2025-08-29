@@ -116,14 +116,14 @@
 			(setq post-end (point)))
 		(setq post-end (point-max)))
 
-	  ;; Extract ID and author information from properties
+	  ;; Extract ID from properties
 	  (goto-char post-start)
 	  (when (re-search-forward ":ID:\\s-*\\(.+\\)" post-end t)
 		(setq timestamp (match-string 1)))
 
-	  ;; Get author URL from the post header comment
+	  ;; Get author URL from the :URL: property
 	  (goto-char post-start)
-	  (when (re-search-forward "# Author URL: \\(.+\\)" post-end t)
+	  (when (re-search-forward ":URL:\\s-*\\(.+\\)" post-end t)
 		(setq author-url (match-string 1)))
 
 	  ;; Return post information
@@ -170,26 +170,38 @@
 				(timestamp (alist-get 'timestamp post))
 				(text (alist-get 'text post))
 				(mood (alist-get 'mood post))
-				(tags (alist-get 'tags post)))
+				(lang (alist-get 'lang post))
+				(tags (alist-get 'tags post))
+				(my-nick (alist-get 'nick org-social-variables--my-profile)))
 
-			;; Post header with metadata
-			(insert (format "** %s" (or author "Unknown")))
+			;; Post header with only author name
+			(insert (format "** %s\n" (or author "Unknown")))
 
-			;; Add mood if present
-			(when (and mood (not (string-empty-p mood)))
-			  (insert (format " %s" mood)))
+			;; Properties section with all available properties
+			(insert ":PROPERTIES:\n")
+			(insert (format ":ID: %s\n" timestamp))
+
+			;; Add URL property for author only if it's not my own post
+			(when (and author-url
+					   (not (string-empty-p author-url))
+					   (not (string= author my-nick)))
+			  (insert (format ":URL: %s\n" author-url)))
+
+			;; Add language if present
+			(when (and lang (not (string-empty-p lang)))
+			  (insert (format ":LANG: %s\n" lang)))
 
 			;; Add tags if present
 			(when (and tags (not (string-empty-p tags)))
-			  (insert (format " #%s" (replace-regexp-in-string " " " #" tags))))
+			  (insert (format ":TAGS: %s\n" tags)))
 
-			(insert "\n")
+			;; Add mood if present
+			(when (and mood (not (string-empty-p mood)))
+			  (insert (format ":MOOD: %s\n" mood)))
 
-			(insert ":PROPERTIES:\n")
-			(insert (format ":ID: %s\n" timestamp))
-			(insert ":END:\n")
-			;; Add a comment with author URL for reply functionality
-			(insert (format "# Author URL: %s\n\n" (or author-url "unknown")))
+			(insert ":END:\n\n")
+
+			;; Post content
 			(insert (format "%s\n\n" text))))
 
 		(goto-char (point-min))
