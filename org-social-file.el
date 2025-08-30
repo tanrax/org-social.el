@@ -43,47 +43,47 @@
   :keymap org-social-variables--mode-map
   :group 'org-social
   (if org-social-mode
-	  (progn
-		(org-mode)
-		(message "Org-social mode enabled"))
-	(message "Org-social mode disabled")))
+      (progn
+	(org-mode)
+	(message "Org-social mode enabled"))
+    (message "Org-social mode disabled")))
 
 (defun org-social-file--save ()
   "Save the current Org-social file and run associated hooks."
   (interactive)
   (when (and (buffer-file-name)
-			 (string= (expand-file-name (buffer-file-name))
-					  (expand-file-name org-social-file)))
-	(save-buffer)
-	(run-hooks 'org-social-variables--after-save-file-hook)))
+	     (string= (expand-file-name (buffer-file-name))
+		      (expand-file-name org-social-file)))
+    (save-buffer)
+    (run-hooks 'org-social-variables--after-save-file-hook)))
 
 (defun org-social-file--find-posts-section ()
   "Find or create the Posts section in the current buffer."
   (goto-char (point-min))
   (if (re-search-forward "^\\* Posts" nil t)
-	  (progn
-		(end-of-line)
-		(point))
-	;; If Posts section doesn't exist, create it at the end
-	(goto-char (point-max))
-	(unless (bolp) (insert "\n"))
-	(insert "\n* Posts")
-	(point)))
+      (progn
+	(end-of-line)
+	(point))
+    ;; If Posts section doesn't exist, create it at the end
+    (goto-char (point-max))
+    (unless (bolp) (insert "\n"))
+    (insert "\n* Posts")
+    (point)))
 
 (defun org-social-file--insert-post-template (&optional reply-url reply-id)
   "Insert a new post template at the current position.
 If REPLY-URL and REPLY-ID are provided, create a reply post."
   (let ((timestamp (org-social-parser--generate-timestamp)))
-	(insert "\n**\n:PROPERTIES:\n")
-	(insert (format ":ID: %s\n" timestamp))
-	(insert ":LANG: \n")
-	(insert ":TAGS: \n")
-	(insert ":CLIENT: org-social.el\n")
-	(when (and reply-url reply-id)
-	  (insert (format ":REPLY_TO: %s#%s\n" reply-url reply-id)))
-	(insert ":MOOD: \n")
-	(insert ":END:\n\n")
-	(goto-char (point-max))))
+    (insert "\n**\n:PROPERTIES:\n")
+    (insert (format ":ID: %s\n" timestamp))
+    (insert ":LANG: \n")
+    (insert ":TAGS: \n")
+    (insert ":CLIENT: org-social.el\n")
+    (when (and reply-url reply-id)
+      (insert (format ":REPLY_TO: %s#%s\n" reply-url reply-id)))
+    (insert ":MOOD: \n")
+    (insert ":END:\n\n")
+    (goto-char (point-max))))
 
 (defun org-social-file--create-new-feed-file ()
   "Create a new Org-social feed file with basic template."
@@ -102,47 +102,47 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
 (defun org-social-file--open ()
   "Open the Org-social feed file and enable `org-social-mode'."
   (if (file-exists-p org-social-file)
-	  (progn
-		(find-file org-social-file)
-		(org-social-mode 1)
-		(goto-char (point-max)))
-	(when (y-or-n-p (format "File %s doesn't exist. Create it? " org-social-file))
-	  (org-social-file--create-new-feed-file))))
+      (progn
+	(find-file org-social-file)
+	(org-social-mode 1)
+	(goto-char (point-max)))
+    (when (y-or-n-p (format "File %s doesn't exist. Create it? " org-social-file))
+      (org-social-file--create-new-feed-file))))
 
 (defun org-social-file--new-post (&optional reply-url reply-id)
   "Create a new post in your Org-social feed.
 If REPLY-URL and REPLY-ID are provided, create a reply post."
   (unless (and (buffer-file-name)
-			   (string= (expand-file-name (buffer-file-name))
-						(expand-file-name org-social-file)))
-	(org-social-file--open))
+	       (string= (expand-file-name (buffer-file-name))
+			(expand-file-name org-social-file)))
+    (org-social-file--open))
   (save-excursion
-	(org-social-file--find-posts-section)
-	(goto-char (point-max))
-	(org-social-file--insert-post-template reply-url reply-id))
+    (org-social-file--find-posts-section)
+    (goto-char (point-max))
+    (org-social-file--insert-post-template reply-url reply-id))
   (goto-char (point-max)))
 
 (defun org-social-file--validate ()
   "Validate the current Org-social file structure."
   (save-excursion
-	(goto-char (point-min))
-	(let ((errors '())
-		  (has-title (re-search-forward "^#\\+TITLE:" nil t))
-		  (has-nick (progn (goto-char (point-min))
-						   (re-search-forward "^#\\+NICK:" nil t)))
-		  (has-posts (progn (goto-char (point-min))
-							(re-search-forward "^\\* Posts" nil t))))
+    (goto-char (point-min))
+    (let ((errors '())
+	  (has-title (re-search-forward "^#\\+TITLE:" nil t))
+	  (has-nick (progn (goto-char (point-min))
+			   (re-search-forward "^#\\+NICK:" nil t)))
+	  (has-posts (progn (goto-char (point-min))
+			    (re-search-forward "^\\* Posts" nil t))))
 
-	  (unless has-title
-		(push "Missing #+TITLE field" errors))
-	  (unless has-nick
-		(push "Missing #+NICK field" errors))
-	  (unless has-posts
-		(push "Missing * Posts section" errors))
+      (unless has-title
+	(push "Missing #+TITLE field" errors))
+      (unless has-nick
+	(push "Missing #+NICK field" errors))
+      (unless has-posts
+	(push "Missing * Posts section" errors))
 
-	  (if errors
-		  (message "Validation errors: %s" (string-join errors " "))
-		(message "Org-social file structure is valid!")))))
+      (if errors
+	  (message "Validation errors: %s" (string-join errors " "))
+	(message "Org-social file structure is valid!")))))
 
 ;; Mention functionality
 
@@ -150,31 +150,31 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
   "Get a list of followed users from the current profile.
 Returns a list of cons cells (NICK . URL)."
   (let ((my-profile (org-social-parser--get-my-profile)))
-	(when my-profile
-	  (let ((follows (alist-get 'follow my-profile)))
-		(when follows
-		  (mapcar (lambda (follow)
-			(let ((name (alist-get 'name follow))
-				  (url (alist-get 'url follow)))
-			  ;; If name is nil, try to extract nick from the URL's feed
-			  (if (and name (not (string-empty-p name)))
-				  (cons name url)
-				(cons (or (org-social-file--extract-nick-from-url url)
-						  (file-name-base url)
-						  "Unknown") url))))
-			follows))))))
+    (when my-profile
+      (let ((follows (alist-get 'follow my-profile)))
+	(when follows
+	  (mapcar (lambda (follow)
+		    (let ((name (alist-get 'name follow))
+			  (url (alist-get 'url follow)))
+		      ;; If name is nil, try to extract nick from the URL's feed
+		      (if (and name (not (string-empty-p name)))
+			  (cons name url)
+			(cons (or (org-social-file--extract-nick-from-url url)
+				  (file-name-base url)
+				  "Unknown") url))))
+		  follows))))))
 
 (defun org-social-file--extract-nick-from-url (url)
   "Try to extract nick from a social.org URL by fetching it.
 This is a synchronous operation and might be slow.
 Returns nil if extraction fails."
   (condition-case nil
-	(with-temp-buffer
-	  (url-insert-file-contents url)
-	  (goto-char (point-min))
-	  (when (re-search-forward "^#\\+NICK:\\s-*\\(.+\\)$" nil t)
-		(string-trim (match-string 1))))
-	(error nil)))
+      (with-temp-buffer
+	(url-insert-file-contents url)
+	(goto-char (point-min))
+	(when (re-search-forward "^#\\+NICK:\\s-*\\(.+\\)$" nil t)
+	  (string-trim (match-string 1))))
+    (error nil)))
 
 (defun org-social-file--insert-mention (nick url)
   "Insert a mention link at point.
@@ -185,19 +185,19 @@ NICK is the user's nickname and URL is their social.org URL."
   "Prompt for a followed user and insert a mention at point."
   (interactive)
   (let ((followed-users (org-social-file--get-followed-users)))
-	(if followed-users
-		(let* ((user-alist (mapcar (lambda (user)
-								 (cons (car user) user))
-							   followed-users))
-			   (selected-nick (completing-read "Mention user: "
-											   (mapcar #'car user-alist)
-											   nil t))
-			   (selected-user (cdr (assoc selected-nick user-alist))))
-		  (when selected-user
-			(org-social-file--insert-mention (car selected-user)
-											  (cdr selected-user))
-			(message "Mentioned user: %s" (car selected-user))))
-	  (message "No followed users found. Add users to your #+FOLLOW: list first."))))
+    (if followed-users
+	(let* ((user-alist (mapcar (lambda (user)
+				     (cons (car user) user))
+				   followed-users))
+	       (selected-nick (completing-read "Mention user: "
+					       (mapcar #'car user-alist)
+					       nil t))
+	       (selected-user (cdr (assoc selected-nick user-alist))))
+	  (when selected-user
+	    (org-social-file--insert-mention (car selected-user)
+					     (cdr selected-user))
+	    (message "Mentioned user: %s" (car selected-user))))
+      (message "No followed users found. Add users to your #+FOLLOW: list first."))))
 
 ;; Interactive functions with proper naming
 (defalias 'org-social-save-file 'org-social-file--save)

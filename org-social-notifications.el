@@ -32,88 +32,91 @@
 (require 'org-social-variables)
 
 (defun org-social-notifications--find-mentions (timeline)
-  "Find all posts that mention the current user."
+  "Find all posts that mention the current user.
+Argument TIMELINE is the list posts."
   (let ((my-nick (alist-get 'nick org-social-variables--my-profile))
-		(mentions '()))
-	(when my-nick
-	  (dolist (post timeline)
-		(let ((text (alist-get 'text post))
-			  (author (alist-get 'author-nick post))
-			  (author-url (alist-get 'author-url post))
-			  (timestamp (alist-get 'timestamp post)))
-		  (when (and text
-					 (not (string= author my-nick)) ; Don't include own posts
-					 (string-match (format "\\[\\[org-social:[^]]+\\]\\[%s\\]\\]" (regexp-quote my-nick)) text))
-			(push (list
-				   (cons 'type 'mention)
-				   (cons 'author author)
-				   (cons 'author-url author-url)
-				   (cons 'timestamp timestamp)
-				   (cons 'text text)) mentions)))))
-	(reverse mentions)))
+	(mentions '()))
+    (when my-nick
+      (dolist (post timeline)
+	(let ((text (alist-get 'text post))
+	      (author (alist-get 'author-nick post))
+	      (author-url (alist-get 'author-url post))
+	      (timestamp (alist-get 'timestamp post)))
+	  (when (and text
+		     (not (string= author my-nick)) ; Don't include own posts
+		     (string-match (format "\\[\\[org-social:[^]]+\\]\\[%s\\]\\]" (regexp-quote my-nick)) text))
+	    (push (list
+		   (cons 'type 'mention)
+		   (cons 'author author)
+		   (cons 'author-url author-url)
+		   (cons 'timestamp timestamp)
+		   (cons 'text text)) mentions)))))
+    (reverse mentions)))
 
 (defun org-social-notifications--find-replies (timeline)
-  "Find all posts that reply to the current user's posts."
+  "Find all posts that reply to the current user's posts.
+Argument TIMELINE is the list posts."
   (let ((my-url (alist-get 'url org-social-variables--my-profile))
-		(my-nick (alist-get 'nick org-social-variables--my-profile))
-		(replies '()))
-	(when my-url
-	  (dolist (post timeline)
-		(let ((reply-to (alist-get 'reply_to post))
-			  (author (alist-get 'author-nick post))
-			  (author-url (alist-get 'author-url post))
-			  (timestamp (alist-get 'timestamp post))
-			  (text (alist-get 'text post)))
-		  (when (and reply-to
-					 (not (string= author my-nick)) ; Don't include own posts
-					 (string-match-p (regexp-quote my-url) reply-to))
-			(push (list
-				   (cons 'type 'reply)
-				   (cons 'author author)
-				   (cons 'author-url author-url)
-				   (cons 'timestamp timestamp)
-				   (cons 'reply-to reply-to)
-				   (cons 'text text)) replies)))))
-	(reverse replies)))
+	(my-nick (alist-get 'nick org-social-variables--my-profile))
+	(replies '()))
+    (when my-url
+      (dolist (post timeline)
+	(let ((reply-to (alist-get 'reply_to post))
+	      (author (alist-get 'author-nick post))
+	      (author-url (alist-get 'author-url post))
+	      (timestamp (alist-get 'timestamp post))
+	      (text (alist-get 'text post)))
+	  (when (and reply-to
+		     (not (string= author my-nick)) ; Don't include own posts
+		     (string-match-p (regexp-quote my-url) reply-to))
+	    (push (list
+		   (cons 'type 'reply)
+		   (cons 'author author)
+		   (cons 'author-url author-url)
+		   (cons 'timestamp timestamp)
+		   (cons 'reply-to reply-to)
+		   (cons 'text text)) replies)))))
+    (reverse replies)))
 
 (defun org-social-notifications--render-all-notifications (notifications)
-  "Render all notifications in a single list sorted by date."
+  "Render all NOTIFICATIONS in a single list sorted by date."
   (if notifications
-	  (progn
-		(dolist (notification notifications)
-		  (let ((author (alist-get 'author notification))
-				(timestamp (alist-get 'timestamp notification))
-				(type (alist-get 'type notification)))
-			(cond
-			 ((eq type 'mention)
-			  (insert (format "- [[#%s][%s mentioned you]]\n" timestamp author)))
-			 ((eq type 'reply)
-			  (insert (format "- [[#%s][%s replied to your post]]\n" timestamp author)))))))
-	(insert "No new notifications.\n")))
+      (progn
+	(dolist (notification notifications)
+	  (let ((author (alist-get 'author notification))
+		(timestamp (alist-get 'timestamp notification))
+		(type (alist-get 'type notification)))
+	    (cond
+	     ((eq type 'mention)
+	      (insert (format "- [[#%s][%s mentioned you]]\n" timestamp author)))
+	     ((eq type 'reply)
+	      (insert (format "- [[#%s][%s replied to your post]]\n" timestamp author)))))))
+    (insert "No new notifications.\n")))
 
 (defun org-social-notifications--render-section (timeline)
-  "Render the complete notifications section."
+  "Render the complete notifications section.
+Argument TIMELINE is the list posts."
   (let* ((mentions (org-social-notifications--find-mentions timeline))
-		 (replies (org-social-notifications--find-replies timeline))
-		 (all-notifications (append mentions replies))
-		 ;; Sort by date (most recent first)
-		 (sorted-notifications (sort all-notifications
-									 (lambda (a b)
-									   (let ((date-a (alist-get 'date a))
-											 (date-b (alist-get 'date b)))
-										 ;; If dates are not available, use timestamp parsing
-										 (unless date-a
-										   (setq date-a (date-to-time (alist-get 'timestamp a))))
-										 (unless date-b
-										   (setq date-b (date-to-time (alist-get 'timestamp b))))
-										 (time-less-p date-b date-a))))) ; b < a for descending order
-		 (total-count (length all-notifications)))
-	(insert (format "* (%d) Notifications\n" total-count))
-	(insert ":PROPERTIES:\n")
-	(insert ":VISIBILITY: folded\n")
-	(insert ":END:\n\n")
-	(org-social-notifications--render-all-notifications sorted-notifications)
-	(insert "\n")))
+	 (replies (org-social-notifications--find-replies timeline))
+	 (all-notifications (append mentions replies))
+	 ;; Sort by date (most recent first)
+	 (sorted-notifications (sort all-notifications
+				     (lambda (a b)
+				       (let ((date-a (alist-get 'date a))
+					     (date-b (alist-get 'date b)))
+					 ;; If dates are not available, use timestamp parsing
+					 (unless date-a
+					   (setq date-a (date-to-time (alist-get 'timestamp a))))
+					 (unless date-b
+					   (setq date-b (date-to-time (alist-get 'timestamp b))))
+					 (time-less-p date-b date-a))))) ; b < a for descending order
+	 (total-count (length all-notifications)))
+    (insert (format "* (%d) Notifications\n" total-count))
+    (insert ":PROPERTIES:\n")
+    (insert ":VISIBILITY: folded\n")
+    (insert ":END:\n\n")
+    (org-social-notifications--render-all-notifications sorted-notifications)
+    (insert "\n")))
 
 (provide 'org-social-notifications)
 ;;; org-social-notifications.el ends here
