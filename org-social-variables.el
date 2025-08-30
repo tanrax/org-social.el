@@ -62,6 +62,7 @@
 		(define-key map (kbd "C-c C-n") 'org-social-new-post)
 		(define-key map (kbd "C-c C-t") 'org-social-timeline)
 		(define-key map (kbd "C-c C-c") 'org-social-save-file)
+		(define-key map (kbd "C-c C-m") 'org-social-mention-user)
 		map)
 	"Keymap for `org-social-mode'.")
 

@@ -33,6 +33,7 @@
 (require 'org-social-parser)
 (require 'org)
 (require 'org-id)
+(require 'url)
 
 ;; Minor mode definition
 
@@ -143,8 +144,64 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
 		  (message "Validation errors: %s" (string-join errors " "))
 		(message "Org-social file structure is valid!")))))
 
+;; Mention functionality
+
+(defun org-social-file--get-followed-users ()
+  "Get a list of followed users from the current profile.
+Returns a list of cons cells (NICK . URL)."
+  (let ((my-profile (org-social-parser--get-my-profile)))
+	(when my-profile
+	  (let ((follows (alist-get 'follow my-profile)))
+		(when follows
+		  (mapcar (lambda (follow)
+			(let ((name (alist-get 'name follow))
+				  (url (alist-get 'url follow)))
+			  ;; If name is nil, try to extract nick from the URL's feed
+			  (if (and name (not (string-empty-p name)))
+				  (cons name url)
+				(cons (or (org-social-file--extract-nick-from-url url)
+						  (file-name-base url)
+						  "Unknown") url))))
+			follows))))))
+
+(defun org-social-file--extract-nick-from-url (url)
+  "Try to extract nick from a social.org URL by fetching it.
+This is a synchronous operation and might be slow.
+Returns nil if extraction fails."
+  (condition-case nil
+	(with-temp-buffer
+	  (url-insert-file-contents url)
+	  (goto-char (point-min))
+	  (when (re-search-forward "^#\\+NICK:\\s-*\\(.+\\)$" nil t)
+		(string-trim (match-string 1))))
+	(error nil)))
+
+(defun org-social-file--insert-mention (nick url)
+  "Insert a mention link at point.
+NICK is the user's nickname and URL is their social.org URL."
+  (insert (format "[[org-social:%s][%s]]" url nick)))
+
+(defun org-social-file--mention-user ()
+  "Prompt for a followed user and insert a mention at point."
+  (interactive)
+  (let ((followed-users (org-social-file--get-followed-users)))
+	(if followed-users
+		(let* ((user-alist (mapcar (lambda (user)
+								 (cons (car user) user))
+							   followed-users))
+			   (selected-nick (completing-read "Mention user: "
+											   (mapcar #'car user-alist)
+											   nil t))
+			   (selected-user (cdr (assoc selected-nick user-alist))))
+		  (when selected-user
+			(org-social-file--insert-mention (car selected-user)
+											  (cdr selected-user))
+			(message "Mentioned user: %s" (car selected-user))))
+	  (message "No followed users found. Add users to your #+FOLLOW: list first."))))
+
 ;; Interactive functions with proper naming
 (defalias 'org-social-save-file 'org-social-file--save)
+(defalias 'org-social-mention-user 'org-social-file--mention-user)
 
 (provide 'org-social-file)
 ;;; org-social-file.el ends here

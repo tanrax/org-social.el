@@ -63,6 +63,10 @@ Downloads feeds from people you follow and displays a unified timeline with enha
 
 Make a new post in your social feed.
 
+### `org-social-mention-user`
+
+Insert a mention of a user in your post.
+
 ### `org-social-validate-file`
 
 Verifies that your file has the correct structure.
@@ -80,6 +84,7 @@ Creates a reply to a post in the timeline (available when viewing the timeline).
 | `C-c C-n`  | `org-social-new-post` | Create a new post |
 | `C-c C-t`  | `org-social-timeline` | Download and display the timeline |
 | `C-c C-c`  | `org-social-save-file` | Save the social file and run any hooks |
+| `C-c C-m`  | `org-social-mention-user` | Insert a mention of a user |
 
 ### In the timeline buffer
 
@@ -170,6 +175,7 @@ GPL-3.0 - See LICENSE file for details.
 
 - Input to make polls.
 - Display the voting results.
+- Notifications: Add poll results
 
 ## 1.5
 
