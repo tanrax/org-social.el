@@ -164,13 +164,6 @@ GPL-3.0 - See LICENSE file for details.
 
 - Add to MELPA.
 
-## 1.3
-
-- Split code into small files.
-- Notifications section.
-- Function to adding mentions.
-- Improved format for mentions.
-
 ## 1.4
 
 - Input to make polls.
@@ -194,6 +187,13 @@ GPL-3.0 - See LICENSE file for details.
 - News section.
 
 # Changelog
+
+## 1.3
+
+- Split code into small files.
+- Notifications section.
+- Function to adding mentions.
+- Improved format for mentions.
 
 ## 1.2
 
