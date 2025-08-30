@@ -96,34 +96,6 @@ Creates a reply to a post in the timeline (available when viewing the timeline).
 | `g`        | `org-social-timeline-refresh` | Refresh the timeline |
 | `q`        | `quit-window` | Close the timeline buffer |
 
-## Timeline Features
-
-The timeline displays posts with rich metadata:
-
-- **Author name** with mood emoji (if present)
-- **Language** indicator in brackets `[en]`, `[es]`, etc.
-- **Tags** with hashtag format `#programming #social`
-- **Easy navigation** between posts with `n` and `p`
-- **Quick replies** with `r` key
-- **Content positioning** - navigation moves cursor to post content, not headers
-
-Example timeline view:
-```
-** Alice 😊 [es] #programming #social
-:PROPERTIES:
-:ID: 2025-01-15T14:30:00+0100
-:END:
-
-¡Hola! Este es mi primer post en español sobre programación.
-
-** Bob 🤔 [en] #question #help
-:PROPERTIES:
-:ID: 2025-01-15T13:20:00+0100
-:END:
-
-Does anyone know how to configure Emacs for org-social?
-```
-
 ## Hooks
 
 You can use the following hooks to perform additional actions automatically:
@@ -216,3 +188,7 @@ Initial release with basic functionality:
 - Creating new posts
 - Validating file structure
 - Basic keybindings
+
+## Contributing
+
+Feel free to fork the repository and submit pull requests to the *develop* branch.
