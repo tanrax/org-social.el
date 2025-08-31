@@ -35,6 +35,22 @@
 (require 'org-social-parser)
 (require 'org)
 
+;; Define custom link type for replies
+(defun org-social-timeline--setup-reply-links ()
+  "Setup custom org-social-reply link type."
+  (org-link-set-parameters
+   "org-social-reply"
+   :follow (lambda (path)
+	     (let ((parts (split-string path "|")))
+	       (when (= (length parts) 2)
+		 (org-social-timeline--reply-to-specific-post (car parts) (cadr parts)))))
+   :export (lambda (path desc backend)
+	     desc)))
+
+;; Initialize reply links when module loads
+(eval-after-load 'org
+  '(org-social-timeline--setup-reply-links))
+
 ;; Timeline mode definition
 
 (define-minor-mode org-social-timeline-mode
@@ -45,8 +61,7 @@
   (when org-social-timeline-mode
     (setq buffer-read-only t)
     ;; Allow following links even in read-only buffer
-    (setq-local org-return-follows-link t)
-    (message "Org-social timeline mode enabled. Press 'r' to reply, 'n/p' to navigate, 'g' to refresh, 'q' to quit.")))
+    (setq-local org-return-follows-link t)))
 
 (defun org-social-timeline--goto-post-content ()
   "Move to the beginning of the post content (after properties)."
@@ -147,6 +162,11 @@
 	  (message "Reply created! Write your response and save the file."))
       (message "No post found at current position."))))
 
+(defun org-social-timeline--reply-to-specific-post (author-url timestamp)
+  "Reply to a specific post identified by AUTHOR-URL and TIMESTAMP."
+  (org-social-file--new-post author-url timestamp)
+  (message "Reply created! Write your response and save the file."))
+
 (defun org-social-timeline--refresh ()
   "Refresh the timeline by fetching new posts."
   (interactive)
@@ -166,7 +186,9 @@
 	(erase-buffer)
 	(org-mode)
 	(insert "#+TITLE: Org Social Timeline\n\n")
-
+	(insert "# Navigation: (n) Next | (p) Previous\n")
+	(insert "# Post: (c) New | (r) Reply\n")
+	(insert "# Actions: (g) Refresh timeline | (q) Quit\n\n")
 	;; Add notifications section
 	(org-social-notifications--render-section timeline)
 
@@ -226,7 +248,16 @@
 	    (insert ":END:\n\n")
 
 	    ;; Post content
-	    (insert (format "%s\n\n" text))))
+	    (insert (format "%s\n\n" text))
+
+	    ;; Add Reply button only if it's not my own post
+	    (when (and author-url
+		       (not (string-empty-p author-url))
+		       (not (string= author my-nick)))
+	      (insert (format "[[org-social-reply:%s|%s][Reply]]\n"
+			       author-url timestamp)))
+
+	    (insert "\n")))
 
 	(goto-char (point-min))
 	(org-social-timeline-mode 1))

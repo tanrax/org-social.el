@@ -59,10 +59,10 @@
 
 (defvar org-social-variables--mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c C-n") 'org-social-new-post)
-    (define-key map (kbd "C-c C-t") 'org-social-timeline)
-    (define-key map (kbd "C-c C-c") 'org-social-save-file)
-    (define-key map (kbd "C-c C-m") 'org-social-mention-user)
+    (define-key map (kbd "C-c C-n") #'org-social-new-post)
+    (define-key map (kbd "C-c C-t") #'org-social-timeline)
+    (define-key map (kbd "C-c C-c") #'org-social-save-file)
+    (define-key map (kbd "C-c C-m") #'org-social-mention-user)
     map)
   "Keymap for `org-social-mode'.")
 
@@ -70,11 +70,12 @@
 
 (defvar org-social-variables--timeline-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "r") 'org-social-reply-to-post)
-    (define-key map (kbd "n") 'org-social-next-post)
-    (define-key map (kbd "p") 'org-social-previous-post)
-    (define-key map (kbd "q") 'quit-window)
-    (define-key map (kbd "g") 'org-social-timeline-refresh)
+    (define-key map (kbd "c") #'org-social-new-post)
+    (define-key map (kbd "r") #'org-social-reply-to-post)
+    (define-key map (kbd "n") #'org-social-next-post)
+    (define-key map (kbd "p") #'org-social-previous-post)
+    (define-key map (kbd "q") #'quit-window)
+    (define-key map (kbd "g") #'org-social-timeline-refresh)
     map)
   "Keymap for `org-social-timeline-mode'.")
 
