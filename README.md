@@ -12,7 +12,7 @@ In progress.
 
 ### use-package
 
-You can install directly from the repository.
+#### Stable release
 
 Add the following to your Emacs config:
 
@@ -23,24 +23,26 @@ Add the following to your Emacs config:
         :rev :newest))
 ```
 
-### Manual
+#### Development version
 
-#### Requirements
+You can install the development version from the `develop` branch.
 
-- Org Mode 9.0 or higher
-- `request` package (for downloading remote feeds)
+Add the following to your Emacs config:
 
-1. Download `org-social.el`
+```elisp
+(use-package request)
+(use-package org-social
+  :vc ( :url "https://github.com/tanrax/org-social.el"
+        :rev "develop"))
+```
+
+### Git
+
+1. Clone the repository:
 2. Place it in your Emacs `load-path`
 
 ```elisp
 (add-to-list 'load-path "/path/to/org-social.el")
-```
-
-3. Add to your Emacs configuration:
-
-```elisp
-(require 'org-social)
 ```
 
 ## Configuration
@@ -141,6 +143,7 @@ GPL-3.0 - See LICENSE file for details.
 
 ## 1.4
 
+- Show the user profile.
 - Input to make polls.
 - Display the voting results.
 - Notifications: Add poll results
@@ -153,7 +156,6 @@ GPL-3.0 - See LICENSE file for details.
 
 - Save followings data in a separate file.
 - Show/hide metadata in the timeline.
-- Show the user profile.
 
 ### Backlog
 
