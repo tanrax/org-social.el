@@ -34,6 +34,7 @@
 (require 'org-social-notifications)
 (require 'org-social-parser)
 (require 'org)
+(require 'request)
 
 ;; Define custom link type for replies
 (defun org-social-timeline--setup-reply-links ()
@@ -47,9 +48,21 @@
    :export (lambda (path desc backend)
 	     desc)))
 
-;; Initialize reply links when module loads
+;; Define custom link type for profile viewing
+(defun org-social-timeline--setup-profile-links ()
+  "Setup custom org-social-profile link type."
+  (org-link-set-parameters
+   "org-social-profile"
+   :follow (lambda (path)
+	     (org-social-timeline--view-profile path))
+   :export (lambda (path desc backend)
+	     desc)))
+
+;; Initialize reply and profile links when module loads
 (eval-after-load 'org
-  '(org-social-timeline--setup-reply-links))
+  '(progn
+     (org-social-timeline--setup-reply-links)
+     (org-social-timeline--setup-profile-links)))
 
 ;; Timeline mode definition
 
@@ -167,6 +180,28 @@
   (org-social-file--new-post author-url timestamp)
   (message "Reply created! Write your response and save the file."))
 
+(defun org-social-timeline--view-profile (author-url)
+  "View the raw feed content of AUTHOR-URL in a new buffer."
+  (let ((buffer-name (format "*Org Social Profile: %s*"
+			     (file-name-nondirectory author-url))))
+    (message "Fetching profile from %s..." author-url)
+    (request author-url
+      :timeout 15
+      :success (cl-function
+		(lambda (&key data &allow-other-keys)
+		  (with-current-buffer (get-buffer-create buffer-name)
+		    (let ((inhibit-read-only t))
+		      (erase-buffer)
+		      (insert data)
+		      (org-mode)
+		      (goto-char (point-min))
+		      (setq buffer-read-only t))
+		    (switch-to-buffer buffer-name)
+		    (message "Profile loaded successfully!"))))
+      :error (lambda (&rest args)
+	       (message "Failed to fetch profile from %s: %s"
+			author-url (plist-get args :error-thrown))))))
+
 (defun org-social-timeline--refresh ()
   "Refresh the timeline by fetching new posts."
   (interactive)
@@ -250,12 +285,17 @@
 	    ;; Post content
 	    (insert (format "%s\n\n" text))
 
-	    ;; Add Reply button only if it's not my own post
+	    ;; Add Reply and Profile buttons only if it's not my own post
 	    (when (and author-url
 		       (not (string-empty-p author-url))
 		       (not (string= author my-nick)))
-	      (insert (format "[[org-social-reply:%s|%s][Reply]]\n"
-			       author-url timestamp)))
+	      (insert " | ")
+	      (insert (format "[[org-social-reply:%s|%s][Reply]]"
+			      author-url timestamp))
+	      (insert " | ")
+	      (insert (format "[[org-social-profile:%s][Profile]]"
+			      author-url))
+	      (insert " |\n\n"))
 
 	    (insert "\n")))
 

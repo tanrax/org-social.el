@@ -113,7 +113,6 @@ Argument TIMELINE is the list posts."
 	 (total-count (length all-notifications)))
     (insert (format "* (%d) Notifications\n" total-count))
     (insert ":PROPERTIES:\n")
-    (insert ":VISIBILITY: folded\n")
     (insert ":END:\n\n")
     (org-social-notifications--render-all-notifications sorted-notifications)
     (insert "\n")))
