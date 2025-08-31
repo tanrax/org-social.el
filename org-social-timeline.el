@@ -33,6 +33,7 @@
 (require 'org-social-feed)
 (require 'org-social-notifications)
 (require 'org-social-parser)
+(require 'org-social-file)
 (require 'org)
 (require 'request)
 
