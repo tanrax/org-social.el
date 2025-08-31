@@ -92,6 +92,7 @@ Creates a reply to a post in the timeline (available when viewing the timeline).
 
 | Keybinding | Function | Description |
 |------------|----------|-------------|
+| `c`        | `org-social-new-post` | Create a new post |
 | `r`        | `org-social-reply-to-post` | Reply to the post at point |
 | `n`        | `org-social-next-post` | Navigate to the next post |
 | `p`        | `org-social-previous-post` | Navigate to the previous post |
