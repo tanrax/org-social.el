@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 1.3
+;; Version: 1.4
 ;; URL: https://github.com/tanrax/org-social.el
 ;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5"))
 
@@ -25,11 +25,12 @@
 
 ;;; Commentary:
 
-;; Notification system for Org-social, handling mentions, replies and other events.
+;; Notification system for Org-social, handling mentions, replies, polls and other events.
 
 ;;; Code:
 
 (require 'org-social-variables)
+(require 'org-social-polls)
 
 (defun org-social-notifications--find-mentions (timeline)
   "Find all posts that mention the current user.
@@ -90,32 +91,62 @@ Argument TIMELINE is the list posts."
 	     ((eq type 'mention)
 	      (insert (format "- [[#%s][%s mentioned you]]\n" timestamp author)))
 	     ((eq type 'reply)
-	      (insert (format "- [[#%s][%s replied to your post]]\n" timestamp author)))))))
-    (insert "No new notifications.\n")))
+	      (insert (format "- [[#%s][%s replied to your post]]\n" timestamp author)))
+	     ((eq type 'active-poll)
+	      (let ((poll-end (alist-get 'poll-end notification))
+		    (author-url (alist-get 'author-url notification))
+		    (question (alist-get 'question notification)))
+		(insert (format "- [[org-social-poll:%s|%s][Active poll: %s by %s]] (ends: %s)\n"
+				author-url timestamp question
+				(or author "Unknown")
+				(or poll-end "Unknown")))))
+	     ((eq type 'poll-result)
+	      (let ((total-votes (alist-get 'total-votes notification))
+		    (results (alist-get 'results notification))
+		    (question (alist-get 'question notification)))
+		(insert (format "- [[#%s][Poll results: %s by %s]] (%d votes)\n"
+				timestamp question
+				(or author "Unknown")
+				total-votes))
+		;; Show top result inline
+		(when results
+		  (let* ((sorted-results (sort results (lambda (a b) (> (cdr a) (cdr b)))))
+			 (winner (car sorted-results)))
+		    (when winner
+		      (let ((option (car winner))
+			    (count (cdr winner))
+			    (percentage (if (> total-votes 0)
+					    (/ (* count 100.0) total-votes)
+					  0)))
+			(insert (format "  Winner: %s (%d votes, %.1f%%)\n"
+					option count percentage)))))))))))
+	(insert "No new notifications.\n"))))
 
-(defun org-social-notifications--render-section (timeline)
-  "Render the complete notifications section.
+  (defun org-social-notifications--render-section (timeline)
+    "Render the complete notifications section.
 Argument TIMELINE is the list posts."
-  (let* ((mentions (org-social-notifications--find-mentions timeline))
-	 (replies (org-social-notifications--find-replies timeline))
-	 (all-notifications (append mentions replies))
-	 ;; Sort by date (most recent first)
-	 (sorted-notifications (sort all-notifications
-				     (lambda (a b)
-				       (let ((date-a (alist-get 'date a))
-					     (date-b (alist-get 'date b)))
-					 ;; If dates are not available, use timestamp parsing
-					 (unless date-a
-					   (setq date-a (date-to-time (alist-get 'timestamp a))))
-					 (unless date-b
-					   (setq date-b (date-to-time (alist-get 'timestamp b))))
-					 (time-less-p date-b date-a))))) ; b < a for descending order
-	 (total-count (length all-notifications)))
-    (insert (format "* (%d) Notifications\n" total-count))
-    (insert ":PROPERTIES:\n")
-    (insert ":END:\n\n")
-    (org-social-notifications--render-all-notifications sorted-notifications)
-    (insert "\n")))
+    (let* ((mentions (org-social-notifications--find-mentions timeline))
+	   (replies (org-social-notifications--find-replies timeline))
+	   (active-polls (org-social-polls--get-active-poll-notifications timeline))
+	   (poll-results (org-social-polls--get-poll-result-notifications timeline))
+	   (all-notifications (append mentions replies active-polls poll-results))
+	   ;; Sort by date (most recent first)
+	   (sorted-notifications (sort all-notifications
+				       (lambda (a b)
+					 (let ((date-a (alist-get 'date a))
+					       (date-b (alist-get 'date b)))
+					   ;; If dates are not available, use timestamp parsing
+					   (unless date-a
+					     (setq date-a (date-to-time (alist-get 'timestamp a))))
+					   (unless date-b
+					     (setq date-b (date-to-time (alist-get 'timestamp b))))
+					   (time-less-p date-b date-a))))) ; b < a for descending order
+	   (total-count (length all-notifications)))
+      (insert (format "* (%d) Notifications\n" total-count))
+      (insert ":PROPERTIES:\n")
+      (insert ":END:\n\n")
+      (org-social-notifications--render-all-notifications sorted-notifications)
+      (insert "\n")))
 
-(provide 'org-social-notifications)
+  (provide 'org-social-notifications)
 ;;; org-social-notifications.el ends here

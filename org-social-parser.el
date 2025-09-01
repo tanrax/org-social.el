@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 1.3
+;; Version: 1.4
 ;; URL: https://github.com/tanrax/org-social.el
 ;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5"))
 
@@ -86,18 +86,11 @@ Argument FOLLOW-LINE text."
 PROP-NAME should be the property name without colons."
   (when (string-match (format ":%s:\\s-*\\([^\n]+\\)" (regexp-quote prop-name)) text)
     (let ((value (string-trim (match-string 1 text))))
-      ;; Filter out problematic values but allow long timestamps
+      ;; Validación simple sin limitación de longitud
       (when (and (not (string-empty-p value))
-		 (not (string-match-p "^:END:$" value))
-		 (not (string-match-p "^:TAGS:$" value))
-		 (not (string-match-p "^:CLIENT:$" value))
-		 (not (string-match-p "^#" value))
-		 (> (length value) 0)
-		 ;; Allow longer values for timestamps and other valid content
-		 (or (string= prop-name "ID")
-		     (string= prop-name "REPLY_TO")
-		     (< (length value) 100))) ; More reasonable limit
-	value))))
+                 (not (string-match-p "^:END:$" value))
+                 (not (string-match-p "^#" value)))
+        value))))
 
 (defun org-social-parser--get-posts-from-feed (feed)
   "Extract posts from an Org-social FEED."
@@ -145,8 +138,7 @@ PROP-NAME should be the property name without colons."
 
 		;; Extract all possible properties
 		(dolist (prop '("LANG" "TAGS" "CLIENT" "REPLY_TO" "POLL_END"
-				"POLL_OPTION" "MOOD" "TITLE" "CATEGORY"
-				"URL" "CONTENT_WARNING"))
+				"POLL_OPTION" "MOOD" "TITLE" "URL"))
 		  (let ((value (org-social-parser--extract-property properties-text prop)))
 		    (when value
 		      (setq post-data (cons (cons (intern (downcase prop)) value) post-data)))))

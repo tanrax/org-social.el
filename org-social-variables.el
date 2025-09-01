@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 1.3
+;; Version: 1.4
 ;; URL: https://github.com/tanrax/org-social.el
 ;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5"))
 
@@ -72,6 +72,7 @@
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "c") #'org-social-new-post)
     (define-key map (kbd "r") #'org-social-reply-to-post)
+    (define-key map (kbd "v") #'org-social-polls--vote-on-poll)
     (define-key map (kbd "n") #'org-social-next-post)
     (define-key map (kbd "p") #'org-social-previous-post)
     (define-key map (kbd "q") #'quit-window)

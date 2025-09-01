@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 1.3
+;; Version: 1.4
 ;; URL: https://github.com/tanrax/org-social.el
 ;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5"))
 
@@ -128,28 +128,23 @@ Argument NEW-RESPONSE"
 (defun org-social-feed--get-timeline ()
   "Get all posts from all feeds sorted by date."
   (let* ((timeline (mapcan (lambda (feed)
-			     (let ((author-id (alist-get 'id feed))
-				   (author-nick (alist-get 'nick feed))
-				   (author-url (alist-get 'url feed))
-				   (posts (alist-get 'posts feed)))
-			       (mapcar (lambda (post)
-					 (list
-					  (cons 'id (alist-get 'id post))
-					  (cons 'author-id author-id)
-					  (cons 'author-nick author-nick)
-					  (cons 'author-url author-url)
-					  (cons 'timestamp (alist-get 'timestamp post))
-					  (cons 'date (alist-get 'date post))
-					  (cons 'text (alist-get 'text post))
-					  (cons 'mood (alist-get 'mood post))
-					  (cons 'lang (alist-get 'lang post))
-					  (cons 'tags (alist-get 'tags post))))
-				       posts)))
-			   org-social-variables--feeds))
-	 (timeline-sorted (sort timeline
-				(lambda (a b)
-				  (> (alist-get 'date a)
-				     (alist-get 'date b))))))
+                             (let ((author-id (alist-get 'id feed))
+                                   (author-nick (alist-get 'nick feed))
+                                   (author-url (alist-get 'url feed))
+                                   (posts (alist-get 'posts feed)))
+                               (mapcar (lambda (post)
+                                         ;; Crear una nueva lista con propiedades del autor Y todas las propiedades del post
+                                         (append (list
+                                                  (cons 'author-id author-id)
+                                                  (cons 'author-nick author-nick)
+                                                  (cons 'author-url author-url))
+                                                 post)) ; Incluir TODAS las propiedades del post original
+                                       posts)))
+                           org-social-variables--feeds))
+         (timeline-sorted (sort timeline
+                                (lambda (a b)
+                                  (> (alist-get 'date a)
+                                     (alist-get 'date b))))))
     timeline-sorted))
 
 (provide 'org-social-feed)

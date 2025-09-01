@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 1.3
+;; Version: 1.4
 ;; URL: https://github.com/tanrax/org-social.el
 ;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5"))
 
@@ -31,6 +31,7 @@
 
 (require 'org-social-variables)
 (require 'org-social-feed)
+(require 'org-social-polls)
 (require 'org-social-notifications)
 (require 'org-social-parser)
 (require 'org-social-file)
@@ -223,10 +224,14 @@
 	(org-mode)
 	(insert "#+TITLE: Org Social Timeline\n\n")
 	(insert "# Navigation: (n) Next | (p) Previous\n")
-	(insert "# Post: (c) New | (r) Reply\n")
+	(insert "# Post: (c) New | (r) Reply | (v) Vote\n")
 	(insert "# Actions: (g) Refresh timeline | (q) Quit\n\n")
 	;; Add notifications section
 	(org-social-notifications--render-section timeline)
+	;; Add active polls section
+	(org-social-polls--render-active-polls-section timeline)
+	;; Add poll results section
+	(org-social-polls--render-poll-results-section timeline)
 
 	(insert "* Timeline\n\n")
 
@@ -258,17 +263,15 @@
 		(when (and value
 			   (stringp value)
 			   (not (string-empty-p value))
-			   ;; More specific validation patterns
+			   ;; More specific validation patterns - UPDATED TO ALLOW POLL PROPERTIES
 			   (not (string-match-p "^:END:$" value))
-			   (not (string-match-p "^:TAGS:" value))
-			   (not (string-match-p "^:CLIENT:" value))
-			   (not (string-match-p "^:REPLY_TO:" value))
 			   (not (string-match-p "^=$" value))
 			   (not (string-match-p "^:$" value))
 			   (not (string= value "e")) ; Single letter artifacts
 			   (not (string-match-p "^#" value))
-			   ;; Reject values that contain property-like patterns
-			   (not (string-match-p ":" value))
+			   ;; Allow poll-related properties and other valid properties
+			   (or (not (string-match-p ":" value))
+			       (memq key '(poll_end poll_option reply_to)))
 			   (not (memq key '(id author-nick author-url timestamp text date author-id))))
 		  (let ((prop-name (upcase (symbol-name key))))
 		    ;; Convert property names for consistency
