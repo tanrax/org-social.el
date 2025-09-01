@@ -49,10 +49,10 @@
 
 ;; Hooks
 
-(defvar org-social-variables--after-fetch-posts-hook nil
+(defvar org-social-after-fetch-posts-hook nil
   "Hook run after all feeds have been fetched.")
 
-(defvar org-social-variables--after-save-file-hook nil
+(defvar org-social-after-save-file-hook nil
   "Hook run after saving the social file.")
 
 ;; Keymap for org-social mode
@@ -61,7 +61,7 @@
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-n") #'org-social-new-post)
     (define-key map (kbd "C-c C-t") #'org-social-timeline)
-    (define-key map (kbd "C-c C-c") #'org-social-save-file)
+    (define-key map (kbd "C-c C-s") #'org-social-save-file)
     (define-key map (kbd "C-c C-m") #'org-social-mention-user)
     map)
   "Keymap for `org-social-mode'.")

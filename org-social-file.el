@@ -36,7 +36,6 @@
 (require 'url)
 
 ;; Minor mode definition
-
 (define-minor-mode org-social-mode
   "Minor mode for enhancing the Org-social experience."
   :lighter " OrgSocial"
@@ -45,17 +44,21 @@
   (if org-social-mode
       (progn
 	(org-mode)
-	(message "Org-social mode enabled"))
-    (message "Org-social mode disabled")))
+	(add-hook 'after-save-hook #'org-social-file--auto-save nil t))
+    (remove-hook 'after-save-hook #'org-social-file--auto-save t)))
+
+(defun org-social-file--auto-save ()
+  "Auto-save handler for Org-social files."
+  (when (and (buffer-file-name)
+	     (file-equal-p (buffer-file-name) org-social-file))
+    (run-hooks #'org-social-after-save-file-hook)))
 
 (defun org-social-file--save ()
   "Save the current Org-social file and run associated hooks."
   (interactive)
-  (when (and (buffer-file-name)
-	     (string= (expand-file-name (buffer-file-name))
-		      (expand-file-name org-social-file)))
-    (save-buffer)
-    (run-hooks 'org-social-variables--after-save-file-hook)))
+  (save-buffer)
+  (unless org-social-mode
+    (org-social-file--auto-save)))
 
 (defun org-social-file--find-posts-section ()
   "Find or create the Posts section in the current buffer."

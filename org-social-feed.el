@@ -123,7 +123,7 @@ Argument NEW-RESPONSE"
       (when org-social-variables--my-profile
 	(setq org-social-variables--feeds (cons org-social-variables--my-profile org-social-variables--feeds)))
       (message "All feeds downloaded!")
-      (run-hooks 'org-social-variables--after-fetch-posts-hook))))
+      (run-hooks 'org-social-after-fetch-posts-hook))))
 
 (defun org-social-feed--get-timeline ()
   "Get all posts from all feeds sorted by date."

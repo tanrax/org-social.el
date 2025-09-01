@@ -208,7 +208,7 @@
   (interactive)
   (message "Refreshing timeline...")
   (org-social-feed--fetch-all-feeds-async)
-  (add-hook 'org-social-variables--after-fetch-posts-hook
+  (add-hook 'org-social-after-fetch-posts-hook
 	    (lambda ()
 	      (org-social-timeline--layout)
 	      (message "Timeline refreshed!")) nil t))
@@ -308,7 +308,7 @@
   "View timeline with posts from all followers."
   (interactive)
   (org-social-feed--fetch-all-feeds-async)
-  (add-hook 'org-social-variables--after-fetch-posts-hook
+  (add-hook 'org-social-after-fetch-posts-hook
 	    (lambda ()
 	      (org-social-timeline--layout)) nil t))
 
