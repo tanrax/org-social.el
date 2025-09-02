@@ -74,9 +74,30 @@
   :keymap org-social-variables--timeline-mode-map
   :group 'org-social
   (when org-social-timeline-mode
-    (setq buffer-read-only t)
-    ;; Allow following links even in read-only buffer
-    (setq-local org-return-follows-link t)))
+    ;; Allow link functions to work properly
+    (setq-local org-confirm-elisp-link-function nil)
+    ;; Set up special properties for timeline
+    (setq-local org-inhibit-startup t)
+    (setq-local org-hide-leading-stars t)
+    ;; Override org-return to handle links in read-only buffer
+    (local-set-key (kbd "RET") 'org-social-timeline--follow-link-or-next-post)
+    (local-set-key (kbd "C-c C-o") 'org-social-timeline--safe-open-at-point)))
+
+(defun org-social-timeline--safe-open-at-point ()
+  "Safely open link at point in read-only buffer."
+  (interactive)
+  (let ((buffer-read-only nil))
+    (condition-case nil
+        (org-open-at-point)
+      (error (message "No link at point")))))
+
+(defun org-social-timeline--follow-link-or-next-post ()
+  "Follow link at point or move to next post if no link."
+  (interactive)
+  (let ((context (org-element-context)))
+    (if (eq (org-element-type context) 'link)
+        (org-social-timeline--safe-open-at-point)
+      (org-social-timeline--next-post))))
 
 (defun org-social-timeline--goto-post-content ()
   "Move to the beginning of the post content (after properties)."
@@ -192,14 +213,14 @@
       :success (cl-function
 		(lambda (&key data &allow-other-keys)
 		  (with-current-buffer (get-buffer-create buffer-name)
-		    (let ((inhibit-read-only t))
-		      (erase-buffer)
-		      (insert data)
-		      (org-mode)
-		      (goto-char (point-min))
-		      (setq buffer-read-only t))
-		    (switch-to-buffer buffer-name)
-		    (message "Profile loaded successfully!"))))
+		    (erase-buffer)
+		    (insert data)
+		    (org-mode)
+		    (goto-char (point-min))
+		    ;; Make profile buffer read-only
+		    (setq buffer-read-only t))
+		  (switch-to-buffer buffer-name)
+		  (message "Profile loaded successfully!")))
       :error (lambda (&rest args)
 	       (message "Failed to fetch profile from %s: %s"
 			author-url (plist-get args :error-thrown))))))
@@ -219,93 +240,96 @@
   (let ((timeline (org-social-feed--get-timeline))
 	(buffer-name org-social-variables--timeline-buffer-name))
     (with-current-buffer (get-buffer-create buffer-name)
-      (let ((inhibit-read-only t))
-	(erase-buffer)
-	(org-mode)
-	(insert "#+TITLE: Org Social Timeline\n\n")
-	(insert "# Navigation: (n) Next | (p) Previous\n")
-	(insert "# Post: (c) New | (r) Reply | (v) Vote\n")
-	(insert "# Actions: (g) Refresh timeline | (q) Quit\n\n")
-	;; Add notifications section
-	(org-social-notifications--render-section timeline)
-	;; Add active polls section
-	(org-social-polls--render-active-polls-section timeline)
-	;; Add poll results section
-	(org-social-polls--render-poll-results-section timeline)
+      (erase-buffer)
+      (org-mode)
+      (insert "#+TITLE: Org Social Timeline\n\n")
+      (insert "# Navigation: (n) Next | (p) Previous | (RET/C-c C-o) Follow link\n")
+      (insert "# Post: (c) New | (r) Reply | (v) Vote\n")
+      (insert "# Actions: (g) Refresh timeline | (q) Quit\n\n")
 
-	(insert "* Timeline\n\n")
+      ;; Add notifications section
+      (org-social-notifications--render-section timeline)
+      ;; Add active polls section
+      (org-social-polls--render-active-polls-section timeline)
+      ;; Add poll results section
+      (org-social-polls--render-poll-results-section timeline)
 
-	(dolist (post timeline)
-	  (let ((author (alist-get 'author-nick post))
-		(author-url (alist-get 'author-url post))
-		(timestamp (alist-get 'timestamp post))
-		(text (alist-get 'text post))
-		(my-nick (alist-get 'nick org-social-variables--my-profile)))
+      (insert "* Timeline\n\n")
 
-	    ;; Post header with only author name
-	    (insert (format "** %s\n" (or author "Unknown")))
+      (dolist (post timeline)
+	(let ((author (alist-get 'author-nick post))
+	      (author-url (alist-get 'author-url post))
+	      (timestamp (alist-get 'timestamp post))
+	      (text (alist-get 'text post))
+	      (my-nick (alist-get 'nick org-social-variables--my-profile)))
 
-	    ;; Properties section
-	    (insert ":PROPERTIES:\n")
-	    (insert (format ":ID: %s\n" timestamp))
-	    (insert (format ":CUSTOM_ID: %s\n" timestamp))
+	  ;; Post header with only author name
+	  (insert (format "** %s\n" (or author "Unknown")))
 
-	    ;; Add URL property for author only if it's not my own post
-	    (when (and author-url
-		       (not (string-empty-p author-url))
-		       (not (string= author my-nick)))
-	      (insert (format ":URL: %s\n" author-url)))
+	  ;; Properties section
+	  (insert ":PROPERTIES:\n")
+	  (insert (format ":ID: %s\n" timestamp))
+	  (insert (format ":CUSTOM_ID: %s\n" timestamp))
 
-	    ;; Add all other properties from the post, with strict validation
-	    (dolist (prop post)
-	      (let ((key (car prop))
-		    (value (cdr prop)))
-		(when (and value
-			   (stringp value)
-			   (not (string-empty-p value))
-			   ;; More specific validation patterns - UPDATED TO ALLOW POLL PROPERTIES
-			   (not (string-match-p "^:END:$" value))
-			   (not (string-match-p "^=$" value))
-			   (not (string-match-p "^:$" value))
-			   (not (string= value "e")) ; Single letter artifacts
-			   (not (string-match-p "^#" value))
-			   ;; Allow poll-related properties and other valid properties
-			   (or (not (string-match-p ":" value))
-			       (memq key '(poll_end poll_option reply_to)))
-			   (not (memq key '(id author-nick author-url timestamp text date author-id))))
-		  (let ((prop-name (upcase (symbol-name key))))
-		    ;; Convert property names for consistency
-		    (setq prop-name
-			  (cond
-			   ((string= prop-name "REPLY-TO") "REPLY_TO")
-			   ((string= prop-name "POLL-END") "POLL_END")
-			   ((string= prop-name "POLL-OPTION") "POLL_OPTION")
-			   ((string= prop-name "CONTENT-WARNING") "CONTENT_WARNING")
-			   (t prop-name)))
-		    (insert (format ":%s: %s\n" prop-name value))))))
+	  ;; Add URL property for author only if it's not my own post
+	  (when (and author-url
+		     (not (string-empty-p author-url))
+		     (not (string= author my-nick)))
+	    (insert (format ":URL: %s\n" author-url)))
 
-	    (insert ":END:\n\n")
+	  ;; Add all other properties from the post, with strict validation
+	  (dolist (prop post)
+	    (let ((key (car prop))
+		  (value (cdr prop)))
+	      (when (and value
+			 (stringp value)
+			 (not (string-empty-p value))
+			 ;; More specific validation patterns - UPDATED TO ALLOW POLL PROPERTIES
+			 (not (string-match-p "^:END:$" value))
+			 (not (string-match-p "^=$" value))
+			 (not (string-match-p "^:$" value))
+			 (not (string= value "e")) ; Single letter artifacts
+			 (not (string-match-p "^#" value))
+			 ;; Allow poll-related properties and other valid properties
+			 (or (not (string-match-p ":" value))
+			     (memq key '(poll_end poll_option reply_to)))
+			 (not (memq key '(id author-nick author-url timestamp text date author-id))))
+		(let ((prop-name (upcase (symbol-name key))))
+		  ;; Convert property names for consistency
+		  (setq prop-name
+			(cond
+			 ((string= prop-name "REPLY-TO") "REPLY_TO")
+			 ((string= prop-name "POLL-END") "POLL_END")
+			 ((string= prop-name "POLL-OPTION") "POLL_OPTION")
+			 ((string= prop-name "CONTENT-WARNING") "CONTENT_WARNING")
+			 (t prop-name)))
+		  (insert (format ":%s: %s\n" prop-name value))))))
 
-	    ;; Post content
-	    (insert (format "%s\n\n" text))
+	  (insert ":END:\n\n")
 
-	    ;; Add Reply and Profile buttons only if it's not my own post
-	    (when (and author-url
-		       (not (string-empty-p author-url))
-		       (not (string= author my-nick)))
-	      (insert " | ")
-	      (insert (format "[[org-social-reply:%s|%s][Reply]]"
-			      author-url timestamp))
-	      (insert " | ")
-	      (insert (format "[[org-social-profile:%s][Profile]]"
-			      author-url))
-	      (insert " |\n\n"))
+	  ;; Post content
+	  (insert (format "%s\n\n" text))
 
-	    (insert "\n")))
+	  ;; Add Reply and Profile buttons only if it's not my own post
+	  (when (and author-url
+		     (not (string-empty-p author-url))
+		     (not (string= author my-nick)))
+	    (insert "→ ")
+	    (insert (format "[[org-social-reply:%s|%s][Reply]]"
+			    author-url timestamp))
+	    (insert " · ")
+	    (insert (format "[[org-social-profile:%s][Profile]]"
+			    author-url))
+	    (insert "\n\n"))
 
-	(goto-char (point-min))
-	(org-social-timeline-mode 1))
-      (switch-to-buffer buffer-name))))
+	  (insert "\n")))
+
+      (goto-char (point-min))
+      ;; Enable timeline mode after buffer is fully constructed
+      (org-social-timeline-mode 1)
+      ;; Make buffer read-only after everything is set up
+      (setq buffer-read-only t))
+    (switch-to-buffer buffer-name)))
 
 (defun org-social-timeline--display ()
   "View timeline with posts from all followers."
