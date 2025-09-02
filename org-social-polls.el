@@ -104,7 +104,8 @@ Returns an alist of (option . vote-count) pairs."
 	  (let ((result-entry (assoc poll-option results)))
 	    (when result-entry
 	      (setcdr result-entry (1+ (cdr result-entry))))))))
-    results))
+    ;; Reverse to maintain original order of options
+    (reverse results)))
 
 (defun org-social-polls--find-closed-polls (timeline)
   "Find all closed polls in TIMELINE.

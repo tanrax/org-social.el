@@ -30,6 +30,7 @@
 ;;; Code:
 
 (require 'org-social-variables)
+(require 'org-social-images)
 (require 'org-social-feed)
 (require 'org-social-polls)
 (require 'org-social-notifications)
@@ -213,12 +214,13 @@
       :success (cl-function
 		(lambda (&key data &allow-other-keys)
 		  (with-current-buffer (get-buffer-create buffer-name)
-		    (erase-buffer)
-		    (insert data)
-		    (org-mode)
-		    (goto-char (point-min))
-		    ;; Make profile buffer read-only
-		    (setq buffer-read-only t))
+		    (let ((buffer-read-only nil))
+		      (erase-buffer)
+		      (insert data)
+		      (org-mode)
+		      (goto-char (point-min))
+		      ;; Make profile buffer read-only
+		      (setq buffer-read-only t)))
 		  (switch-to-buffer buffer-name)
 		  (message "Profile loaded successfully!")))
       :error (lambda (&rest args)
@@ -232,112 +234,167 @@
   (org-social-feed--fetch-all-feeds-async)
   (add-hook 'org-social-after-fetch-posts-hook
 	    (lambda ()
-	      (org-social-timeline--layout)
+	      (org-social-timeline--process-feeds-and-display)
 	      (message "Timeline refreshed!")) nil t))
+
+(defun org-social-timeline--find-profile-for-post (post feeds)
+  "Find the correct profile for a POST from FEEDS."
+  (let ((author (alist-get 'author-nick post))
+	(author-url (alist-get 'author-url post)))
+    (or
+     ;; First try exact URL match
+     (seq-find (lambda (feed)
+		 (string= (alist-get 'url feed) author-url))
+	       feeds)
+     ;; Then try by nickname
+     (seq-find (lambda (feed)
+		 (string= (alist-get 'nick feed) author))
+	       feeds)
+     ;; As last resort, create a basic profile
+     (list (cons 'nick (or author "Unknown"))
+	   (cons 'url author-url)
+	   (cons 'avatar nil)))))
+
+(defun org-social-timeline--process-feeds-and-display ()
+  "Process feeds, download avatars synchronously, then display timeline."
+  ;; Remove the hook to avoid multiple execution
+  (remove-hook 'org-social-after-fetch-posts-hook
+	       #'org-social-timeline--process-feeds-and-display t)
+
+  (message "Feeds obtained. Checking avatars...")
+
+  ;; Debug: Check avatar status
+  (org-social-images--check-avatar-cache-status)
+
+  ;; Download all avatar images synchronously if enabled
+  (when org-social-sync-avatar-downloads
+    (org-social-images--download-all-avatars-sync org-social-variables--feeds))
+
+  (message "Building timeline...")
+
+  ;; Now show the timeline (all images should be downloaded)
+  (org-social-timeline--layout)
+
+  (message "Timeline completed with avatars!"))
 
 (defun org-social-timeline--layout ()
   "Create and display the timeline buffer."
   (let ((timeline (org-social-feed--get-timeline))
 	(buffer-name org-social-variables--timeline-buffer-name))
     (with-current-buffer (get-buffer-create buffer-name)
-      (erase-buffer)
-      (org-mode)
-      (insert "#+TITLE: Org Social Timeline\n\n")
-      (insert "# Navigation: (n) Next | (p) Previous | (RET/C-c C-o) Follow link\n")
-      (insert "# Post: (c) New | (r) Reply | (v) Vote\n")
-      (insert "# Actions: (g) Refresh timeline | (q) Quit\n\n")
+      (let ((buffer-read-only nil))
+        (erase-buffer)
+        (org-mode)
+        (insert "#+TITLE: Org Social Timeline\n\n")
+        (insert "# Navigation: (n) Next | (p) Previous | (RET/C-c C-o) Follow link\n")
+        (insert "# Post: (c) New | (r) Reply | (v) Vote\n")
+        (insert "# Actions: (g) Refresh timeline | (q) Quit\n\n")
 
-      ;; Add notifications section
-      (org-social-notifications--render-section timeline)
-      ;; Add active polls section
-      (org-social-polls--render-active-polls-section timeline)
-      ;; Add poll results section
-      (org-social-polls--render-poll-results-section timeline)
+        ;; Add notifications section
+        (org-social-notifications--render-section timeline)
+        ;; Add active polls section
+        (org-social-polls--render-active-polls-section timeline)
 
-      (insert "* Timeline\n\n")
+        (insert "* Timeline\n\n")
 
-      (dolist (post timeline)
-	(let ((author (alist-get 'author-nick post))
-	      (author-url (alist-get 'author-url post))
-	      (timestamp (alist-get 'timestamp post))
-	      (text (alist-get 'text post))
-	      (my-nick (alist-get 'nick org-social-variables--my-profile)))
+        (dolist (post timeline)
+	  (let ((author (alist-get 'author-nick post))
+	        (author-url (alist-get 'author-url post))
+	        (timestamp (alist-get 'timestamp post))
+	        (text (alist-get 'text post))
+	        (my-nick (alist-get 'nick org-social-variables--my-profile)))
 
-	  ;; Post header with only author name
-	  (insert (format "** %s\n" (or author "Unknown")))
+	    ;; Find the correct profile for avatar
+	    (let ((profile (org-social-timeline--find-profile-for-post post org-social-variables--feeds)))
 
-	  ;; Properties section
-	  (insert ":PROPERTIES:\n")
-	  (insert (format ":ID: %s\n" timestamp))
-	  (insert (format ":CUSTOM_ID: %s\n" timestamp))
+	      ;; Post header with avatar and author name
+	      (insert "** ")
 
-	  ;; Add URL property for author only if it's not my own post
-	  (when (and author-url
-		     (not (string-empty-p author-url))
-		     (not (string= author my-nick)))
-	    (insert (format ":URL: %s\n" author-url)))
+	      ;; Insert avatar
+	      (org-social-images--insert-avatar profile)
+	      (insert " ")
+	      (insert (format "%s\n" (or author "Unknown")))
 
-	  ;; Add all other properties from the post, with strict validation
-	  (dolist (prop post)
-	    (let ((key (car prop))
-		  (value (cdr prop)))
-	      (when (and value
-			 (stringp value)
-			 (not (string-empty-p value))
-			 ;; More specific validation patterns - UPDATED TO ALLOW POLL PROPERTIES
-			 (not (string-match-p "^:END:$" value))
-			 (not (string-match-p "^=$" value))
-			 (not (string-match-p "^:$" value))
-			 (not (string= value "e")) ; Single letter artifacts
-			 (not (string-match-p "^#" value))
-			 ;; Allow poll-related properties and other valid properties
-			 (or (not (string-match-p ":" value))
-			     (memq key '(poll_end poll_option reply_to)))
-			 (not (memq key '(id author-nick author-url timestamp text date author-id))))
-		(let ((prop-name (upcase (symbol-name key))))
-		  ;; Convert property names for consistency
-		  (setq prop-name
-			(cond
-			 ((string= prop-name "REPLY-TO") "REPLY_TO")
-			 ((string= prop-name "POLL-END") "POLL_END")
-			 ((string= prop-name "POLL-OPTION") "POLL_OPTION")
-			 ((string= prop-name "CONTENT-WARNING") "CONTENT_WARNING")
-			 (t prop-name)))
-		  (insert (format ":%s: %s\n" prop-name value))))))
+	      ;; Properties section
+	      (insert ":PROPERTIES:\n")
+	      (insert (format ":ID: %s\n" timestamp))
+	      (insert (format ":CUSTOM_ID: %s\n" timestamp))
 
-	  (insert ":END:\n\n")
+	      ;; Add URL property for author only if it's not my own post
+	      (when (and author-url
+		         (not (string-empty-p author-url))
+		         (not (string= author my-nick)))
+	        (insert (format ":URL: %s\n" author-url)))
 
-	  ;; Post content
-	  (insert (format "%s\n\n" text))
+	      ;; Add all other properties from the post, with strict validation
+	      (dolist (prop post)
+	        (let ((key (car prop))
+		      (value (cdr prop)))
+		  (when (and value
+			     (stringp value)
+			     (not (string-empty-p value))
+			     ;; More specific validation patterns - UPDATED TO ALLOW POLL PROPERTIES
+			     (not (string-match-p "^:END:$" value))
+			     (not (string-match-p "^=$" value))
+			     (not (string-match-p "^:$" value))
+			     (not (string= value "e")) ; Single letter artifacts
+			     (not (string-match-p "^#" value))
+			     ;; Allow poll-related properties and other valid properties
+			     (or (not (string-match-p ":" value))
+			         (memq key '(poll_end poll_option reply_to)))
+			     (not (memq key '(id author-nick author-url timestamp text date author-id))))
+		    (let ((prop-name (upcase (symbol-name key))))
+		      ;; Convert property names for consistency
+		      (setq prop-name
+			    (cond
+			     ((string= prop-name "REPLY-TO") "REPLY_TO")
+			     ((string= prop-name "POLL-END") "POLL_END")
+			     ((string= prop-name "POLL-OPTION") "POLL_OPTION")
+			     (t prop-name)))
+		      (insert (format ":%s: %s\n" prop-name value))))))
 
-	  ;; Add Reply and Profile buttons only if it's not my own post
-	  (when (and author-url
-		     (not (string-empty-p author-url))
-		     (not (string= author my-nick)))
-	    (insert "→ ")
-	    (insert (format "[[org-social-reply:%s|%s][Reply]]"
-			    author-url timestamp))
-	    (insert " · ")
-	    (insert (format "[[org-social-profile:%s][Profile]]"
-			    author-url))
-	    (insert "\n\n"))
+	      (insert ":END:\n\n")
 
-	  (insert "\n")))
+	      ;; Post content
+	      (insert (format "%s\n" text))
 
-      (goto-char (point-min))
-      ;; Enable timeline mode after buffer is fully constructed
-      (org-social-timeline-mode 1)
-      ;; Make buffer read-only after everything is set up
-      (setq buffer-read-only t))
+	      ;; Render inline images from post content
+	      (org-social-images--render-post-images text)
+
+	      (insert "\n")
+
+	      ;; Add Reply and Profile buttons only if it's not my own post
+	      (when (and author-url
+		         (not (string-empty-p author-url))
+		         (not (string= author my-nick)))
+	        (insert "→ ")
+	        (insert (format "[[org-social-reply:%s|%s][Reply]]"
+			        author-url timestamp))
+	        (insert " · ")
+	        (insert (format "[[org-social-profile:%s][Profile]]"
+			        author-url))
+	        (insert "\n\n"))
+
+	      (insert "\n"))))
+
+        (goto-char (point-min))
+        ;; Enable timeline mode after buffer is fully constructed
+        (org-social-timeline-mode 1)
+        ;; Make buffer read-only after everything is set up
+        (setq buffer-read-only t)))
     (switch-to-buffer buffer-name)))
 
 (defun org-social-timeline--display ()
-  "View timeline with posts from all followers."
+  "View timeline with posts from all followers. Downloads all images first."
   (interactive)
-  (org-social-feed--fetch-all-feeds-async)
+  (message "Fetching feeds...")
+
+  ;; Configure hook to process after obtaining feeds
   (add-hook 'org-social-after-fetch-posts-hook
-	    (lambda ()
-	      (org-social-timeline--layout)) nil t))
+	    #'org-social-timeline--process-feeds-and-display nil t)
+
+  ;; Start asynchronous feed download
+  (org-social-feed--fetch-all-feeds-async))
 
 ;; Interactive functions with proper naming
 (defalias 'org-social-next-post 'org-social-timeline--next-post)

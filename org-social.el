@@ -62,6 +62,7 @@
     (require 'org-social-feed)
     (require 'org-social-notifications)
     (require 'org-social-polls)
+    (require 'org-social-images)
     (require 'org-social-timeline)
     (require 'org-social-file)
     (require 'cl-lib)

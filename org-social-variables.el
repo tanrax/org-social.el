@@ -36,6 +36,28 @@
   :type 'file
   :group 'org-social)
 
+;; Image customization
+
+(defcustom org-social-cache-image-directory (expand-file-name "org-social-images" user-emacs-directory)
+  "Directory where images are cached."
+  :type 'directory
+  :group 'org-social)
+
+(defcustom org-social-avatar-width 32
+  "Width for avatar images in pixels."
+  :type 'integer
+  :group 'org-social)
+
+(defcustom org-social-default-avatar "👤"
+  "Default avatar character when no image is available."
+  :type 'string
+  :group 'org-social)
+
+(defcustom org-social-sync-avatar-downloads t
+  "If non-nil, download all avatars synchronously before showing timeline."
+  :type 'boolean
+  :group 'org-social)
+
 ;; Variables for state management
 
 (defvar org-social-variables--feeds nil
@@ -75,13 +97,17 @@
     (define-key map (kbd "v") #'org-social-polls--vote-on-poll)
     (define-key map (kbd "n") #'org-social-next-post)
     (define-key map (kbd "p") #'org-social-previous-post)
-    (define-key map (kbd "q") #'quit-window)
+    (define-key map (kbd "q") #'kill-buffer)
     (define-key map (kbd "g") #'org-social-timeline-refresh)
     map)
   "Keymap for `org-social-timeline-mode'.")
 
 ;; Buffer names
 (defconst org-social-variables--timeline-buffer-name "*Org Social Timeline*")
+
+;; Image constants
+(defconst org-social-images--regex-image "\\bhttps?:\\/\\/[^][()[:space:]]+\\.\\(?:png\\|jpe?g\\)\\b"
+  "Regex pattern for detecting image URLs (PNG and JPG only).")
 
 (provide 'org-social-variables)
 ;;; org-social-variables.el ends here
