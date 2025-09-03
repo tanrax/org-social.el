@@ -12,6 +12,12 @@ In progress.
 
 ### use-package
 
+#### Update version
+
+```
+M-x package-reinstall RET org-social RET restart-emacs RET
+```
+
 #### Stable release
 
 Add the following to your Emacs config:
