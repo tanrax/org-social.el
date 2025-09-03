@@ -29,6 +29,19 @@
 
 ;;; Code:
 
+;; Forward declarations to avoid compiler warnings
+(declare-function org-social-new-post "org-social" (&optional reply-url reply-id))
+(declare-function org-social-new-poll "org-social" ())
+(declare-function org-social-timeline "org-social" ())
+(declare-function org-social-save-file "org-social-file" ())
+(declare-function org-social-mention-user "org-social-file" ())
+(declare-function org-social-reply-to-post "org-social-timeline" ())
+(declare-function org-social-polls--vote-on-poll "org-social-polls" ())
+(declare-function org-social-next-post "org-social-timeline" ())
+(declare-function org-social-previous-post "org-social-timeline" ())
+(declare-function org-social-view-profile "org-social-timeline" ())
+(declare-function org-social-timeline-refresh "org-social-timeline" ())
+
 ;; Customization
 
 (defcustom org-social-file "~/social.org"
@@ -39,7 +52,7 @@
 (defcustom org-social-hide-post-buttons nil
   "When non-nil, hide Reply and Profile buttons from timeline posts.
 This creates a cleaner timeline view by removing the interactive buttons
-at the end of each post. You can still use keyboard shortcuts to reply (r)
+at the end of each post.  You can still use keyboard shortcuts to reply (r)
 and view profiles (P)."
   :type 'boolean
   :group 'org-social)

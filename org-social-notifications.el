@@ -110,15 +110,15 @@ Argument TIMELINE is the list posts."
 	      ;; Show top result inline
 	      (when results
 		(let* ((sorted-results (sort results (lambda (a b) (> (cdr a) (cdr b)))))
-		       (winner (car sorted-results)))
+		       (winner (car sorted-results))
+		       (option (when winner (car winner)))
+		       (vote-count (when winner (cdr winner)))
+		       (percentage (if (and vote-count (> total-votes 0))
+				       (/ (* vote-count 100.0) total-votes)
+				     0)))
 		  (when winner
-		    (let ((option (car winner))
-			  (count (cdr winner))
-			  (percentage (if (> total-votes 0)
-					  (/ (* count 100.0) total-votes)
-					0)))
-		      (insert (format "  Winner: %s (%d votes, %.1f%%)\n"
-				      option count percentage)))))))))))
+		    (insert (format "  Winner: %s (%d votes, %.1f%%)\n"
+				    option vote-count percentage))))))))))
     (insert "No new notifications.\n")))
 
 (defun org-social-notifications--render-section (timeline)

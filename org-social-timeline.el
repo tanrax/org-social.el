@@ -30,13 +30,38 @@
 ;;; Code:
 
 (require 'org-social-variables)
-(require 'org-social-feed)
-(require 'org-social-polls)
-(require 'org-social-notifications)
 (require 'org-social-parser)
 (require 'org-social-file)
 (require 'org)
-(require 'request)
+
+;; Optional requires with error handling
+(condition-case nil
+    (require 'request)
+  (error
+   (message "Warning: 'request' package not available. Some timeline features may not work.")))
+
+;; Declare functions from modules that might not be loaded yet
+(declare-function org-social-feed--fetch-all-feeds-async "org-social-feed" ())
+(declare-function org-social-feed--get-timeline "org-social-feed" ())
+(declare-function org-social-polls--setup-poll-links "org-social-polls" ())
+(declare-function org-social-notifications--render-section "org-social-notifications" (timeline))
+(declare-function request "request" (url &rest args))
+
+;; Require remaining modules after base dependencies
+(condition-case nil
+    (require 'org-social-feed)
+  (error
+   (message "Warning: Could not load org-social-feed module")))
+
+(condition-case nil
+    (require 'org-social-polls)
+  (error
+   (message "Warning: Could not load org-social-polls module")))
+
+(condition-case nil
+    (require 'org-social-notifications)
+  (error
+   (message "Warning: Could not load org-social-notifications module")))
 
 ;; Define custom link type for replies
 (defun org-social-timeline--setup-reply-links ()
@@ -47,7 +72,7 @@
 	     (let ((parts (split-string path "|")))
 	       (when (= (length parts) 2)
 		 (org-social-timeline--reply-to-specific-post (car parts) (cadr parts)))))
-   :export (lambda (path desc backend)
+   :export (lambda (_path desc _backend)
 	     desc)))
 
 ;; Define custom link type for profile viewing
@@ -57,7 +82,7 @@
    "org-social-profile"
    :follow (lambda (path)
 	     (org-social-timeline--view-profile path))
-   :export (lambda (path desc backend)
+   :export (lambda (_path desc _backend)
 	     desc)))
 
 ;; Initialize reply and profile links when module loads
@@ -76,7 +101,7 @@
   (if org-social-timeline-mode
       (progn
         ;; Allow link functions to work properly
-        (setq-local org-confirm-elisp-link-function nil)
+        (setq-local org-link-elisp-confirm-function nil)
         ;; Set up special properties for timeline
         (setq-local org-inhibit-startup t)
         (setq-local org-hide-leading-stars t)
@@ -319,7 +344,7 @@
 	        (my-nick (alist-get 'nick org-social-variables--my-profile)))
 
 	    ;; Find the correct profile for avatar
-	    (let ((profile (org-social-timeline--find-profile-for-post post org-social-variables--feeds)))
+	    (let ((_profile (org-social-timeline--find-profile-for-post post org-social-variables--feeds)))
 
 	      ;; Post header with author name (no avatar)
 	      (insert "** ")
@@ -374,7 +399,7 @@
 
 	      ;; Post content
 	      (insert (format "%s\n" text))
-	      
+
 	      (insert "\n")
 
 	      ;; Add Reply and Profile buttons only if it's not my own post
@@ -403,14 +428,18 @@
 (defun org-social-timeline--display ()
   "View timeline with posts from all followers."
   (interactive)
-  (message "Fetching feeds...")
-
-  ;; Configure hook to process after obtaining feeds
-  (add-hook 'org-social-after-fetch-posts-hook
-	    #'org-social-timeline--process-feeds-and-display nil t)
-
-  ;; Start asynchronous feed download
-  (org-social-feed--fetch-all-feeds-async))
+  (if (fboundp 'org-social-feed--fetch-all-feeds-async)
+      (progn
+        (message "Fetching feeds...")
+        ;; Configure hook to process after obtaining feeds
+        (add-hook 'org-social-after-fetch-posts-hook
+	          #'org-social-timeline--process-feeds-and-display nil t)
+        ;; Start asynchronous feed download
+        (org-social-feed--fetch-all-feeds-async))
+    (progn
+      (message "Timeline functionality requires the 'request' package to be installed.")
+      (message "Please install it with: M-x package-install RET request RET")
+      (error "Timeline functionality not available without 'request' package"))))
 
 ;; Interactive functions with proper naming
 (defalias 'org-social-next-post 'org-social-timeline--next-post)

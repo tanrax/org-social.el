@@ -30,9 +30,14 @@
 ;;; Code:
 
 (require 'org-social-variables)
+(require 'org)
 
 ;; Forward declarations to avoid circular dependencies
 (declare-function org-social-timeline--get-post-at-point "org-social-timeline" ())
+(declare-function org-link-set-parameters "org" (type parameters))
+(declare-function org-fold-show-entry "org-fold" ())
+(declare-function org-social-feed--get-timeline "org-social-feed" ())
+(declare-function org-social-file--new-post "org-social-file" (&optional reply-url reply-id))
 
 (defun org-social-polls--is-poll-post (post)
   "Check if POST is a poll post.
@@ -123,16 +128,20 @@ Returns a list of closed poll posts with their results."
 
 (defun org-social-polls--setup-poll-links ()
   "Setup custom org-social-poll link type."
-  (org-link-set-parameters
-   "org-social-poll"
-   :follow (lambda (path)
-	     (let ((parts (split-string path "|")))
-	       (when (= (length parts) 2)
-		 (org-social-polls--goto-poll (car parts) (cadr parts)))))
-   :export (lambda (path desc backend)
-	     desc)))
+  (when (fboundp 'org-link-set-parameters)
+    (with-suppressed-warnings ((callargs org-link-set-parameters))
+      (condition-case nil
+          (org-link-set-parameters "org-social-poll"
+			           :follow (lambda (path)
+				             (let ((parts (split-string path "|")))
+				               (when (= (length parts) 2)
+					         (org-social-polls--goto-poll (car parts) (cadr parts)))))
+			           :export (lambda (_path desc _backend)
+				             desc))
+        (error
+         (message "Warning: Could not set up org-social-poll links"))))))
 
-(defun org-social-polls--goto-poll (author-url timestamp)
+(defun org-social-polls--goto-poll (_author-url timestamp)
   "Navigate to poll post identified by AUTHOR-URL and TIMESTAMP."
   (let ((timeline-buffer (get-buffer org-social-variables--timeline-buffer-name)))
     (when timeline-buffer
@@ -142,10 +151,10 @@ Returns a list of closed poll posts with their results."
       (when (re-search-forward (format ":CUSTOM_ID: %s" (regexp-quote timestamp)) nil t)
 	(beginning-of-line)
 	(re-search-backward "^\\*\\* " nil t)
-	(org-show-entry)))))
+	(org-fold-show-entry)))))
 
 (defun org-social-polls--get-post-at-point ()
-  "Get the post information at the current point in timeline, specifically for polls."
+  "Get post information at current point in timeline for polls."
   (save-excursion
     (let ((post-start nil)
 	  (post-end nil)
@@ -214,42 +223,43 @@ If called without parameters, get the post at point from timeline."
             (setq author-url (alist-get 'author-url post-info))
             (setq timestamp (alist-get 'timestamp post-info))
             (message "DEBUG: Found post at point - URL: %s, Timestamp: %s" author-url timestamp))
-        (message "DEBUG: No post info found at current point")
-        (return))))
-  
-  ;; Find the poll post to get options
-  (let ((poll-post nil))
-    (message "DEBUG: Looking for poll with URL: %s, Timestamp: %s" author-url timestamp)
-    (dolist (post (org-social-feed--get-timeline))
-      (when (and (string= (alist-get 'timestamp post) timestamp)
-		 (string= (alist-get 'author-url post) author-url))
-	(setq poll-post post)
-        (message "DEBUG: Found matching post in timeline")))
-    
-    (if poll-post
-        (if (org-social-polls--is-poll-post poll-post)
-            (progn
-              (message "DEBUG: Post is a poll")
-              (if (org-social-polls--is-poll-active poll-post)
-                  (progn
-                    (message "DEBUG: Poll is active")
-                    (let* ((options (org-social-polls--extract-poll-options
-                                     (alist-get 'text poll-post)))
-                           (selected-option (when options
-                                              (completing-read "Select option: " options nil t))))
-                      (when selected-option
-                        ;; Create a vote post
-                        (org-social-file--new-post author-url timestamp)
-                        ;; Add POLL_OPTION property
-                        (save-excursion
-                          (re-search-backward ":PROPERTIES:" nil t)
-                          (re-search-forward ":END:" nil t)
-                          (beginning-of-line)
-                          (insert (format ":POLL_OPTION: %s\n" selected-option)))
-                        (message "Vote created for option: %s" selected-option))))
-                (message "This poll has already ended")))
-          (message "DEBUG: Post is not a poll"))
-      (message "No active poll found at current position"))))
+        (message "DEBUG: No post info found at current point"))))
+
+  ;; Exit early if we don't have required information
+  (when (and author-url timestamp)
+    ;; Find the poll post to get options
+    (let ((poll-post nil))
+      (message "DEBUG: Looking for poll with URL: %s, Timestamp: %s" author-url timestamp)
+      (dolist (post (org-social-feed--get-timeline))
+        (when (and (string= (alist-get 'timestamp post) timestamp)
+		   (string= (alist-get 'author-url post) author-url))
+	  (setq poll-post post)
+          (message "DEBUG: Found matching post in timeline")))
+
+      (if poll-post
+          (if (org-social-polls--is-poll-post poll-post)
+              (progn
+                (message "DEBUG: Post is a poll")
+                (if (org-social-polls--is-poll-active poll-post)
+                    (progn
+                      (message "DEBUG: Poll is active")
+                      (let* ((options (org-social-polls--extract-poll-options
+                                       (alist-get 'text poll-post)))
+                             (selected-option (when options
+                                                (completing-read "Select option: " options nil t))))
+                        (when selected-option
+                          ;; Create a vote post
+                          (org-social-file--new-post author-url timestamp)
+                          ;; Add POLL_OPTION property
+                          (save-excursion
+                            (re-search-backward ":PROPERTIES:" nil t)
+                            (re-search-forward ":END:" nil t)
+                            (beginning-of-line)
+                            (insert (format ":POLL_OPTION: %s\n" selected-option)))
+                          (message "Vote created for option: %s" selected-option))))
+                  (message "This poll has already ended")))
+            (message "DEBUG: Post is not a poll"))
+        (message "No active poll found at current position")))))
 
 
 (defun org-social-polls--render-poll-results-section (timeline)
@@ -277,13 +287,13 @@ Argument TIMELINE is the list of posts."
 			      total-votes))
 	      ;; Show results
 	      (dolist (result results)
-		(let ((option (car result))
-		      (count (cdr result))
-		      (percentage (if (> total-votes 0)
-				      (/ (* count 100.0) total-votes)
-				    0)))
+		(let* ((option (car result))
+		       (result-votes (cdr result))
+		       (percentage (if (> total-votes 0)
+				       (/ (* result-votes 100.0) total-votes)
+				     0)))
 		  (insert (format "  - %s: %d votes (%.1f%%)\n"
-				  option count percentage))))))))
+				  option result-votes percentage))))))))
       (insert "\n"))))
 
 ;; Initialize poll links when module loads

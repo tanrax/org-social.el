@@ -51,7 +51,7 @@
   "Auto-save handler for Org-social files."
   (when (and (buffer-file-name)
 	     (file-equal-p (buffer-file-name) org-social-file))
-    (run-hooks #'org-social-after-save-file-hook)))
+    (run-hooks 'org-social-after-save-file-hook)))
 
 (defun org-social-file--save ()
   "Save the current Org-social file and run associated hooks."

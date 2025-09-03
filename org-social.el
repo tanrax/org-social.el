@@ -56,17 +56,47 @@
 
 (defun org-social--ensure-loaded ()
   "Ensure all org-social modules are loaded."
-  (unless (featurep 'org-social-variables)
+  (unless (and (featurep 'org-social-variables)
+               (featurep 'org-social-file))
     (add-to-list 'load-path org-social--root-dir)
-    (require 'org-social-variables)
-    (require 'org-social-parser)
-    (require 'org-social-feed)
-    (require 'org-social-notifications)
-    (require 'org-social-polls)
-    (require 'org-social-timeline)
-    (require 'org-social-file)
-    (require 'cl-lib)
-    (require 'seq)))
+    ;; Load core modules (must succeed)
+    (condition-case err
+        (progn
+          (require 'org-social-variables)
+          (require 'org-social-parser)
+          (require 'org-social-file)
+          (require 'cl-lib)
+          (require 'seq))
+      (error
+       (error"Failed to load core org-social modules: %s" (error-message-string err))))
+    
+    ;; Load optional modules (can fail gracefully)
+    (condition-case nil
+        (require 'org-social-feed)
+      (error
+       (message "Warning: Could not load org-social-feed module (requires 'request' package)")))
+    
+    (condition-case nil
+        (require 'org-social-notifications)
+      (error
+       (message "Warning: Could not load org-social-notifications module")))
+    
+    (condition-case nil
+        (require 'org-social-polls)
+      (error
+       (message "Warning: Could not load org-social-polls module")))
+    
+    (condition-case nil
+        (require 'org-social-timeline)
+      (error
+       (message "Warning: Could not load org-social-timeline module")))
+       
+    ;; Always try to ensure timeline function is loaded
+    (unless (fboundp 'org-social-timeline--display)
+      (condition-case nil
+          (require 'org-social-timeline)
+        (error
+         (message "Timeline functionality unavailable - install 'request' package for full functionality"))))))
 
 ;;;###autoload
 (defun org-social-open-file ()
@@ -88,6 +118,8 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
   "View timeline with posts from all followers."
   (interactive)
   (org-social--ensure-loaded)
+  (unless (fboundp 'org-social-timeline--display)
+    (error "Org-social-timeline--display function not available.  Check if org-social-timeline module loaded correctly"))
   (org-social-timeline--display))
 
 ;;;###autoload
