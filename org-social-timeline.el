@@ -87,9 +87,10 @@
         (local-set-key (kbd "C-c C-o") 'org-social-timeline--safe-open-at-point)
         ;; Add timeline-specific keybindings only to this buffer
         (local-set-key (kbd "c") 'org-social-new-post)
-        (local-set-key (kbd "P") 'org-social-new-poll)
+        (local-set-key (kbd "l") 'org-social-new-poll)
         (local-set-key (kbd "r") 'org-social-reply-to-post)
         (local-set-key (kbd "v") 'org-social-polls--vote-on-poll)
+        (local-set-key (kbd "P") 'org-social-view-profile)
         (local-set-key (kbd "n") 'org-social-next-post)
         (local-set-key (kbd "p") 'org-social-previous-post)
         (local-set-key (kbd "q") 'kill-buffer)
@@ -302,7 +303,7 @@
         (org-mode)
         (insert "#+TITLE: Org Social Timeline\n\n")
         (insert "# Navigation: (n) Next | (p) Previous | (RET/C-c C-o) Follow link\n")
-        (insert "# Post: (c) New | (P) New Poll | (r) Reply | (v) Vote\n")
+        (insert "# Post: (c) New | (l) New Poll | (r) Reply | (v) Vote | (P) Profile\n")
         (insert "# Actions: (g) Refresh timeline | (q) Quit\n\n")
 
         ;; Add notifications section
