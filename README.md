@@ -51,10 +51,27 @@ Add the following to your Emacs config:
 ;; Set the path to your social feed file
 (setq org-social-file "~/my-social-feed.org")
 
+;; Hide Reply and Profile buttons for a cleaner timeline view
+;; (keyboard shortcuts 'r' and 'P' still work)
+(setq org-social-hide-post-buttons t)
+
 ;; Optionally, configure global keybindings
 (global-set-key (kbd "C-c s t") 'org-social-timeline)
 (global-set-key (kbd "C-c s n") 'org-social-new-post)
 (global-set-key (kbd "C-c s o") 'org-social-open-file)
+```
+
+## Customization Variables
+
+| Variable | Description | Default | Type |
+|----------|-------------|---------|------|
+| `org-social-file` | Path to your Org-social feed file | `"~/social.org"` | `file` |
+| `org-social-hide-post-buttons` | Hide Reply and Profile buttons from timeline posts for a cleaner view. Keyboard shortcuts still work. | `nil` | `boolean` |
+
+You can customize these variables through Emacs' customization interface:
+
+```elisp
+M-x customize-group RET org-social RET
 ```
 
 ## Functions

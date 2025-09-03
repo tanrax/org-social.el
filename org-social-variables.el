@@ -36,6 +36,14 @@
   :type 'file
   :group 'org-social)
 
+(defcustom org-social-hide-post-buttons nil
+  "When non-nil, hide Reply and Profile buttons from timeline posts.
+This creates a cleaner timeline view by removing the interactive buttons
+at the end of each post. You can still use keyboard shortcuts to reply (r)
+and view profiles (P)."
+  :type 'boolean
+  :group 'org-social)
+
 ;; Variables for state management
 
 (defvar org-social-variables--feeds nil

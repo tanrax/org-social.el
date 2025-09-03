@@ -380,9 +380,11 @@
 	      (insert "\n")
 
 	      ;; Add Reply and Profile buttons only if it's not my own post
+	      ;; and buttons are not hidden by user configuration
 	      (when (and author-url
 		         (not (string-empty-p author-url))
-		         (not (string= author my-nick)))
+		         (not (string= author my-nick))
+		         (not org-social-hide-post-buttons))
 	        (insert "→ ")
 	        (insert (format "[[org-social-reply:%s|%s][Reply]]"
 			        author-url timestamp))
