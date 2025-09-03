@@ -72,17 +72,30 @@
 (define-minor-mode org-social-timeline-mode
   "Minor mode for the Org-social timeline buffer."
   :lighter " Timeline"
-  :keymap org-social-variables--timeline-mode-map
+  :keymap nil
   :group 'org-social
-  (when org-social-timeline-mode
-    ;; Allow link functions to work properly
-    (setq-local org-confirm-elisp-link-function nil)
-    ;; Set up special properties for timeline
-    (setq-local org-inhibit-startup t)
-    (setq-local org-hide-leading-stars t)
-    ;; Override org-return to handle links in read-only buffer
-    (local-set-key (kbd "RET") 'org-social-timeline--follow-link-or-next-post)
-    (local-set-key (kbd "C-c C-o") 'org-social-timeline--safe-open-at-point)))
+  (if org-social-timeline-mode
+      (progn
+        ;; Allow link functions to work properly
+        (setq-local org-confirm-elisp-link-function nil)
+        ;; Set up special properties for timeline
+        (setq-local org-inhibit-startup t)
+        (setq-local org-hide-leading-stars t)
+        ;; Set up local keymap that only works in this buffer
+        (use-local-map (copy-keymap org-mode-map))
+        ;; Override org-return to handle links in read-only buffer
+        (local-set-key (kbd "RET") 'org-social-timeline--follow-link-or-next-post)
+        (local-set-key (kbd "C-c C-o") 'org-social-timeline--safe-open-at-point)
+        ;; Add timeline-specific keybindings only to this buffer
+        (local-set-key (kbd "c") 'org-social-new-post)
+        (local-set-key (kbd "r") 'org-social-reply-to-post)
+        (local-set-key (kbd "v") 'org-social-polls--vote-on-poll)
+        (local-set-key (kbd "n") 'org-social-next-post)
+        (local-set-key (kbd "p") 'org-social-previous-post)
+        (local-set-key (kbd "q") 'kill-buffer)
+        (local-set-key (kbd "g") 'org-social-timeline-refresh))
+    ;; When disabling the mode, restore original keymap
+    (use-local-map org-mode-map)))
 
 (defun org-social-timeline--safe-open-at-point ()
   "Safely open link at point in read-only buffer."
@@ -353,7 +366,14 @@
 			     (t prop-name)))
 		      (insert (format ":%s: %s\n" prop-name value))))))
 
-	      (insert ":END:\n\n")
+	      (insert ":END:\n")
+
+	      ;; Add voting comment for polls
+	      (let ((poll-end (alist-get 'poll_end post)))
+	        (when poll-end
+	          (insert "# Press 'v' to vote on this poll\n")))
+
+	      (insert "\n")
 
 	      ;; Post content
 	      (insert (format "%s\n" text))
