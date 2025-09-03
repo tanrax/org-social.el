@@ -30,7 +30,6 @@
 ;;; Code:
 
 (require 'org-social-variables)
-(require 'org-social-images)
 (require 'org-social-feed)
 (require 'org-social-polls)
 (require 'org-social-notifications)
@@ -218,6 +217,17 @@
   (org-social-file--new-post author-url timestamp)
   (message "Reply created! Write your response and save the file."))
 
+(defun org-social-view-profile ()
+  "View the profile of the post author at current position."
+  (interactive)
+  (let ((post-info (org-social-timeline--get-post-at-point)))
+    (if post-info
+        (let ((author-url (alist-get 'author-url post-info)))
+          (if author-url
+              (org-social-timeline--view-profile author-url)
+            (message "No author URL found for current post")))
+      (message "No post found at current position"))))
+
 (defun org-social-timeline--view-profile (author-url)
   "View the raw feed content of AUTHOR-URL in a new buffer."
   (let ((buffer-name (format "*Org Social Profile: %s*"
@@ -365,10 +375,7 @@
 
 	      ;; Post content
 	      (insert (format "%s\n" text))
-
-	      ;; Render inline images from post content
-	      (org-social-images--render-post-images text)
-
+	      
 	      (insert "\n")
 
 	      ;; Add Reply and Profile buttons only if it's not my own post

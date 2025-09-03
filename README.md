@@ -86,6 +86,7 @@ Creates a reply to a post in the timeline (available when viewing the timeline).
 | Keybinding | Function | Description |
 |------------|----------|-------------|
 | `C-c C-n`  | `org-social-new-post` | Create a new post |
+| `C-c C-p`  | `org-social-new-poll` | Create a new poll |
 | `C-c C-t`  | `org-social-timeline` | Download and display the timeline |
 | `C-c C-c`  | `org-social-save-file` | Save the social file and run any hooks |
 | `C-c C-m`  | `org-social-mention-user` | Insert a mention of a user |
@@ -95,9 +96,12 @@ Creates a reply to a post in the timeline (available when viewing the timeline).
 | Keybinding | Function | Description |
 |------------|----------|-------------|
 | `c`        | `org-social-new-post` | Create a new post |
+| `l`        | `org-social-new-poll` | Create a new poll |
 | `r`        | `org-social-reply-to-post` | Reply to the post at point |
+| `v`        | `org-social-polls--vote-on-poll` | Vote on the poll at point |
 | `n`        | `org-social-next-post` | Navigate to the next post |
 | `p`        | `org-social-previous-post` | Navigate to the previous post |
+| `P`        | `org-social-view-profile` | View the profile of the post author |
 | `g`        | `org-social-timeline-refresh` | Refresh the timeline |
 | `q`        | `quit-window` | Close the timeline buffer |
 

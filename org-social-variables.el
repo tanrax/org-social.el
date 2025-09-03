@@ -72,11 +72,12 @@
 (defvar org-social-variables--timeline-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "c") #'org-social-new-post)
-    (define-key map (kbd "P") #'org-social-new-poll)
+    (define-key map (kbd "l") #'org-social-new-poll)
     (define-key map (kbd "r") #'org-social-reply-to-post)
     (define-key map (kbd "v") #'org-social-polls--vote-on-poll)
     (define-key map (kbd "n") #'org-social-next-post)
     (define-key map (kbd "p") #'org-social-previous-post)
+    (define-key map (kbd "P") #'org-social-view-profile)
     (define-key map (kbd "q") #'kill-buffer)
     (define-key map (kbd "g") #'org-social-timeline-refresh)
     map)
@@ -84,10 +85,6 @@
 
 ;; Buffer names
 (defconst org-social-variables--timeline-buffer-name "*Org Social Timeline*")
-
-;; Image constants
-(defconst org-social-images--regex-image "\\bhttps?:\\/\\/[^][()[:space:]]+\\.\\(?:png\\|jpe?g\\)\\b"
-  "Regex pattern for detecting image URLs (PNG and JPG only).")
 
 (provide 'org-social-variables)
 ;;; org-social-variables.el ends here
