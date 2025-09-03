@@ -308,8 +308,6 @@
 
         ;; Add notifications section
         (org-social-notifications--render-section timeline)
-        ;; Add active polls section
-        (org-social-polls--render-active-polls-section timeline)
 
         (insert "* Timeline\n\n")
 

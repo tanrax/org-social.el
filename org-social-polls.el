@@ -251,29 +251,6 @@ If called without parameters, get the post at point from timeline."
           (message "DEBUG: Post is not a poll"))
       (message "No active poll found at current position"))))
 
-(defun org-social-polls--render-active-polls-section (timeline)
-  "Render the active polls section in timeline.
-Argument TIMELINE is the list of posts."
-  (let ((active-polls (org-social-polls--find-active-polls timeline)))
-    (when active-polls
-      (insert "* Active Polls\n")
-      (insert ":PROPERTIES:\n")
-      (insert ":END:\n\n")
-      (dolist (poll active-polls)
-	(let ((author (alist-get 'author-nick poll))
-	      (author-url (alist-get 'author-url poll))
-	      (timestamp (alist-get 'timestamp poll))
-	      (text (alist-get 'text poll))
-	      (poll-end (alist-get 'poll_end poll)))
-	  ;; Extract first line as poll question
-	  (let ((first-line (car (split-string text "\n" t))))
-	    (when first-line
-	      (insert (format "- [[org-social-poll:%s|%s][%s by %s]] (ends: %s)\n"
-			      author-url timestamp
-			      (string-trim first-line)
-			      (or author "Unknown")
-			      (or poll-end "Unknown")))))))
-      (insert "\n"))))
 
 (defun org-social-polls--render-poll-results-section (timeline)
   "Render poll results section for closed polls.
