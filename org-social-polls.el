@@ -53,7 +53,7 @@ Returns t if current time is before POLL_END time."
 
 (defun org-social-polls--extract-poll-options (text)
   "Extract poll options from post TEXT.
-Returns a list of option strings."
+Returns a list of option strings in the original order."
   (let ((options '()))
     (with-temp-buffer
       (insert text)
@@ -61,8 +61,8 @@ Returns a list of option strings."
       (while (re-search-forward "^- \\[ \\] \\(.+\\)$" nil t)
 	(let ((option (string-trim (match-string 1))))
 	  (when (not (string-empty-p option))
-	    (push option options)))))
-    (reverse options)))
+	    (setq options (append options (list option)))))))
+    options))
 
 (defun org-social-polls--find-active-polls (timeline)
   "Find all active polls in TIMELINE.
@@ -75,7 +75,7 @@ Returns a list of active poll posts."
     (reverse active-polls)))
 
 (defun org-social-polls--find-poll-votes (timeline poll-post)
-  "Find all votes for POLL-POST in TIMELINE.
+  "Find all votes in TIMELINE for POLL-POST.
 Returns a list of vote posts that reply to the poll."
   (let ((poll-id (alist-get 'timestamp poll-post))
 	(poll-author-url (alist-get 'author-url poll-post))
@@ -91,7 +91,7 @@ Returns a list of vote posts that reply to the poll."
     votes))
 
 (defun org-social-polls--calculate-poll-results (timeline poll-post)
-  "Calculate results for POLL-POST using votes from TIMELINE.
+  "Calculate results using votes from TIMELINE for POLL-POST.
 Returns an alist of (option . vote-count) pairs."
   (let ((votes (org-social-polls--find-poll-votes timeline poll-post))
 	(options (org-social-polls--extract-poll-options
@@ -144,40 +144,111 @@ Returns a list of closed poll posts with their results."
 	(re-search-backward "^\\*\\* " nil t)
 	(org-show-entry)))))
 
+(defun org-social-polls--get-post-at-point ()
+  "Get the post information at the current point in timeline, specifically for polls."
+  (save-excursion
+    (let ((post-start nil)
+	  (post-end nil)
+	  (timestamp nil)
+	  (author-url nil))
+      ;; Find the start of current post (look for ** header)
+      (if (looking-at "^\\*\\* ")
+	  (setq post-start (point))
+	(when (re-search-backward "^\\*\\* " nil t)
+	  (setq post-start (point))))
+
+      ;; Find the end of current post
+      (when post-start
+	(goto-char post-start)
+	(forward-line 1)
+	(if (re-search-forward "^\\*\\* " nil t)
+	    (progn
+	      (beginning-of-line)
+	      (setq post-end (point)))
+	  (setq post-end (point-max)))
+
+	;; Extract ID from properties (try multiple formats)
+	(goto-char post-start)
+	(cond
+         ;; First try :CUSTOM_ID:
+         ((re-search-forward ":CUSTOM_ID:\\s-*\\(.+\\)" post-end t)
+          (setq timestamp (string-trim (match-string 1))))
+         ;; Then try :ID:
+         ((progn (goto-char post-start)
+                 (re-search-forward ":ID:\\s-*\\(.+\\)" post-end t))
+          (setq timestamp (string-trim (match-string 1)))))
+
+	;; Get author URL from multiple possible locations
+	(goto-char post-start)
+	(cond
+         ;; First try :URL: property
+         ((re-search-forward ":URL:\\s-*\\(.+\\)" post-end t)
+          (setq author-url (string-trim (match-string 1))))
+         ;; Then try Author: line with link
+         ((progn (goto-char post-start)
+                 (re-search-forward "Author: \\[\\[\\(.+?\\)\\]\\[" post-end t))
+          (setq author-url (string-trim (match-string 1))))
+         ;; Try plain Author: line
+         ((progn (goto-char post-start)
+                 (re-search-forward "Author:\\s-*\\(.+\\)" post-end t))
+          (setq author-url (string-trim (match-string 1))))
+         ;; For own posts, try to get from user's profile
+         (t
+          (setq author-url (alist-get 'url org-social-variables--my-profile))))
+
+        (message "DEBUG: get-post-at-point - timestamp: %s, author-url: %s" timestamp author-url)
+	;; Return post information
+	(when (and timestamp author-url)
+	  (list (cons 'timestamp timestamp)
+		(cons 'author-url author-url)))))))
+
 (defun org-social-polls--vote-on-poll (&optional author-url timestamp)
   "Vote on poll identified by AUTHOR-URL and TIMESTAMP.
 If called without parameters, get the post at point from timeline."
   (interactive)
   ;; If no parameters provided, get from current position in timeline
   (when (and (not author-url) (not timestamp))
-    (let ((post-info (org-social-timeline--get-post-at-point)))
-      (when post-info
-        (setq author-url (alist-get 'author-url post-info))
-        (setq timestamp (alist-get 'timestamp post-info)))))
+    (let ((post-info (org-social-polls--get-post-at-point)))
+      (if post-info
+          (progn
+            (setq author-url (alist-get 'author-url post-info))
+            (setq timestamp (alist-get 'timestamp post-info))
+            (message "DEBUG: Found post at point - URL: %s, Timestamp: %s" author-url timestamp))
+        (message "DEBUG: No post info found at current point")
+        (return))))
   
   ;; Find the poll post to get options
   (let ((poll-post nil))
+    (message "DEBUG: Looking for poll with URL: %s, Timestamp: %s" author-url timestamp)
     (dolist (post (org-social-feed--get-timeline))
       (when (and (string= (alist-get 'timestamp post) timestamp)
 		 (string= (alist-get 'author-url post) author-url))
-	(setq poll-post post)))
-    (if (and poll-post (org-social-polls--is-poll-post poll-post))
-	(if (org-social-polls--is-poll-active poll-post)
-	    (let* ((options (org-social-polls--extract-poll-options
-			     (alist-get 'text poll-post)))
-		   (selected-option (when options
-				      (completing-read "Select option: " options nil t))))
-	      (when selected-option
-		;; Create a vote post
-		(org-social-file--new-post author-url timestamp)
-		;; Add POLL_OPTION property
-		(save-excursion
-		  (re-search-backward ":PROPERTIES:" nil t)
-		  (re-search-forward ":END:" nil t)
-		  (beginning-of-line)
-		  (insert (format ":POLL_OPTION: %s\n" selected-option)))
-		(message "Vote created for option: %s" selected-option)))
-	  (message "This poll has already ended"))
+	(setq poll-post post)
+        (message "DEBUG: Found matching post in timeline")))
+    
+    (if poll-post
+        (if (org-social-polls--is-poll-post poll-post)
+            (progn
+              (message "DEBUG: Post is a poll")
+              (if (org-social-polls--is-poll-active poll-post)
+                  (progn
+                    (message "DEBUG: Poll is active")
+                    (let* ((options (org-social-polls--extract-poll-options
+                                     (alist-get 'text poll-post)))
+                           (selected-option (when options
+                                              (completing-read "Select option: " options nil t))))
+                      (when selected-option
+                        ;; Create a vote post
+                        (org-social-file--new-post author-url timestamp)
+                        ;; Add POLL_OPTION property
+                        (save-excursion
+                          (re-search-backward ":PROPERTIES:" nil t)
+                          (re-search-forward ":END:" nil t)
+                          (beginning-of-line)
+                          (insert (format ":POLL_OPTION: %s\n" selected-option)))
+                        (message "Vote created for option: %s" selected-option))))
+                (message "This poll has already ended")))
+          (message "DEBUG: Post is not a poll"))
       (message "No active poll found at current position"))))
 
 (defun org-social-polls--render-active-polls-section (timeline)

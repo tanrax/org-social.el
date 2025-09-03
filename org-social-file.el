@@ -128,7 +128,7 @@ and POLL-END is the RFC 3339 formatted end time."
 	(find-file org-social-file)
 	(org-social-mode 1)
 	(goto-char (point-max)))
-    (when (y-or-n-p (format "File %s doesn't exist. Create it? " org-social-file))
+    (when (y-or-n-p (format "File %s doesn't exist.  Create it? " org-social-file))
       (org-social-file--create-new-feed-file))))
 
 (defun org-social-file--new-post (&optional reply-url reply-id)
@@ -152,12 +152,12 @@ Interactively prompts for the poll question, options, and duration."
 	       (string= (expand-file-name (buffer-file-name))
 			(expand-file-name org-social-file)))
     (org-social-file--open))
-  
+
   ;; Prompt for poll question
   (let ((question (read-string "Poll question: ")))
     (when (string-empty-p question)
       (user-error "Poll question cannot be empty"))
-    
+
     ;; Collect poll options
     (let ((options '())
           (option-count 1)
@@ -175,13 +175,13 @@ Interactively prompts for the poll question, options, and duration."
             ;; Non-empty option, add it to the list
             (push option options)
             (setq option-count (1+ option-count)))))
-      
+
       ;; Prompt for poll duration
       (let* ((duration-hours (read-number "Poll duration in hours (default: 24): " 24))
-             (poll-end (format-time-string "%Y-%m-%dT%H:%M:%S%z" 
-                                         (time-add (current-time) 
-                                                  (seconds-to-time (* duration-hours 3600))))))
-        
+             (poll-end (format-time-string "%Y-%m-%dT%H:%M:%S%z"
+                                           (time-add (current-time)
+                                                     (seconds-to-time (* duration-hours 3600))))))
+
         ;; Insert the poll
         (save-excursion
           (org-social-file--find-posts-section)

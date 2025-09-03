@@ -36,28 +36,6 @@
   :type 'file
   :group 'org-social)
 
-;; Image customization
-
-(defcustom org-social-cache-image-directory (expand-file-name "org-social-images" user-emacs-directory)
-  "Directory where images are cached."
-  :type 'directory
-  :group 'org-social)
-
-(defcustom org-social-avatar-width 32
-  "Width for avatar images in pixels."
-  :type 'integer
-  :group 'org-social)
-
-(defcustom org-social-default-avatar "👤"
-  "Default avatar character when no image is available."
-  :type 'string
-  :group 'org-social)
-
-(defcustom org-social-sync-avatar-downloads t
-  "If non-nil, download all avatars synchronously before showing timeline."
-  :type 'boolean
-  :group 'org-social)
-
 ;; Variables for state management
 
 (defvar org-social-variables--feeds nil

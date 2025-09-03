@@ -86,7 +86,7 @@ Argument FOLLOW-LINE text."
 PROP-NAME should be the property name without colons."
   (when (string-match (format ":%s:\\s-*\\([^\n]+\\)" (regexp-quote prop-name)) text)
     (let ((value (string-trim (match-string 1 text))))
-      ;; Validación simple sin limitación de longitud
+      ;; Simple validation without length limitation
       (when (and (not (string-empty-p value))
                  (not (string-match-p "^:END:$" value))
                  (not (string-match-p "^#" value)))

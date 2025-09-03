@@ -45,7 +45,7 @@
 		(alist-get 'follow org-social-variables--my-profile))))
 
 (defun org-social-feed--queue-update-status-by-url (queue url status)
-  "Update the STATUS of a QUEUE item by URL."
+  "Update the status of a QUEUE item by URL to STATUS."
   (mapcar (lambda (item)
 	    (if (string= (alist-get :url item) url)
 		(let ((new-item (copy-tree item)))
@@ -133,7 +133,7 @@ Argument NEW-RESPONSE"
                                    (author-url (alist-get 'url feed))
                                    (posts (alist-get 'posts feed)))
                                (mapcar (lambda (post)
-                                         ;; Crear una nueva lista con propiedades del autor Y todas las propiedades del post
+                                         ;; Create a new list with author properties AND all post properties
                                          (append (list
                                                   (cons 'author-id author-id)
                                                   (cons 'author-nick author-nick)
