@@ -143,7 +143,6 @@ GPL-3.0 - See LICENSE file for details.
 
 ## 1.4
 
-- Show the user profile.
 - Input to make polls.
 - Display the voting results.
 - Notifications: Add poll results
