@@ -2,6 +2,8 @@
 
 An Emacs client for [Org Social](https://github.com/tanrax/org-social), a decentralized social network that works with Org Mode files over HTTP.
 
+![Screenshot](screenshot.png)
+
 ## Installation
 
 ### MELPA
@@ -10,7 +12,7 @@ In progress.
 
 ### use-package
 
-You can install directly from the repository.
+#### Stable release
 
 Add the following to your Emacs config:
 
@@ -21,24 +23,26 @@ Add the following to your Emacs config:
         :rev :newest))
 ```
 
-### Manual
+#### Development version
 
-#### Requirements
+You can install the development version from the `develop` branch.
 
-- Org Mode 9.0 or higher
-- `request` package (for downloading remote feeds)
+Add the following to your Emacs config:
 
-1. Download `org-social.el`
+```elisp
+(use-package request)
+(use-package org-social
+  :vc ( :url "https://github.com/tanrax/org-social.el"
+        :rev "develop"))
+```
+
+### Git
+
+1. Clone the repository:
 2. Place it in your Emacs `load-path`
 
 ```elisp
 (add-to-list 'load-path "/path/to/org-social.el")
-```
-
-3. Add to your Emacs configuration:
-
-```elisp
-(require 'org-social)
 ```
 
 ## Configuration
@@ -47,10 +51,27 @@ Add the following to your Emacs config:
 ;; Set the path to your social feed file
 (setq org-social-file "~/my-social-feed.org")
 
+;; Hide Reply and Profile buttons for a cleaner timeline view
+;; (keyboard shortcuts 'r' and 'P' still work)
+(setq org-social-hide-post-buttons t)
+
 ;; Optionally, configure global keybindings
 (global-set-key (kbd "C-c s t") 'org-social-timeline)
 (global-set-key (kbd "C-c s n") 'org-social-new-post)
 (global-set-key (kbd "C-c s o") 'org-social-open-file)
+```
+
+## Customization Variables
+
+| Variable | Description | Default | Type |
+|----------|-------------|---------|------|
+| `org-social-file` | Path to your Org-social feed file | `"~/social.org"` | `file` |
+| `org-social-hide-post-buttons` | Hide Reply and Profile buttons from timeline posts for a cleaner view. Keyboard shortcuts still work. | `nil` | `boolean` |
+
+You can customize these variables through Emacs' customization interface:
+
+```elisp
+M-x customize-group RET org-social RET
 ```
 
 ## Functions
@@ -82,6 +103,7 @@ Creates a reply to a post in the timeline (available when viewing the timeline).
 | Keybinding | Function | Description |
 |------------|----------|-------------|
 | `C-c C-n`  | `org-social-new-post` | Create a new post |
+| `C-c C-p`  | `org-social-new-poll` | Create a new poll |
 | `C-c C-t`  | `org-social-timeline` | Download and display the timeline |
 | `C-c C-c`  | `org-social-save-file` | Save the social file and run any hooks |
 | `C-c C-m`  | `org-social-mention-user` | Insert a mention of a user |
@@ -90,9 +112,13 @@ Creates a reply to a post in the timeline (available when viewing the timeline).
 
 | Keybinding | Function | Description |
 |------------|----------|-------------|
+| `c`        | `org-social-new-post` | Create a new post |
+| `l`        | `org-social-new-poll` | Create a new poll |
 | `r`        | `org-social-reply-to-post` | Reply to the post at point |
+| `v`        | `org-social-polls--vote-on-poll` | Vote on the poll at point |
 | `n`        | `org-social-next-post` | Navigate to the next post |
 | `p`        | `org-social-previous-post` | Navigate to the previous post |
+| `P`        | `org-social-view-profile` | View the profile of the post author |
 | `g`        | `org-social-timeline-refresh` | Refresh the timeline |
 | `q`        | `quit-window` | Close the timeline buffer |
 
@@ -150,7 +176,6 @@ GPL-3.0 - See LICENSE file for details.
 
 - Save followings data in a separate file.
 - Show/hide metadata in the timeline.
-- Show the user profile.
 
 ### Backlog
 

@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 1.3
+;; Version: 1.4
 ;; URL: https://github.com/tanrax/org-social.el
 ;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5"))
 
@@ -36,6 +36,14 @@
   :type 'file
   :group 'org-social)
 
+(defcustom org-social-hide-post-buttons nil
+  "When non-nil, hide Reply and Profile buttons from timeline posts.
+This creates a cleaner timeline view by removing the interactive buttons
+at the end of each post. You can still use keyboard shortcuts to reply (r)
+and view profiles (P)."
+  :type 'boolean
+  :group 'org-social)
+
 ;; Variables for state management
 
 (defvar org-social-variables--feeds nil
@@ -49,20 +57,21 @@
 
 ;; Hooks
 
-(defvar org-social-variables--after-fetch-posts-hook nil
+(defvar org-social-after-fetch-posts-hook nil
   "Hook run after all feeds have been fetched.")
 
-(defvar org-social-variables--after-save-file-hook nil
+(defvar org-social-after-save-file-hook nil
   "Hook run after saving the social file.")
 
 ;; Keymap for org-social mode
 
 (defvar org-social-variables--mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c C-n") 'org-social-new-post)
-    (define-key map (kbd "C-c C-t") 'org-social-timeline)
-    (define-key map (kbd "C-c C-c") 'org-social-save-file)
-    (define-key map (kbd "C-c C-m") 'org-social-mention-user)
+    (define-key map (kbd "C-c C-n") #'org-social-new-post)
+    (define-key map (kbd "C-c C-p") #'org-social-new-poll)
+    (define-key map (kbd "C-c C-t") #'org-social-timeline)
+    (define-key map (kbd "C-c C-s") #'org-social-save-file)
+    (define-key map (kbd "C-c C-m") #'org-social-mention-user)
     map)
   "Keymap for `org-social-mode'.")
 
@@ -70,11 +79,15 @@
 
 (defvar org-social-variables--timeline-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "r") 'org-social-reply-to-post)
-    (define-key map (kbd "n") 'org-social-next-post)
-    (define-key map (kbd "p") 'org-social-previous-post)
-    (define-key map (kbd "q") 'quit-window)
-    (define-key map (kbd "g") 'org-social-timeline-refresh)
+    (define-key map (kbd "c") #'org-social-new-post)
+    (define-key map (kbd "l") #'org-social-new-poll)
+    (define-key map (kbd "r") #'org-social-reply-to-post)
+    (define-key map (kbd "v") #'org-social-polls--vote-on-poll)
+    (define-key map (kbd "n") #'org-social-next-post)
+    (define-key map (kbd "p") #'org-social-previous-post)
+    (define-key map (kbd "P") #'org-social-view-profile)
+    (define-key map (kbd "q") #'kill-buffer)
+    (define-key map (kbd "g") #'org-social-timeline-refresh)
     map)
   "Keymap for `org-social-timeline-mode'.")
 

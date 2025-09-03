@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 1.3
+;; Version: 1.4
 ;; URL: https://github.com/tanrax/org-social.el
 ;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5"))
 
@@ -50,6 +50,7 @@
 ;; Forward declarations to avoid compiler warnings
 (declare-function org-social-file--open "org-social-file" ())
 (declare-function org-social-file--new-post "org-social-file" (reply-url reply-id))
+(declare-function org-social-file--new-poll "org-social-file" ())
 (declare-function org-social-timeline--display "org-social-timeline" ())
 (declare-function org-social-file--validate "org-social-file" ())
 
@@ -61,6 +62,7 @@
     (require 'org-social-parser)
     (require 'org-social-feed)
     (require 'org-social-notifications)
+    (require 'org-social-polls)
     (require 'org-social-timeline)
     (require 'org-social-file)
     (require 'cl-lib)
@@ -101,6 +103,13 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
   (interactive)
   (org-social--ensure-loaded)
   (org-social-file--validate))
+
+;;;###autoload
+(defun org-social-new-poll ()
+  "Create a new poll in your Org-social feed."
+  (interactive)
+  (org-social--ensure-loaded)
+  (org-social-file--new-poll))
 
 (provide 'org-social)
 ;;; org-social.el ends here
