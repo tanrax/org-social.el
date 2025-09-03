@@ -88,6 +88,7 @@
         (local-set-key (kbd "C-c C-o") 'org-social-timeline--safe-open-at-point)
         ;; Add timeline-specific keybindings only to this buffer
         (local-set-key (kbd "c") 'org-social-new-post)
+        (local-set-key (kbd "P") 'org-social-new-poll)
         (local-set-key (kbd "r") 'org-social-reply-to-post)
         (local-set-key (kbd "v") 'org-social-polls--vote-on-poll)
         (local-set-key (kbd "n") 'org-social-next-post)
@@ -269,26 +270,17 @@
 	   (cons 'avatar nil)))))
 
 (defun org-social-timeline--process-feeds-and-display ()
-  "Process feeds, download avatars synchronously, then display timeline."
+  "Process feeds and display timeline."
   ;; Remove the hook to avoid multiple execution
   (remove-hook 'org-social-after-fetch-posts-hook
 	       #'org-social-timeline--process-feeds-and-display t)
 
-  (message "Feeds obtained. Checking avatars...")
+  (message "Feeds obtained. Building timeline...")
 
-  ;; Debug: Check avatar status
-  (org-social-images--check-avatar-cache-status)
-
-  ;; Download all avatar images synchronously if enabled
-  (when org-social-sync-avatar-downloads
-    (org-social-images--download-all-avatars-sync org-social-variables--feeds))
-
-  (message "Building timeline...")
-
-  ;; Now show the timeline (all images should be downloaded)
+  ;; Show the timeline
   (org-social-timeline--layout)
 
-  (message "Timeline completed with avatars!"))
+  (message "Timeline completed!"))
 
 (defun org-social-timeline--layout ()
   "Create and display the timeline buffer."
@@ -300,7 +292,7 @@
         (org-mode)
         (insert "#+TITLE: Org Social Timeline\n\n")
         (insert "# Navigation: (n) Next | (p) Previous | (RET/C-c C-o) Follow link\n")
-        (insert "# Post: (c) New | (r) Reply | (v) Vote\n")
+        (insert "# Post: (c) New | (P) New Poll | (r) Reply | (v) Vote\n")
         (insert "# Actions: (g) Refresh timeline | (q) Quit\n\n")
 
         ;; Add notifications section
@@ -320,12 +312,8 @@
 	    ;; Find the correct profile for avatar
 	    (let ((profile (org-social-timeline--find-profile-for-post post org-social-variables--feeds)))
 
-	      ;; Post header with avatar and author name
+	      ;; Post header with author name (no avatar)
 	      (insert "** ")
-
-	      ;; Insert avatar
-	      (org-social-images--insert-avatar profile)
-	      (insert " ")
 	      (insert (format "%s\n" (or author "Unknown")))
 
 	      ;; Properties section
@@ -405,7 +393,7 @@
     (switch-to-buffer buffer-name)))
 
 (defun org-social-timeline--display ()
-  "View timeline with posts from all followers. Downloads all images first."
+  "View timeline with posts from all followers."
   (interactive)
   (message "Fetching feeds...")
 

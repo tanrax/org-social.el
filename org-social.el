@@ -50,6 +50,7 @@
 ;; Forward declarations to avoid compiler warnings
 (declare-function org-social-file--open "org-social-file" ())
 (declare-function org-social-file--new-post "org-social-file" (reply-url reply-id))
+(declare-function org-social-file--new-poll "org-social-file" ())
 (declare-function org-social-timeline--display "org-social-timeline" ())
 (declare-function org-social-file--validate "org-social-file" ())
 
@@ -103,6 +104,13 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
   (interactive)
   (org-social--ensure-loaded)
   (org-social-file--validate))
+
+;;;###autoload
+(defun org-social-new-poll ()
+  "Create a new poll in your Org-social feed."
+  (interactive)
+  (org-social--ensure-loaded)
+  (org-social-file--new-poll))
 
 (provide 'org-social)
 ;;; org-social.el ends here

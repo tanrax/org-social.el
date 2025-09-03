@@ -88,6 +88,25 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
     (insert ":END:\n\n")
     (goto-char (point-max))))
 
+(defun org-social-file--insert-poll-template (question options poll-end)
+  "Insert a new poll template at the current position.
+QUESTION is the poll question, OPTIONS is a list of poll options,
+and POLL-END is the RFC 3339 formatted end time."
+  (let ((timestamp (org-social-parser--generate-timestamp)))
+    (insert "\n**\n:PROPERTIES:\n")
+    (insert (format ":ID: %s\n" timestamp))
+    (insert ":LANG: \n")
+    (insert ":TAGS: \n")
+    (insert ":CLIENT: org-social.el\n")
+    (insert (format ":POLL_END: %s\n" poll-end))
+    (insert ":MOOD: \n")
+    (insert ":END:\n\n")
+    (insert (format "%s\n\n" question))
+    (dolist (option options)
+      (insert (format "- [ ] %s\n" option)))
+    (insert "\n")
+    (goto-char (point-max))))
+
 (defun org-social-file--create-new-feed-file ()
   "Create a new Org-social feed file with basic template."
   (find-file org-social-file)
@@ -125,6 +144,52 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
     (org-social-file--insert-post-template reply-url reply-id))
   (goto-char (point-max)))
 
+(defun org-social-file--new-poll ()
+  "Create a new poll in your Org-social feed.
+Interactively prompts for the poll question, options, and duration."
+  (interactive)
+  (unless (and (buffer-file-name)
+	       (string= (expand-file-name (buffer-file-name))
+			(expand-file-name org-social-file)))
+    (org-social-file--open))
+  
+  ;; Prompt for poll question
+  (let ((question (read-string "Poll question: ")))
+    (when (string-empty-p question)
+      (user-error "Poll question cannot be empty"))
+    
+    ;; Collect poll options
+    (let ((options '())
+          (option-count 1)
+          (done nil))
+      (while (not done)
+        (let ((option (read-string (format "Option %d (leave empty to finish): " option-count))))
+          (if (string-empty-p option)
+              ;; Empty option, check if we have at least 2 options
+              (if (< (length options) 2)
+                  (message "Need at least 2 options for a poll. Continue adding options.")
+                (progn
+                  ;; Reverse to maintain input order
+                  (setq options (reverse options))
+                  (setq done t)))
+            ;; Non-empty option, add it to the list
+            (push option options)
+            (setq option-count (1+ option-count)))))
+      
+      ;; Prompt for poll duration
+      (let* ((duration-hours (read-number "Poll duration in hours (default: 24): " 24))
+             (poll-end (format-time-string "%Y-%m-%dT%H:%M:%S%z" 
+                                         (time-add (current-time) 
+                                                  (seconds-to-time (* duration-hours 3600))))))
+        
+        ;; Insert the poll
+        (save-excursion
+          (org-social-file--find-posts-section)
+          (goto-char (point-max))
+          (org-social-file--insert-poll-template question options poll-end))
+        (goto-char (point-max))
+        (message "Poll created with %d options, ending at %s" (length options) poll-end)))))
+
 (defun org-social-file--validate ()
   "Validate the current Org-social file structure."
   (save-excursion
@@ -159,12 +224,13 @@ Returns a list of cons cells (NICK . URL)."
 	  (mapcar (lambda (follow)
 		    (let ((name (alist-get 'name follow))
 			  (url (alist-get 'url follow)))
-		      ;; If name is nil, try to extract nick from the URL's feed
-		      (if (and name (not (string-empty-p name)))
-			  (cons name url)
-			(cons (or (org-social-file--extract-nick-from-url url)
-				  (file-name-base url)
-				  "Unknown") url))))
+		      ;; Always try to extract nick from the URL's feed first (#+NICK)
+		      (let ((remote-nick (org-social-file--extract-nick-from-url url)))
+			(cons (or remote-nick     ; Use #+NICK from remote file
+				  name            ; Fallback to name from #+FOLLOW
+				  (file-name-base url) ; Fallback to filename
+				  "Unknown")      ; Last resort
+			      url))))
 		  follows))))))
 
 (defun org-social-file--extract-nick-from-url (url)
@@ -205,6 +271,7 @@ NICK is the user's nickname and URL is their social.org URL."
 ;; Interactive functions with proper naming
 (defalias 'org-social-save-file 'org-social-file--save)
 (defalias 'org-social-mention-user 'org-social-file--mention-user)
+(defalias 'org-social-new-poll 'org-social-file--new-poll)
 
 (provide 'org-social-file)
 ;;; org-social-file.el ends here

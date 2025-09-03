@@ -82,6 +82,7 @@
 (defvar org-social-variables--mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-n") #'org-social-new-post)
+    (define-key map (kbd "C-c C-p") #'org-social-new-poll)
     (define-key map (kbd "C-c C-t") #'org-social-timeline)
     (define-key map (kbd "C-c C-s") #'org-social-save-file)
     (define-key map (kbd "C-c C-m") #'org-social-mention-user)
@@ -93,6 +94,7 @@
 (defvar org-social-variables--timeline-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "c") #'org-social-new-post)
+    (define-key map (kbd "P") #'org-social-new-poll)
     (define-key map (kbd "r") #'org-social-reply-to-post)
     (define-key map (kbd "v") #'org-social-polls--vote-on-poll)
     (define-key map (kbd "n") #'org-social-next-post)
