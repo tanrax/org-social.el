@@ -158,17 +158,7 @@ GPL-3.0 - See LICENSE file for details.
 
 # TODO
 
-## In progress
-
-- Add to MELPA.
-
-## 1.4
-
-- Input to make polls.
-- Display the voting results.
-- Notifications: Add poll results
-
-## 1.5
+## 1.5 (In progress, branch `develop`)
 
 - View thread replies.
 
@@ -181,9 +171,17 @@ GPL-3.0 - See LICENSE file for details.
 
 - Group integration.
 - Generate an HTML version of your timeline.
-- News section.
 
 # Changelog
+
+## 1.4
+
+- Input to make votes.
+- Input to make new polls.
+- Notifications: Display the voting results.
+- Button to reply
+- Button to view profile
+- Updated mention source to use real nick names.
 
 ## 1.3
 
