@@ -98,12 +98,30 @@
    :export (lambda (_path desc _backend)
 	     desc)))
 
-;; Initialize reply, profile, and vote links when module loads
+;; Define custom link type for user mentions
+(defun org-social-timeline--setup-mention-links ()
+  "Setup custom org-social link type for user mentions."
+  (org-link-set-parameters
+   "org-social"
+   :follow (lambda (path)
+	     (org-social-timeline--goto-user-post path))
+   :export (lambda (_path desc _backend)
+	     desc)))
+
+;; Initialize reply, profile, vote, and mention links when module loads
 (eval-after-load 'org
   '(progn
      (org-social-timeline--setup-reply-links)
      (org-social-timeline--setup-profile-links)
-     (org-social-timeline--setup-vote-links)))
+     (org-social-timeline--setup-vote-links)
+     (org-social-timeline--setup-mention-links)))
+
+;; Also initialize if org is already loaded
+(when (featurep 'org)
+  (org-social-timeline--setup-reply-links)
+  (org-social-timeline--setup-profile-links)
+  (org-social-timeline--setup-vote-links)
+  (org-social-timeline--setup-mention-links))
 
 ;; Timeline mode definition
 
@@ -290,6 +308,32 @@
       :error (lambda (&rest args)
 	       (message "Failed to fetch profile from %s: %s"
 			author-url (plist-get args :error-thrown))))))
+
+(defun org-social-timeline--goto-user-post (author-url)
+  "Navigate to the most recent post from user with AUTHOR-URL in current timeline."
+  (let ((timeline-buffer (get-buffer org-social-variables--timeline-buffer-name)))
+    (when timeline-buffer
+      (switch-to-buffer timeline-buffer)
+      (goto-char (point-min))
+      ;; Search for posts from this author
+      (let ((found nil))
+	(while (and (not found) (re-search-forward "^\\*\\* " nil t))
+	  (let ((post-start (point)))
+	    ;; Look for URL property within this post
+	    (when (re-search-forward ":END:" nil t)
+	      (let ((post-end (point)))
+		(goto-char post-start)
+		(when (re-search-forward (format ":URL:\\s-*%s\\s-*$"
+						 (regexp-quote author-url)) post-end t)
+		  ;; Found a post from this author
+		  (setq found post-start))))))
+	(if found
+	    (progn
+	      (goto-char found)
+	      (re-search-backward "^\\*\\* " nil t)
+	      (org-social-timeline--goto-post-content))
+	  (message "No posts found from %s in current timeline"
+		   (file-name-nondirectory author-url)))))))
 
 (defun org-social-timeline--refresh ()
   "Refresh the timeline by fetching new posts."
