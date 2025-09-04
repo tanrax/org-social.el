@@ -57,9 +57,8 @@ Add the following to your Emacs config:
 ;; Set the path to your social feed file
 (setq org-social-file "~/my-social-feed.org")
 
-;; Hide Reply and Profile buttons for a cleaner timeline view
-;; (keyboard shortcuts 'r' and 'P' still work)
-(setq org-social-hide-post-buttons t)
+;; Hide Reply, Vote, and Profile buttons for a cleaner timeline view. Change to 't' to hide them. Keyboard shortcuts 'r', 'v', and 'P' still work
+(setq org-social-hide-post-buttons nil)
 
 ;; Optionally, configure global keybindings
 (global-set-key (kbd "C-c s t") 'org-social-timeline)
@@ -72,7 +71,7 @@ Add the following to your Emacs config:
 | Variable | Description | Default | Type |
 |----------|-------------|---------|------|
 | `org-social-file` | Path to your Org-social feed file | `"~/social.org"` | `file` |
-| `org-social-hide-post-buttons` | Hide Reply and Profile buttons from timeline posts for a cleaner view. Keyboard shortcuts still work. | `nil` | `boolean` |
+| `org-social-hide-post-buttons` | Hide Reply, Vote, and Profile buttons from timeline posts for a cleaner view. Keyboard shortcuts still work. | `nil` | `boolean` |
 
 You can customize these variables through Emacs' customization interface:
 
@@ -90,6 +89,10 @@ Downloads feeds from people you follow and displays a unified timeline with enha
 
 Make a new post in your social feed.
 
+### `org-social-new-poll`
+
+Create a new poll in your Org-social feed.
+
 ### `org-social-mention-user`
 
 Insert a mention of a user in your post.
@@ -98,9 +101,25 @@ Insert a mention of a user in your post.
 
 Verifies that your file has the correct structure.
 
+### `org-social-open-file`
+
+Open the Org-social feed file and enable org-social-mode.
+
+### `org-social-setup`
+
+Set up Org-social for first-time use.
+
 ### `org-social-reply-to-post`
 
 Creates a reply to a post in the timeline (available when viewing the timeline).
+
+### `org-social-view-profile`
+
+View the profile of the post author at current position (available when viewing the timeline).
+
+### `org-social-save-file`
+
+Save the current Org-social file and run associated hooks.
 
 ## Keybindings
 
@@ -126,7 +145,7 @@ Creates a reply to a post in the timeline (available when viewing the timeline).
 | `p`        | `org-social-previous-post` | Navigate to the previous post |
 | `P`        | `org-social-view-profile` | View the profile of the post author |
 | `g`        | `org-social-timeline-refresh` | Refresh the timeline |
-| `q`        | `quit-window` | Close the timeline buffer |
+| `q`        | `kill-buffer` | Close the timeline buffer |
 
 ## Hooks
 
@@ -155,8 +174,10 @@ For example, to automatically upload your social file to a remote server after s
 2. **View timeline**: Use `M-x org-social-timeline` or `C-c C-t`
 3. **Navigate**: Use `n`/`p` to move between posts in the timeline
 4. **Reply**: Press `r` when positioned on a post to create a reply
-5. **Create posts**: Use `M-x org-social-new-post` or `C-c C-n`
-6. **Save and sync**: Use `C-c C-c` to save with hooks
+5. **Vote on polls**: Press `v` when positioned on a poll to vote
+6. **Create posts**: Use `M-x org-social-new-post` or `C-c C-n`
+7. **Create polls**: Use `M-x org-social-new-poll` or `C-c C-p`
+8. **Save and sync**: Use `C-x C-s` to save with hooks
 
 ## License
 
@@ -166,17 +187,11 @@ GPL-3.0 - See LICENSE file for details.
 
 ## 1.5 (In progress, branch `develop`)
 
-- View thread replies.
-
-## 1.6
-
-- Save followings data in a separate file.
-- Show/hide metadata in the timeline.
-
-### Backlog
-
-- Group integration.
-- Generate an HTML version of your timeline.
+- Integrate Register API.
+  - Add my feed.
+  - View thread replies.
+  - View notifications.
+  - Group integration.
 
 # Changelog
 
@@ -186,6 +201,7 @@ GPL-3.0 - See LICENSE file for details.
 - Input to make new polls.
 - Notifications: Display the voting results.
 - Button to reply
+- Button to vote on polls
 - Button to view profile
 - Updated mention source to use real nick names.
 
