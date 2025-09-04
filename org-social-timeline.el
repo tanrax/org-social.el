@@ -44,6 +44,7 @@
 (declare-function org-social-feed--fetch-all-feeds-async "org-social-feed" ())
 (declare-function org-social-feed--get-timeline "org-social-feed" ())
 (declare-function org-social-polls--setup-poll-links "org-social-polls" ())
+(declare-function org-social-polls--vote-on-poll "org-social-polls" (&optional author-url timestamp))
 (declare-function org-social-notifications--render-section "org-social-notifications" (timeline))
 (declare-function request "request" (url &rest args))
 
@@ -85,11 +86,24 @@
    :export (lambda (_path desc _backend)
 	     desc)))
 
-;; Initialize reply and profile links when module loads
+;; Define custom link type for voting on polls
+(defun org-social-timeline--setup-vote-links ()
+  "Setup custom org-social-vote link type."
+  (org-link-set-parameters
+   "org-social-vote"
+   :follow (lambda (path)
+	     (let ((parts (split-string path "|")))
+	       (when (= (length parts) 2)
+		 (org-social-polls--vote-on-poll (car parts) (cadr parts)))))
+   :export (lambda (_path desc _backend)
+	     desc)))
+
+;; Initialize reply, profile, and vote links when module loads
 (eval-after-load 'org
   '(progn
      (org-social-timeline--setup-reply-links)
-     (org-social-timeline--setup-profile-links)))
+     (org-social-timeline--setup-profile-links)
+     (org-social-timeline--setup-vote-links)))
 
 ;; Timeline mode definition
 
@@ -390,11 +404,6 @@
 
 	      (insert ":END:\n")
 
-	      ;; Add voting comment for polls
-	      (let ((poll-end (alist-get 'poll_end post)))
-	        (when poll-end
-	          (insert "# Press 'v' to vote on this poll\n")))
-
 	      (insert "\n")
 
 	      ;; Post content
@@ -402,19 +411,27 @@
 
 	      (insert "\n")
 
-	      ;; Add Reply and Profile buttons only if it's not my own post
-	      ;; and buttons are not hidden by user configuration
+	      ;; Add Reply and Vote buttons (always shown unless buttons are hidden)
+	      ;; Profile button only for other users' posts
 	      (when (and author-url
 		         (not (string-empty-p author-url))
-		         (not (string= author my-nick))
 		         (not org-social-hide-post-buttons))
-	        (insert "→ ")
-	        (insert (format "[[org-social-reply:%s|%s][Reply]]"
-			        author-url timestamp))
-	        (insert " · ")
-	        (insert (format "[[org-social-profile:%s][Profile]]"
-			        author-url))
-	        (insert "\n\n"))
+	        (let ((poll-end (alist-get 'poll_end post))
+	              (is-my-post (string= author my-nick)))
+	          (insert "→ ")
+	          (insert (format "[[org-social-reply:%s|%s][Reply]]"
+			          author-url timestamp))
+	          ;; Add Vote button for polls
+	          (when poll-end
+	            (insert " · ")
+	            (insert (format "[[org-social-vote:%s|%s][Vote]]"
+			            author-url timestamp)))
+	          ;; Add Profile button only for other users' posts
+	          (when (not is-my-post)
+	            (insert " · ")
+	            (insert (format "[[org-social-profile:%s][Profile]]"
+			            author-url)))
+	          (insert "\n\n")))
 
 	      (insert "\n"))))
 
