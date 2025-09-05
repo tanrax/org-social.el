@@ -310,30 +310,32 @@
 			author-url (plist-get args :error-thrown))))))
 
 (defun org-social-timeline--goto-user-post (author-url)
-  "Navigate to the most recent post from user with AUTHOR-URL in current timeline."
+  "Open the profile/feed of the user with AUTHOR-URL in a new buffer.
+If in timeline, also try to navigate to their most recent post."
+  ;; Open the user's profile first
+  (org-social-timeline--view-profile author-url)
+  
+  ;; Also try to navigate to their post in current timeline if available
   (let ((timeline-buffer (get-buffer org-social-variables--timeline-buffer-name)))
     (when timeline-buffer
-      (switch-to-buffer timeline-buffer)
-      (goto-char (point-min))
-      ;; Search for posts from this author
-      (let ((found nil))
-	(while (and (not found) (re-search-forward "^\\*\\* " nil t))
-	  (let ((post-start (point)))
-	    ;; Look for URL property within this post
-	    (when (re-search-forward ":END:" nil t)
-	      (let ((post-end (point)))
-		(goto-char post-start)
-		(when (re-search-forward (format ":URL:\\s-*%s\\s-*$"
-						 (regexp-quote author-url)) post-end t)
-		  ;; Found a post from this author
-		  (setq found post-start))))))
-	(if found
-	    (progn
-	      (goto-char found)
-	      (re-search-backward "^\\*\\* " nil t)
-	      (org-social-timeline--goto-post-content))
-	  (message "No posts found from %s in current timeline"
-		   (file-name-nondirectory author-url)))))))
+      (with-current-buffer timeline-buffer
+        (save-excursion
+          (goto-char (point-min))
+          ;; Search for posts from this author
+          (let ((found nil))
+            (while (and (not found) (re-search-forward "^\\*\\* " nil t))
+              (let ((post-start (point)))
+                ;; Look for URL property within this post
+                (when (re-search-forward ":END:" nil t)
+                  (let ((post-end (point)))
+                    (goto-char post-start)
+                    (when (re-search-forward (format ":URL:\\s-*%s\\s-*$"
+                                                     (regexp-quote author-url)) post-end t)
+                      ;; Found a post from this author
+                      (setq found post-start))))))
+            (when found
+              (message "User %s also has posts in the current timeline"
+                       (file-name-nondirectory author-url)))))))))
 
 (defun org-social-timeline--refresh ()
   "Refresh the timeline by fetching new posts."

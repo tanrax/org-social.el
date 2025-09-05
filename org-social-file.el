@@ -268,10 +268,36 @@ NICK is the user's nickname and URL is their social.org URL."
 	    (message "Mentioned user: %s" (car selected-user))))
       (message "No followed users found. Add users to your #+FOLLOW: list first."))))
 
+;; Forward declarations for wrapper functions
+(declare-function org-social-new-post "org-social" (&optional reply-url reply-id))
+(declare-function org-social-timeline "org-social" ())
+(declare-function org-social-new-poll "org-social" ())
+
+;; Wrapper functions to ensure org-social.el is loaded
+(defun org-social-file-new-post (&optional reply-url reply-id)
+  "Create a new post - wrapper that ensures org-social.el is loaded."
+  (interactive)
+  (unless (fboundp 'org-social-new-post)
+    (require 'org-social))
+  (org-social-new-post reply-url reply-id))
+
+(defun org-social-file-timeline ()
+  "View timeline - wrapper that ensures org-social.el is loaded."
+  (interactive)
+  (unless (fboundp 'org-social-timeline)
+    (require 'org-social))
+  (org-social-timeline))
+
+(defun org-social-file-new-poll ()
+  "Create new poll - wrapper that ensures org-social.el is loaded."
+  (interactive)
+  (unless (fboundp 'org-social-new-poll)
+    (require 'org-social))
+  (org-social-new-poll))
+
 ;; Interactive functions with proper naming
 (defalias 'org-social-save-file 'org-social-file--save)
 (defalias 'org-social-mention-user 'org-social-file--mention-user)
-(defalias 'org-social-new-poll 'org-social-file--new-poll)
 
 (provide 'org-social-file)
 ;;; org-social-file.el ends here

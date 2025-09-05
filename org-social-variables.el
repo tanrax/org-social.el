@@ -30,17 +30,15 @@
 ;;; Code:
 
 ;; Forward declarations to avoid compiler warnings
-(declare-function org-social-new-post "org-social" (&optional reply-url reply-id))
-(declare-function org-social-new-poll "org-social" ())
-(declare-function org-social-timeline "org-social" ())
-(declare-function org-social-save-file "org-social-file" ())
-(declare-function org-social-mention-user "org-social-file" ())
 (declare-function org-social-reply-to-post "org-social-timeline" ())
 (declare-function org-social-polls--vote-on-poll "org-social-polls" ())
 (declare-function org-social-next-post "org-social-timeline" ())
 (declare-function org-social-previous-post "org-social-timeline" ())
 (declare-function org-social-view-profile "org-social-timeline" ())
 (declare-function org-social-timeline-refresh "org-social-timeline" ())
+;; Functions referenced in timeline keymap
+(declare-function org-social-new-post "org-social" (&optional reply-url reply-id))
+(declare-function org-social-new-poll "org-social" ())
 
 ;; Customization
 
@@ -76,16 +74,10 @@ and view profiles (P)."
 (defvar org-social-after-save-file-hook nil
   "Hook run after saving the social file.")
 
-;; Keymap for org-social mode
+;; Keymap for org-social mode (empty - use global bindings instead)
 
 (defvar org-social-variables--mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c C-n") #'org-social-new-post)
-    (define-key map (kbd "C-c C-p") #'org-social-new-poll)
-    (define-key map (kbd "C-c C-t") #'org-social-timeline)
-    (define-key map (kbd "C-c C-s") #'org-social-save-file)
-    (define-key map (kbd "C-c C-m") #'org-social-mention-user)
-    map)
+  (make-sparse-keymap)
   "Keymap for `org-social-mode'.")
 
 ;; Keymap for timeline buffer

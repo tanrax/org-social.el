@@ -61,9 +61,11 @@ Add the following to your Emacs config:
 (setq org-social-hide-post-buttons nil)
 
 ;; Optionally, configure global keybindings
-(global-set-key (kbd "C-c s t") 'org-social-timeline)
-(global-set-key (kbd "C-c s n") 'org-social-new-post)
-(global-set-key (kbd "C-c s o") 'org-social-open-file)
+(keymap-global-set "C-c s t" #'org-social-timeline)
+(keymap-global-set "C-c s n" #'org-social-new-post)
+(keymap-global-set "C-c s o" #'org-social-open-file)
+(keymap-global-set "C-c s p" #'org-social-new-poll)
+(keymap-global-set "C-c s m" #'org-social-mention-user)
 ```
 
 ## Customization Variables
@@ -122,16 +124,6 @@ View the profile of the post author at current position (available when viewing 
 Save the current Org-social file and run associated hooks.
 
 ## Keybindings
-
-### In your social.org file
-
-| Keybinding | Function | Description |
-|------------|----------|-------------|
-| `C-c C-n`  | `org-social-new-post` | Create a new post |
-| `C-c C-p`  | `org-social-new-poll` | Create a new poll |
-| `C-c C-t`  | `org-social-timeline` | Download and display the timeline |
-| `C-c C-c`  | `org-social-save-file` | Save the social file and run any hooks |
-| `C-c C-m`  | `org-social-mention-user` | Insert a mention of a user |
 
 ### In the timeline buffer
 
