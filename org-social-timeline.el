@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 1.4
+;; Version: 1.5
 ;; URL: https://github.com/tanrax/org-social.el
 ;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5"))
 
@@ -98,6 +98,16 @@
    :export (lambda (_path desc _backend)
 	     desc)))
 
+;; Define custom link type for navigating to parent post
+(defun org-social-timeline--setup-parent-links ()
+  "Setup custom org-social-parent link type."
+  (org-link-set-parameters
+   "org-social-parent"
+   :follow (lambda (path)
+	     (org-social-timeline--goto-parent-post path))
+   :export (lambda (_path desc _backend)
+	     desc)))
+
 ;; Define custom link type for user mentions
 (defun org-social-timeline--setup-mention-links ()
   "Setup custom org-social link type for user mentions."
@@ -108,12 +118,13 @@
    :export (lambda (_path desc _backend)
 	     desc)))
 
-;; Initialize reply, profile, vote, and mention links when module loads
+;; Initialize reply, profile, vote, parent, and mention links when module loads
 (eval-after-load 'org
   '(progn
      (org-social-timeline--setup-reply-links)
      (org-social-timeline--setup-profile-links)
      (org-social-timeline--setup-vote-links)
+     (org-social-timeline--setup-parent-links)
      (org-social-timeline--setup-mention-links)))
 
 ;; Also initialize if org is already loaded
@@ -121,6 +132,7 @@
   (org-social-timeline--setup-reply-links)
   (org-social-timeline--setup-profile-links)
   (org-social-timeline--setup-vote-links)
+  (org-social-timeline--setup-parent-links)
   (org-social-timeline--setup-mention-links))
 
 ;; Timeline mode definition
@@ -148,6 +160,7 @@
         (local-set-key (kbd "r") 'org-social-reply-to-post)
         (local-set-key (kbd "v") 'org-social-polls--vote-on-poll)
         (local-set-key (kbd "P") 'org-social-view-profile)
+        (local-set-key (kbd "t") 'org-social-goto-parent-post)
         (local-set-key (kbd "n") 'org-social-next-post)
         (local-set-key (kbd "p") 'org-social-previous-post)
         (local-set-key (kbd "q") 'kill-buffer)
@@ -347,6 +360,71 @@ If in timeline, also try to navigate to their most recent post."
 	      (org-social-timeline--process-feeds-and-display)
 	      (message "Timeline refreshed!")) nil t))
 
+(defun org-social-timeline--goto-parent-post (reply-to-value)
+  "Navigate to the parent post identified by REPLY-TO-VALUE in the timeline."
+  (let ((current-pos (point))
+        (found nil)
+        (timestamp nil))
+    ;; Extract timestamp from REPLY_TO value (it might be a full URL with #timestamp)
+    (if (string-match "#\\(.+\\)$" reply-to-value)
+        (setq timestamp (match-string 1 reply-to-value))
+      (setq timestamp reply-to-value))
+    
+    (save-excursion
+      (goto-char (point-min))
+      ;; Search for post with matching timestamp
+      (while (and (not found) (re-search-forward "^\\*\\* " nil t))
+        (let ((post-start (point)))
+          ;; Look for ID property within this post
+          (when (re-search-forward ":END:" nil t)
+            (let ((post-end (point)))
+              (goto-char post-start)
+              (when (re-search-forward (format ":ID:\\s-*%s\\s-*$"
+                                               (regexp-quote timestamp)) post-end t)
+                ;; Found the parent post
+                (setq found post-start)))))))
+    (if found
+        (progn
+          (goto-char found)
+          (re-search-backward "^\\*\\* " nil t)
+          (beginning-of-line)
+          (org-social-timeline--goto-post-content)
+          (message "Navigated to parent post"))
+      (goto-char current-pos)
+      (message "Parent post not found in current timeline"))))
+
+(defun org-social-goto-parent-post ()
+  "Navigate to the parent post of the current post if it exists in the timeline."
+  (interactive)
+  (let ((reply-to nil)
+        (post-start nil))
+    (save-excursion
+      ;; Find the start of current post
+      (if (looking-at "^\\*\\* ")
+          (setq post-start (point))
+        (when (re-search-backward "^\\*\\* " nil t)
+          (setq post-start (point))))
+      
+      (when post-start
+        ;; Find the end of current post
+        (goto-char post-start)
+        (forward-line 1)
+        (let ((post-end (if (re-search-forward "^\\*\\* " nil t)
+                            (progn (beginning-of-line) (point))
+                          (point-max))))
+          ;; Look for REPLY_TO property
+          (goto-char post-start)
+          (when (re-search-forward ":REPLY_TO:\\s-*\\(.+\\)" post-end t)
+            (setq reply-to (match-string 1))))))
+    
+    (cond
+     ((not post-start)
+      (message "No post found at current position"))
+     ((not reply-to)
+      (message "This post is not a reply to another post"))
+     (t
+      (org-social-timeline--goto-parent-post reply-to)))))
+
 (defun org-social-timeline--find-profile-for-post (post feeds)
   "Find the correct profile for a POST from FEEDS."
   (let ((author (alist-get 'author-nick post))
@@ -387,7 +465,7 @@ If in timeline, also try to navigate to their most recent post."
         (erase-buffer)
         (org-mode)
         (insert "#+TITLE: Org Social Timeline\n\n")
-        (insert "# Navigation: (n) Next | (p) Previous | (RET/C-c C-o) Follow link\n")
+        (insert "# Navigation: (n) Next | (p) Previous | (t) Go to parent | (RET/C-c C-o) Follow link\n")
         (insert "# Post: (c) New | (l) New Poll | (r) Reply | (v) Vote | (P) Profile\n")
         (insert "# Actions: (g) Refresh timeline | (q) Quit\n\n")
 
@@ -457,16 +535,22 @@ If in timeline, also try to navigate to their most recent post."
 
 	      (insert "\n")
 
-	      ;; Add Reply and Vote buttons (always shown unless buttons are hidden)
+	      ;; Add Reply, Go to parent, Vote buttons (always shown unless buttons are hidden)
 	      ;; Profile button only for other users' posts
 	      (when (and author-url
 		         (not (string-empty-p author-url))
 		         (not org-social-hide-post-buttons))
 	        (let ((poll-end (alist-get 'poll_end post))
+	              (reply-to (alist-get 'reply_to post))
 	              (is-my-post (string= author my-nick)))
 	          (insert "→ ")
 	          (insert (format "[[org-social-reply:%s|%s][Reply]]"
 			          author-url timestamp))
+	          ;; Add Go to parent button for reply posts
+	          (when reply-to
+	            (insert " · ")
+	            (insert (format "[[org-social-parent:%s][Go to parent]]"
+			            reply-to)))
 	          ;; Add Vote button for polls
 	          (when poll-end
 	            (insert " · ")

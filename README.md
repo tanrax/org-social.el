@@ -135,6 +135,7 @@ Save the current Org-social file and run associated hooks.
 | `v`        | `org-social-polls--vote-on-poll` | Vote on the poll at point |
 | `n`        | `org-social-next-post` | Navigate to the next post |
 | `p`        | `org-social-previous-post` | Navigate to the previous post |
+| `t`        | `org-social-goto-parent-post` | Navigate to parent post (if current post is a reply) |
 | `P`        | `org-social-view-profile` | View the profile of the post author |
 | `g`        | `org-social-timeline-refresh` | Refresh the timeline |
 | `q`        | `kill-buffer` | Close the timeline buffer |
@@ -177,7 +178,7 @@ GPL-3.0 - See LICENSE file for details.
 
 # TODO
 
-## 1.5 (In progress, branch `develop`)
+## 1.6 (In progress, branch `develop`)
 
 - Integrate Register API.
   - Add my feed.
@@ -186,6 +187,14 @@ GPL-3.0 - See LICENSE file for details.
   - Group integration.
 
 # Changelog
+
+## 1.5
+
+- Added configuration option `org-social-hide-post-buttons` to hide Reply, Vote, and Profile buttons for cleaner timeline view.
+- Improved timeline interface with better button management.
+- Enhanced UI consistency across timeline interactions.
+- Removed redundant shortcut configurations for streamlined setup.
+- Fixed formatting issues in timeline display.
 
 ## 1.4
 
