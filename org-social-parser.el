@@ -119,7 +119,7 @@ PROP-NAME should be the property name without colons."
 
 	    ;; Extract basic required properties
 	    (setq id (org-social-parser--extract-property properties-text "ID"))
-	    (when id (setq date (date-to-time id)))
+	    (when id (setq date (safe-date-to-time id)))
 
 	    ;; Extract text content (after :END:)
 	    (goto-char post-start)
