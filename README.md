@@ -60,6 +60,10 @@ Add the following to your Emacs config:
 ;; Hide Reply, Vote, and Profile buttons for a cleaner timeline view. Change to 't' to hide them. Keyboard shortcuts 'r', 'v', and 'P' still work
 (setq org-social-hide-post-buttons nil)
 
+;; Optional: Set base URL for post previews. When configured, a Share button will appear in timeline
+;; Example: (setq org-social-preview-base-url "https://example.com/preview/")
+(setq org-social-preview-base-url nil)
+
 ;; Optionally, configure global keybindings
 (keymap-global-set "C-c s t" #'org-social-timeline)
 (keymap-global-set "C-c s n" #'org-social-new-post)
@@ -74,6 +78,7 @@ Add the following to your Emacs config:
 |----------|-------------|---------|------|
 | `org-social-file` | Path to your Org-social feed file | `"~/social.org"` | `file` |
 | `org-social-hide-post-buttons` | Hide Reply, Vote, and Profile buttons from timeline posts for a cleaner view. Keyboard shortcuts still work. | `nil` | `boolean` |
+| `org-social-preview-base-url` | Base URL for post previews. When set, a Share button appears in timeline to copy preview URLs to clipboard. | `nil` | `string` |
 
 You can customize these variables through Emacs' customization interface:
 
@@ -185,6 +190,10 @@ GPL-3.0 - See LICENSE file for details.
   - View thread replies.
   - View notifications.
   - Group integration.
+- Added Share button functionality for post previews.
+  - New configuration variable `org-social-preview-base-url` for preview URL base.
+  - Share button appears in timeline when base URL is configured.
+  - Copies full preview URL to clipboard when clicked.
 
 # Changelog
 

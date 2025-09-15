@@ -118,14 +118,25 @@
    :export (lambda (_path desc _backend)
 	     desc)))
 
-;; Initialize reply, profile, vote, parent, and mention links when module loads
+;; Define custom link type for sharing posts
+(defun org-social-timeline--setup-share-links ()
+  "Setup custom org-social-share link type."
+  (org-link-set-parameters
+   "org-social-share"
+   :follow (lambda (path)
+	     (org-social-timeline--share-post path))
+   :export (lambda (_path desc _backend)
+	     desc)))
+
+;; Initialize reply, profile, vote, parent, mention, and share links when module loads
 (eval-after-load 'org
   '(progn
      (org-social-timeline--setup-reply-links)
      (org-social-timeline--setup-profile-links)
      (org-social-timeline--setup-vote-links)
      (org-social-timeline--setup-parent-links)
-     (org-social-timeline--setup-mention-links)))
+     (org-social-timeline--setup-mention-links)
+     (org-social-timeline--setup-share-links)))
 
 ;; Also initialize if org is already loaded
 (when (featurep 'org)
@@ -133,7 +144,8 @@
   (org-social-timeline--setup-profile-links)
   (org-social-timeline--setup-vote-links)
   (org-social-timeline--setup-parent-links)
-  (org-social-timeline--setup-mention-links))
+  (org-social-timeline--setup-mention-links)
+  (org-social-timeline--setup-share-links))
 
 ;; Timeline mode definition
 
@@ -360,6 +372,25 @@ If in timeline, also try to navigate to their most recent post."
 	      (org-social-timeline--process-feeds-and-display)
 	      (message "Timeline refreshed!")) nil t))
 
+(defun org-social-timeline--generate-preview-url (timestamp)
+  "Generate preview URL from post TIMESTAMP.
+Converts timestamp format from '2025-09-15T09:22:05+0200'
+to '2025-09-15T09-22-05plus0200.html' format."
+  (when org-social-preview-base-url
+    (let ((formatted-id (replace-regexp-in-string ":" "" timestamp)))
+      (setq formatted-id (replace-regexp-in-string "\\+" "plus" formatted-id))
+      (concat (string-trim-right org-social-preview-base-url "/")
+              "/" formatted-id ".html"))))
+
+(defun org-social-timeline--share-post (timestamp)
+  "Share the post identified by TIMESTAMP by copying its preview URL to clipboard."
+  (let ((preview-url (org-social-timeline--generate-preview-url timestamp)))
+    (if preview-url
+        (progn
+          (kill-new preview-url)
+          (message "Preview URL copied to clipboard: %s" preview-url))
+      (message "Preview base URL not configured"))))
+
 (defun org-social-timeline--goto-parent-post (reply-to-value)
   "Navigate to the parent post identified by REPLY-TO-VALUE in the timeline."
   (let ((current-pos (point))
@@ -556,6 +587,11 @@ If in timeline, also try to navigate to their most recent post."
 	            (insert " · ")
 	            (insert (format "[[org-social-vote:%s|%s][Vote]]"
 			            author-url timestamp)))
+	          ;; Add Share button when preview base URL is configured
+	          (when org-social-preview-base-url
+	            (insert " · ")
+	            (insert (format "[[org-social-share:%s][Share]]"
+			            timestamp)))
 	          ;; Add Profile button only for other users' posts
 	          (when (not is-my-post)
 	            (insert " · ")
