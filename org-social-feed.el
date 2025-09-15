@@ -70,18 +70,18 @@ Argument NEW-RESPONSE"
   (dolist (item org-social-variables--queue)
     (let ((url (alist-get :url item)))
       (request url
-	:timeout 10
-	:success (cl-function
-		  (lambda (&key data &allow-other-keys)
-		    (setq org-social-variables--queue
-			  (org-social-feed--queue-update-status-by-url org-social-variables--queue url :done))
-		    (setq org-social-variables--queue
-			  (org-social-feed--queue-update-response-by-url org-social-variables--queue url data))
-		    (org-social-feed--check-queue)))
-	:error (lambda (&rest _)
-		 (setq org-social-variables--queue
-		       (org-social-feed--queue-update-status-by-url org-social-variables--queue url :error))
-		 (org-social-feed--check-queue))))))
+	       :timeout 10
+	       :success (cl-function
+			 (lambda (&key data &allow-other-keys)
+			   (setq org-social-variables--queue
+				 (org-social-feed--queue-update-status-by-url org-social-variables--queue url :done))
+			   (setq org-social-variables--queue
+				 (org-social-feed--queue-update-response-by-url org-social-variables--queue url data))
+			   (org-social-feed--check-queue)))
+	       :error (lambda (&rest _)
+			(setq org-social-variables--queue
+			      (org-social-feed--queue-update-status-by-url org-social-variables--queue url :error))
+			(org-social-feed--check-queue))))))
 
 (defun org-social-feed--fetch-all-feeds-async ()
   "Fetch all follower feeds asynchronously."

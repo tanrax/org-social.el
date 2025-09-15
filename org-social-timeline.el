@@ -171,6 +171,7 @@
         (local-set-key (kbd "l") 'org-social-new-poll)
         (local-set-key (kbd "r") 'org-social-reply-to-post)
         (local-set-key (kbd "v") 'org-social-polls--vote-on-poll)
+        (local-set-key (kbd "s") 'org-social-share-post)
         (local-set-key (kbd "P") 'org-social-view-profile)
         (local-set-key (kbd "t") 'org-social-goto-parent-post)
         (local-set-key (kbd "n") 'org-social-next-post)
@@ -278,10 +279,13 @@
       (when (re-search-forward ":URL:\\s-*\\(.+\\)" post-end t)
 	(setq author-url (match-string 1)))
 
+
       ;; Return post information
-      (when (and timestamp author-url)
+      ;; For own posts, author-url might be nil, so we use the current user's info
+      (when timestamp
 	(list (cons 'timestamp timestamp)
-	      (cons 'author-url author-url))))))
+	      (cons 'author-url (or author-url
+	                            (alist-get 'url org-social-variables--my-profile))))))))
 
 (defun org-social-timeline--reply-to-post ()
   "Reply to the post at point in the timeline."
@@ -289,10 +293,19 @@
   (let ((post-info (org-social-timeline--get-post-at-point)))
     (if post-info
 	(let ((timestamp (alist-get 'timestamp post-info))
-	      (author-url (alist-get 'author-url post-info)))
-	  (message "Creating reply to post %s from %s" timestamp author-url)
-	  (org-social-file--new-post author-url timestamp)
-	  (message "Reply created! Write your response and save the file."))
+	      (author-url (alist-get 'author-url post-info))
+	      (my-url (alist-get 'url org-social-variables--my-profile)))
+	  ;; Check if this is your own post - don't allow self-replies
+	  ;; A post is yours if either:
+	  ;; 1. author-url matches your URL, OR
+	  ;; 2. author-url is nil (which happens for your own posts in timeline)
+	  (if (or (and my-url author-url (string= author-url my-url))
+		  (not author-url))  ; Your own posts don't have author-url in timeline
+	      (message "Cannot reply to your own posts")
+	    (progn
+	      (message "Creating reply to post %s from %s" timestamp author-url)
+	      (org-social-file--new-post author-url timestamp)
+	      (message "Reply created! Write your response and save the file."))))
       (message "No post found at current position."))))
 
 (defun org-social-timeline--reply-to-specific-post (author-url timestamp)
@@ -317,22 +330,22 @@
 			     (file-name-nondirectory author-url))))
     (message "Fetching profile from %s..." author-url)
     (request author-url
-      :timeout 15
-      :success (cl-function
-		(lambda (&key data &allow-other-keys)
-		  (with-current-buffer (get-buffer-create buffer-name)
-		    (let ((buffer-read-only nil))
-		      (erase-buffer)
-		      (insert data)
-		      (org-mode)
-		      (goto-char (point-min))
-		      ;; Make profile buffer read-only
-		      (setq buffer-read-only t)))
-		  (switch-to-buffer buffer-name)
-		  (message "Profile loaded successfully!")))
-      :error (lambda (&rest args)
-	       (message "Failed to fetch profile from %s: %s"
-			author-url (plist-get args :error-thrown))))))
+	     :timeout 15
+	     :success (cl-function
+		       (lambda (&key data &allow-other-keys)
+			 (with-current-buffer (get-buffer-create buffer-name)
+			   (let ((buffer-read-only nil))
+			     (erase-buffer)
+			     (insert data)
+			     (org-mode)
+			     (goto-char (point-min))
+			     ;; Make profile buffer read-only
+			     (setq buffer-read-only t)))
+			 (switch-to-buffer buffer-name)
+			 (message "Profile loaded successfully!")))
+	     :error (lambda (&rest args)
+		      (message "Failed to fetch profile from %s: %s"
+			       author-url (plist-get args :error-thrown))))))
 
 (defun org-social-timeline--goto-user-post (author-url)
   "Open the profile/feed of the user with AUTHOR-URL in a new buffer.
@@ -377,8 +390,19 @@ If in timeline, also try to navigate to their most recent post."
 Converts timestamp format from '2025-09-15T09:22:05+0200'
 to '2025-09-15T09-22-05plus0200.html' format."
   (when org-social-preview-base-url
-    (let ((formatted-id (replace-regexp-in-string ":" "" timestamp)))
+    (let ((formatted-id timestamp))
+      ;; Replace + with plus (for timezone)
       (setq formatted-id (replace-regexp-in-string "\\+" "plus" formatted-id))
+      ;; Replace colons in time part (HH:MM:SS) with hyphens
+      ;; This handles the pattern YYYY-MM-DDTHH:MM:SS+TIMEZONE
+      (when (string-match "\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}T\\)\\([0-9]\\{2\\}\\):\\([0-9]\\{2\\}\\):\\([0-9]\\{2\\}\\)\\(.*\\)" formatted-id)
+        (setq formatted-id (concat (match-string 1 formatted-id)  ; YYYY-MM-DDT
+                                   (match-string 2 formatted-id)  ; HH
+                                   "-"
+                                   (match-string 3 formatted-id)  ; MM
+                                   "-"
+                                   (match-string 4 formatted-id)  ; SS
+                                   (match-string 5 formatted-id)))) ; timezone
       (concat (string-trim-right org-social-preview-base-url "/")
               "/" formatted-id ".html"))))
 
@@ -390,6 +414,26 @@ to '2025-09-15T09-22-05plus0200.html' format."
           (kill-new preview-url)
           (message "Preview URL copied to clipboard: %s" preview-url))
       (message "Preview base URL not configured"))))
+
+(defun org-social-share-post ()
+  "Share the post at point if it's your own post."
+  (interactive)
+  (let ((post-info (org-social-timeline--get-post-at-point)))
+    (if post-info
+        (let ((timestamp (alist-get 'timestamp post-info))
+              (author-url (alist-get 'author-url post-info))
+              (my-url (alist-get 'url org-social-variables--my-profile)))
+          ;; Check if this is your own post
+          ;; A post is yours if either:
+          ;; 1. author-url matches your URL, OR
+          ;; 2. author-url is nil (which happens for your own posts in timeline)
+          (if (or (and my-url author-url (string= author-url my-url))
+                  (not author-url))  ; Your own posts don't have author-url in timeline
+              (if org-social-preview-base-url
+                  (org-social-timeline--share-post timestamp)
+                (message "Preview base URL not configured. Set org-social-preview-base-url to enable sharing."))
+            (message "Share function is only available for your own posts")))
+      (message "No post found at current position"))))
 
 (defun org-social-timeline--goto-parent-post (reply-to-value)
   "Navigate to the parent post identified by REPLY-TO-VALUE in the timeline."
@@ -497,7 +541,7 @@ to '2025-09-15T09-22-05plus0200.html' format."
         (org-mode)
         (insert "#+TITLE: Org Social Timeline\n\n")
         (insert "# Navigation: (n) Next | (p) Previous | (t) Go to parent | (RET/C-c C-o) Follow link\n")
-        (insert "# Post: (c) New | (l) New Poll | (r) Reply | (v) Vote | (P) Profile\n")
+        (insert "# Post: (c) New | (l) New Poll | (r) Reply | (v) Vote | (s) Share | (P) Profile\n")
         (insert "# Actions: (g) Refresh timeline | (q) Quit\n\n")
 
         ;; Add notifications section
@@ -575,28 +619,35 @@ to '2025-09-15T09-22-05plus0200.html' format."
 	              (reply-to (alist-get 'reply_to post))
 	              (is-my-post (string= author my-nick)))
 	          (insert "→ ")
-	          (insert (format "[[org-social-reply:%s|%s][Reply]]"
-			          author-url timestamp))
-	          ;; Add Go to parent button for reply posts
-	          (when reply-to
-	            (insert " · ")
-	            (insert (format "[[org-social-parent:%s][Go to parent]]"
-			            reply-to)))
-	          ;; Add Vote button for polls
-	          (when poll-end
-	            (insert " · ")
-	            (insert (format "[[org-social-vote:%s|%s][Vote]]"
-			            author-url timestamp)))
-	          ;; Add Share button when preview base URL is configured
-	          (when org-social-preview-base-url
-	            (insert " · ")
-	            (insert (format "[[org-social-share:%s][Share]]"
-			            timestamp)))
-	          ;; Add Profile button only for other users' posts
-	          (when (not is-my-post)
-	            (insert " · ")
-	            (insert (format "[[org-social-profile:%s][Profile]]"
-			            author-url)))
+	          (let ((first-button t))
+	            ;; Add Reply button only for other users' posts
+	            (when (not is-my-post)
+	              (insert (format "[[org-social-reply:%s|%s][Reply]]"
+			              author-url timestamp))
+	              (setq first-button nil))
+	            ;; Add Go to parent button for reply posts
+	            (when reply-to
+	              (unless first-button (insert " · "))
+	              (insert (format "[[org-social-parent:%s][Go to parent]]"
+			              reply-to))
+	              (setq first-button nil))
+	            ;; Add Vote button for polls
+	            (when poll-end
+	              (unless first-button (insert " · "))
+	              (insert (format "[[org-social-vote:%s|%s][Vote]]"
+			              author-url timestamp))
+	              (setq first-button nil))
+	            ;; Add Share button for my own posts when preview base URL is configured
+	            (when (and org-social-preview-base-url is-my-post)
+	              (unless first-button (insert " · "))
+	              (insert (format "[[org-social-share:%s][Share]]"
+			              timestamp))
+	              (setq first-button nil))
+	            ;; Add Profile button only for other users' posts
+	            (when (not is-my-post)
+	              (unless first-button (insert " · "))
+	              (insert (format "[[org-social-profile:%s][Profile]]"
+			              author-url))))
 	          (insert "\n\n")))
 
 	      (insert "\n"))))
@@ -629,6 +680,7 @@ to '2025-09-15T09-22-05plus0200.html' format."
 (defalias 'org-social-previous-post 'org-social-timeline--previous-post)
 (defalias 'org-social-reply-to-post 'org-social-timeline--reply-to-post)
 (defalias 'org-social-timeline-refresh 'org-social-timeline--refresh)
+;; org-social-share-post is already properly named as interactive function
 
 (provide 'org-social-timeline)
 ;;; org-social-timeline.el ends here

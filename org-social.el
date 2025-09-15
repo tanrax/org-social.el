@@ -90,7 +90,7 @@
         (require 'org-social-timeline)
       (error
        (message "Warning: Could not load org-social-timeline module")))
-       
+    
     ;; Always try to ensure timeline function is loaded
     (unless (fboundp 'org-social-timeline--display)
       (condition-case nil
