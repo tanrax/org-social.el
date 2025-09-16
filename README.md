@@ -9,8 +9,8 @@ An Emacs client for [Org Social](https://github.com/tanrax/org-social), a decent
 | Name | Status |
 |------|--------|
 | Org Social Preview Generator | ✅ |
-| Relay: Add feed | ❌ |
-| Relay: List feed | ❌ |
+| Relay: Self-register | ❌ |
+| Relay: List all feeds | ❌ |
 | Relay: Mentions | ❌ |
 | Relay: Replies/threads | ❌ |
 | Relay: Search | ❌ |
