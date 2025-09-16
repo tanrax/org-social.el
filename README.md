@@ -4,11 +4,19 @@ An Emacs client for [Org Social](https://github.com/tanrax/org-social), a decent
 
 ![Screenshot Timeline](screenshot.png)
 
+## Compatibility with extensions
+
+| Name | Status |
+|------|--------|
+| Org Social Preview Generator | ✅ |
+| Relay: Add feed | ❌ |
+| Relay: List feed | ❌ |
+| Relay: Mentions | ❌ |
+| Relay: Replies/threads | ❌ |
+| Relay: Search | ❌ |
+| Relay: Groups | ❌ |
+
 ## Installation
-
-### MELPA
-
-In progress.
 
 ### use-package
 
