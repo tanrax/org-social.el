@@ -10,7 +10,7 @@ An Emacs client for [Org Social](https://github.com/tanrax/org-social), a decent
 |------|--------|
 | Org Social Preview Generator | ✅ |
 | Relay: Self-register | ✅ |
-| Relay: List all feeds | ❌ |
+| Relay: List all feeds | ✅ |
 | Relay: Mentions | ❌ |
 | Relay: Replies/threads | ❌ |
 | Relay: Search | ❌ |
@@ -202,15 +202,13 @@ GPL-3.0 - See LICENSE file for details.
 
 ## 1.6 (In progress, branch `develop`)
 
-- Integrate Register API.
-  - Add my feed.
-  - View thread replies.
-  - View notifications.
-  - Group integration.
 - Added Share button functionality for post previews.
   - New configuration variable `org-social-preview-base-url` for preview URL base.
   - Share button appears in timeline when base URL is configured.
   - Copies full preview URL to clipboard when clicked.
+- Added  `org-social-only-relay-followers` variable to restrict follows to feeds registered in the Relay.
+- Added `org-social-my-public-url` variable to specify the public URL of your social.org file.
+- Added `org-social-relay` variable to specify the Relay server URL.
 
 # Changelog
 
