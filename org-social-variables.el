@@ -83,6 +83,14 @@ Example: \"https://example.com/social.org\""
                  (string :tag "Public URL"))
   :group 'org-social)
 
+(defcustom org-social-only-relay-followers-p nil
+  "When non-nil, use only feeds from the relay server for timeline.
+If t, the timeline will be built exclusively from feeds listed in the relay,
+ignoring local followers list. This requires both `org-social-relay' and
+`org-social-my-public-url' to be configured."
+  :type 'boolean
+  :group 'org-social)
+
 ;; Variables for state management
 
 (defvar org-social-variables--feeds nil

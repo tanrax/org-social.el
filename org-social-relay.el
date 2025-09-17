@@ -85,5 +85,44 @@ Call CALLBACK with discovered endpoints."
                                                "Unknown error"))))))
              (message "add-feed endpoint not found in relay API"))))))))
 
+(defun org-social-relay--fetch-feeds (callback)
+  "Fetch list of feeds from the relay server.
+Call CALLBACK with the list of feed URLs."
+  (when (and org-social-relay
+             (not (string-empty-p org-social-relay)))
+    (let ((relay-url (string-trim-right org-social-relay "/")))
+      (org-social-relay--discover-endpoints
+       relay-url
+       (lambda (endpoints)
+         (let ((list-feeds-endpoint (gethash "list-feeds" endpoints)))
+           (if list-feeds-endpoint
+               (let ((href (plist-get list-feeds-endpoint :href))
+                     (method (plist-get list-feeds-endpoint :method)))
+                 (request (concat relay-url href)
+                          :type method
+                          :timeout 10
+                          :success (cl-function
+                                    (lambda (&key data &allow-other-keys)
+                                      (condition-case err
+                                          (let* ((response (json-read-from-string data))
+                                                 (feeds-data (cdr (assoc 'data response))))
+                                            ;; Handle both vectors and lists
+                                            (let ((feeds-list (if (vectorp feeds-data)
+                                                                  (append feeds-data nil)
+                                                                feeds-data)))
+                                              (funcall callback feeds-list)))
+                                        (error
+                                         (message "Failed to parse relay feeds response: %s" (error-message-string err))
+                                         (funcall callback nil)))))
+                          :error (cl-function
+                                  (lambda (&key error-thrown &allow-other-keys)
+                                    (message "Failed to fetch feeds from relay: %s"
+                                             (if error-thrown
+                                                 (error-message-string error-thrown)
+                                               "Unknown error"))
+                                    (funcall callback nil)))))
+             (message "list-feeds endpoint not found in relay API")
+             (funcall callback nil))))))))
+
 (provide 'org-social-relay)
 ;;; org-social-relay.el ends here

@@ -74,8 +74,9 @@ Add the following to your Emacs config:
 
 ;; Optional: Configure Org Social Relay for enhanced social features
 ;; Set the relay server URL
-(setq org-social-my-public-url "https://example.com/social.org")
 (setq org-social-relay "https://relay.example.com")
+(setq org-social-my-public-url "https://example.com/social.org")
+(setq org-social-only-relay-followers-p nil)
 
 ;; Optionally, configure global keybindings
 (keymap-global-set "C-c s t" #'org-social-timeline)
@@ -94,6 +95,7 @@ Add the following to your Emacs config:
 | `org-social-preview-base-url` | Base URL for post previews. When set, a Share button appears in timeline to copy preview URLs to clipboard. | `nil` | `string` |
 | `org-social-relay` | URL of the Org Social Relay server. When set, the relay will be used to register your feed and discover mentions, replies, and other social interactions. | `nil` | `string` |
 | `org-social-my-public-url` | Public URL of your social.org file. This is the URL where others can access your social.org file. | `nil` | `string` |
+| `org-social-only-relay-followers-p` | When non-nil, use only feeds from the relay server. Requires relay configuration. | `nil` | `boolean` |
 
 You can customize these variables through Emacs' customization interface:
 

@@ -35,6 +35,9 @@
 (require 'seq)
 (require 'cl-lib)
 
+;; Declare functions from org-social-relay
+(declare-function org-social-relay--fetch-feeds "org-social-relay" (callback))
+
 (defun org-social-feed--initialize-queue ()
   "Initialize the download queue with follower feeds."
   (setq org-social-variables--queue
@@ -43,6 +46,26 @@
 		    (:status . :pending)
 		    (:response . nil)))
 		(alist-get 'follow org-social-variables--my-profile))))
+
+(defun org-social-feed--initialize-queue-from-relay ()
+  "Initialize the download queue with feeds from relay server."
+  (message "Fetching feed list from relay...")
+  (when (fboundp 'org-social-relay--fetch-feeds)
+    (org-social-relay--fetch-feeds
+     (lambda (feeds-list)
+       (if feeds-list
+           (progn
+             (message "Retrieved %d feeds from relay" (length feeds-list))
+             (setq org-social-variables--queue
+                   (mapcar (lambda (feed-url)
+                             `((:url . ,feed-url)
+                               (:status . :pending)
+                               (:response . nil)))
+                           feeds-list))
+             (org-social-feed--process-queue))
+         (message "No feeds retrieved from relay, falling back to local followers")
+         (org-social-feed--initialize-queue)
+         (org-social-feed--process-queue))))))
 
 (defun org-social-feed--queue-update-status-by-url (queue url status)
   "Update the status of a QUEUE item by URL to STATUS."
@@ -86,8 +109,12 @@ Argument NEW-RESPONSE"
 (defun org-social-feed--fetch-all-feeds-async ()
   "Fetch all follower feeds asynchronously."
   (setq org-social-variables--my-profile (org-social-parser--get-my-profile))
-  (org-social-feed--initialize-queue)
-  (org-social-feed--process-queue))
+  (if (and org-social-only-relay-followers-p
+           org-social-relay
+           (not (string-empty-p org-social-relay)))
+      (org-social-feed--initialize-queue-from-relay)
+    (org-social-feed--initialize-queue)
+    (org-social-feed--process-queue)))
 
 (defun org-social-feed--check-queue ()
   "Check if the download queue is complete."
