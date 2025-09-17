@@ -66,6 +66,23 @@ Example: \"https://andros.dev/static/preview/\" would generate URLs like
                  (string :tag "Preview base URL"))
   :group 'org-social)
 
+(defcustom org-social-relay nil
+  "URL of the Org Social Relay server.
+When set, the relay will be used to register your feed and discover mentions,
+replies, and other social interactions.
+Example: \"https://relay.example.com\""
+  :type '(choice (const :tag "No relay server" nil)
+                 (string :tag "Relay server URL"))
+  :group 'org-social)
+
+(defcustom org-social-my-public-url nil
+  "Public URL of your social.org file.
+This is the URL where others can access your social.org file.
+Example: \"https://example.com/social.org\""
+  :type '(choice (const :tag "No public URL" nil)
+                 (string :tag "Public URL"))
+  :group 'org-social)
+
 ;; Variables for state management
 
 (defvar org-social-variables--feeds nil

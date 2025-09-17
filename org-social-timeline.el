@@ -46,6 +46,7 @@
 (declare-function org-social-polls--setup-poll-links "org-social-polls" ())
 (declare-function org-social-polls--vote-on-poll "org-social-polls" (&optional author-url timestamp))
 (declare-function org-social-notifications--render-section "org-social-notifications" (timeline))
+(declare-function org-social-relay--register-feed "org-social-relay" ())
 (declare-function request "request" (url &rest args))
 
 ;; Require remaining modules after base dependencies
@@ -63,6 +64,11 @@
     (require 'org-social-notifications)
   (error
    (message "Warning: Could not load org-social-notifications module")))
+
+(condition-case nil
+    (require 'org-social-relay)
+  (error
+   (message "Warning: Could not load org-social-relay module")))
 
 ;; Define custom link type for replies
 (defun org-social-timeline--setup-reply-links ()
@@ -525,6 +531,10 @@ to '2025-09-15T09-22-05plus0200.html' format."
 	       #'org-social-timeline--process-feeds-and-display t)
 
   (message "Feeds obtained. Building timeline...")
+
+  ;; Register in relay if configured
+  (when (fboundp 'org-social-relay--register-feed)
+    (org-social-relay--register-feed))
 
   ;; Show the timeline
   (org-social-timeline--layout)

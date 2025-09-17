@@ -9,7 +9,7 @@ An Emacs client for [Org Social](https://github.com/tanrax/org-social), a decent
 | Name | Status |
 |------|--------|
 | Org Social Preview Generator | ✅ |
-| Relay: Self-register | ❌ |
+| Relay: Self-register | ✅ |
 | Relay: List all feeds | ❌ |
 | Relay: Mentions | ❌ |
 | Relay: Replies/threads | ❌ |
@@ -72,6 +72,11 @@ Add the following to your Emacs config:
 ;; Example: (setq org-social-preview-base-url "https://example.com/preview/")
 (setq org-social-preview-base-url nil)
 
+;; Optional: Configure Org Social Relay for enhanced social features
+;; Set the relay server URL
+(setq org-social-my-public-url "https://example.com/social.org")
+(setq org-social-relay "https://relay.example.com")
+
 ;; Optionally, configure global keybindings
 (keymap-global-set "C-c s t" #'org-social-timeline)
 (keymap-global-set "C-c s n" #'org-social-new-post)
@@ -87,6 +92,8 @@ Add the following to your Emacs config:
 | `org-social-file` | Path to your Org-social feed file | `"~/social.org"` | `file` |
 | `org-social-hide-post-buttons` | Hide Reply, Vote, and Profile buttons from timeline posts for a cleaner view. Keyboard shortcuts still work. | `nil` | `boolean` |
 | `org-social-preview-base-url` | Base URL for post previews. When set, a Share button appears in timeline to copy preview URLs to clipboard. | `nil` | `string` |
+| `org-social-relay` | URL of the Org Social Relay server. When set, the relay will be used to register your feed and discover mentions, replies, and other social interactions. | `nil` | `string` |
+| `org-social-my-public-url` | Public URL of your social.org file. This is the URL where others can access your social.org file. | `nil` | `string` |
 
 You can customize these variables through Emacs' customization interface:
 
