@@ -4,9 +4,9 @@ An Emacs client for [Org Social](https://github.com/tanrax/org-social), a decent
 
 ![Screenshot Timeline](screenshot.png)
 
-## You decide how much you want to interact with the community
+## 🎯 You decide how much you want to interact with the community
 
-### Basic: read-only
+### 👀 Basic: read-only
 
 Create your [social.org](https://github.com/tanrax/org-social) file and add the followers you want to read to your list.
 
@@ -18,13 +18,13 @@ After, set `org-social-file` to point to your file.
 
 And run `M-x org-social-timeline` to see the timeline.
 
-### Advanced: You write, reply and read
+### ✍️ Advanced: You write, reply and read
 
 Upload your social.org file to a web server and share the URL with others.
 
 After setting `org-social-file`, you can create new posts with `M-x org-social-new-post` and reply to posts in the timeline with `r`.
 
-### Complete: You interact with the entire community.
+### 🌐 Complete: You interact with the entire community.
 
 Set Relay configuration variables to register your feed with the Relay server and discover mentions, replies, and other social interactions.
 
@@ -35,7 +35,7 @@ Set Relay configuration variables to register your feed with the Relay server an
 
 Check the [public Relay list](https://github.com/tanrax/org-social/blob/main/org-social-relay-list.txt) to find a Relay server.
 
-## Installation
+## 📦 Installation
 
 ### use-package
 
@@ -78,7 +78,7 @@ Add the following to your Emacs config:
 (add-to-list 'load-path "/path/to/org-social.el")
 ```
 
-## Configuration
+## ⚙️ Configuration
 
 ```elisp
 ;; Set the path to your social feed file
@@ -122,7 +122,7 @@ You can customize these variables through Emacs' customization interface:
 M-x customize-group RET org-social RET
 ```
 
-## Functions
+## 🔧 Functions
 
 ### `org-social-timeline`
 
@@ -164,7 +164,7 @@ View the profile of the post author at current position (available when viewing 
 
 Save the current Org-social file and run associated hooks.
 
-## Keybindings
+## ⌨️ Keybindings
 
 ### In the timeline buffer
 
@@ -181,7 +181,7 @@ Save the current Org-social file and run associated hooks.
 | `g`        | `org-social-timeline-refresh` | Refresh the timeline |
 | `q`        | `kill-buffer` | Close the timeline buffer |
 
-## Hooks
+## 🪝 Hooks
 
 You can use the following hooks to perform additional actions automatically:
 
@@ -202,7 +202,7 @@ For example, to automatically upload your social file to a remote server after s
              nil 0)))
 ```
 
-## Workflow
+## 🔄 Workflow
 
 1. **Setup**: Configure `org-social-file` and create your social.org file
 2. **View timeline**: Use `M-x org-social-timeline` or `C-c C-t`
@@ -213,7 +213,7 @@ For example, to automatically upload your social file to a remote server after s
 7. **Create polls**: Use `M-x org-social-new-poll` or `C-c C-p`
 8. **Save and sync**: Use `C-x C-s` to save with hooks
 
-## Compatibility with extensions
+## 🔌 Compatibility with extensions
 
 | Name | Status |
 |------|--------|
@@ -225,11 +225,11 @@ For example, to automatically upload your social file to a remote server after s
 | Relay: Search | ❌ |
 | Relay: Groups | ❌ |
 
-## License
+## 📄 License
 
 GPL-3.0 - See LICENSE file for details.
 
-# TODO
+# 📋 TODO
 
 ## 1.6 (In progress, branch `develop`)
 
@@ -241,7 +241,7 @@ GPL-3.0 - See LICENSE file for details.
 - Added `org-social-my-public-url` variable to specify the public URL of your social.org file.
 - Added `org-social-relay` variable to specify the Relay server URL.
 
-# Changelog
+# 📝 Changelog
 
 ## 1.5
 
@@ -290,6 +290,6 @@ Initial release with basic functionality:
 - Validating file structure
 - Basic keybindings
 
-## Contributing
+## 🤝 Contributing
 
 Feel free to fork the repository and submit pull requests to the *develop* branch.
