@@ -24,7 +24,7 @@ Upload your social.org file to a web server and share the URL with others.
 
 After setting `org-social-file`, you can create new posts with `M-x org-social-new-post` and reply to posts in the timeline with `r`.
 
-### 🌐 Complete: You interact with the entire community.
+### 🌐 Complete: You interact with the entire community
 
 Set Relay configuration variables to register your feed with the Relay server and discover mentions, replies, and other social interactions.
 
