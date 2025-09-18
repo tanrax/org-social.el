@@ -4,17 +4,36 @@ An Emacs client for [Org Social](https://github.com/tanrax/org-social), a decent
 
 ![Screenshot Timeline](screenshot.png)
 
-## Compatibility with extensions
+## You decide how much you want to interact with the community
 
-| Name | Status |
-|------|--------|
-| Org Social Preview Generator | ✅ |
-| Relay: Self-register | ✅ |
-| Relay: List all feeds | ✅ |
-| Relay: Mentions | ❌ |
-| Relay: Replies/threads | ❌ |
-| Relay: Search | ❌ |
-| Relay: Groups | ❌ |
+### Basic: read-only
+
+Create your [social.org](https://github.com/tanrax/org-social) file and add the followers you want to read to your list.
+
+After, set `org-social-file` to point to your file.
+
+```elisp
+(setq org-social-file "~/social.org")
+```
+
+And run `M-x org-social-timeline` to see the timeline.
+
+### Advanced: You write, reply and read
+
+Upload your social.org file to a web server and share the URL with others.
+
+After setting `org-social-file`, you can create new posts with `M-x org-social-new-post` and reply to posts in the timeline with `r`.
+
+### Complete: You interact with the entire community.
+
+Set Relay configuration variables to register your feed with the Relay server and discover mentions, replies, and other social interactions.
+
+```elisp
+(setq org-social-relay "https://relay.example.com") ;; Relay server URL
+(setq org-social-my-public-url "https://example.com/social.org") ;; My public URL
+```
+
+Check the [public Relay list](https://github.com/tanrax/org-social/blob/main/org-social-relay-list.txt) to find a Relay server.
 
 ## Installation
 
@@ -193,6 +212,18 @@ For example, to automatically upload your social file to a remote server after s
 6. **Create posts**: Use `M-x org-social-new-post` or `C-c C-n`
 7. **Create polls**: Use `M-x org-social-new-poll` or `C-c C-p`
 8. **Save and sync**: Use `C-x C-s` to save with hooks
+
+## Compatibility with extensions
+
+| Name | Status |
+|------|--------|
+| Org Social Preview Generator | ✅ |
+| Relay: Self-register | ✅ |
+| Relay: List all feeds | ✅ |
+| Relay: Mentions | ❌ |
+| Relay: Replies/threads | ❌ |
+| Relay: Search | ❌ |
+| Relay: Groups | ❌ |
 
 ## License
 
