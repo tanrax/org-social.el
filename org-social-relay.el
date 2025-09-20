@@ -20,8 +20,12 @@
 ;; Declare request function
 (declare-function request "request" (url &rest args))
 
+;; Forward declarations
+(declare-function url-hexify-string "url-util" (string))
+
 (defun org-social-relay--discover-endpoints (relay-url callback)
   "Discover relay endpoints by exploring the root API.
+RELAY-URL is the base URL of the relay server.
 Call CALLBACK with discovered endpoints."
   (request relay-url
            :timeout 10
@@ -122,6 +126,61 @@ Call CALLBACK with the list of feed URLs."
                                                "Unknown error"))
                                     (funcall callback nil)))))
              (message "list-feeds endpoint not found in relay API")
+             (funcall callback nil))))))))
+
+(defun org-social-relay--fetch-mentions (callback)
+  "Fetch mentions for the user's feed from the relay server.
+Call CALLBACK with the list of post URLs that mention the user."
+  (when (and org-social-relay
+             org-social-my-public-url
+             (not (string-empty-p org-social-relay))
+             (not (string-empty-p org-social-my-public-url)))
+    (let ((relay-url (string-trim-right org-social-relay "/"))
+          (feed-url org-social-my-public-url))
+      (org-social-relay--discover-endpoints
+       relay-url
+       (lambda (endpoints)
+         (let ((mentions-endpoint (gethash "get-mentions" endpoints)))
+           (if mentions-endpoint
+               (let ((href (plist-get mentions-endpoint :href))
+                     (method (plist-get mentions-endpoint :method)))
+                 ;; Replace {url feed} placeholder with actual feed URL
+                 (let ((url (concat relay-url
+                                   (replace-regexp-in-string
+                                    "{url feed}"
+                                    (url-hexify-string feed-url)
+                                    href))))
+                   (request url
+                            :type method
+                            :timeout 10
+                            :success (cl-function
+                                      (lambda (&key data &allow-other-keys)
+                                        (condition-case err
+                                            (let* ((response (json-read-from-string data))
+                                                   (response-type (cdr (assoc 'type response)))
+                                                   (mentions-data (cdr (assoc 'data response))))
+                                              ;; Check if response is successful
+                                              (if (string= response-type "Success")
+                                                  (progn
+                                                    ;; Handle both vectors and lists
+                                                    (let ((mentions-list (if (vectorp mentions-data)
+                                                                            (append mentions-data nil)
+                                                                          mentions-data)))
+                                                      (funcall callback mentions-list)))
+                                                (progn
+                                                  (message "Relay returned error response: %s" response-type)
+                                                  (funcall callback nil))))
+                                          (error
+                                           (message "Failed to parse relay mentions response: %s" (error-message-string err))
+                                           (funcall callback nil)))))
+                            :error (cl-function
+                                    (lambda (&key error-thrown &allow-other-keys)
+                                      (message "Failed to fetch mentions from relay: %s"
+                                               (if error-thrown
+                                                   (error-message-string error-thrown)
+                                                 "Unknown error"))
+                                      (funcall callback nil))))))
+             (message "get-mentions endpoint not found in relay API")
              (funcall callback nil))))))))
 
 (provide 'org-social-relay)

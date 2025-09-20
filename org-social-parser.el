@@ -62,6 +62,17 @@ Argument FOLLOW-LINE text."
 	(list (cons 'name nil)
 	      (cons 'url (car parts)))))))
 
+(defun org-social-parser--parse-group (group-line)
+  "Parse a GROUP line into name and relay URL components.
+Argument GROUP-LINE text."
+  (when group-line
+    (let ((parts (split-string group-line " " t)))
+      (if (>= (length parts) 2)
+          (list (cons 'name (car parts))
+                (cons 'relay-url (cadr parts)))
+        (list (cons 'name (car parts))
+              (cons 'relay-url nil))))))
+
 (defun org-social-parser--get-my-profile ()
   "Get the current user's profile from their Org-social file."
   (let ((feed nil))
@@ -70,16 +81,19 @@ Argument FOLLOW-LINE text."
 	(insert-file-contents org-social-file)
 	(setq feed (buffer-string)))
       (let* ((follows (org-social-parser--get-value feed "FOLLOW"))
-	     (follows-list (if (listp follows) follows (list follows))))
-	(list
-	 (cons 'id (gensym))
-	 (cons 'nick (org-social-parser--get-value feed "NICK"))
-	 (cons 'title (org-social-parser--get-value feed "TITLE"))
-	 (cons 'description (org-social-parser--get-value feed "DESCRIPTION"))
-	 (cons 'avatar (org-social-parser--get-value feed "AVATAR"))
-	 (cons 'url org-social-file)  ; Add URL for replies
-	 (cons 'follow (mapcar #'org-social-parser--parse-follow (delq nil follows-list)))
-	 (cons 'posts (org-social-parser--get-posts-from-feed feed)))))))
+             (follows-list (if (listp follows) follows (list follows)))
+             (groups (org-social-parser--get-value feed "GROUP"))
+             (groups-list (if (listp groups) groups (list groups))))
+        (list
+         (cons 'id (gensym))
+         (cons 'nick (org-social-parser--get-value feed "NICK"))
+         (cons 'title (org-social-parser--get-value feed "TITLE"))
+         (cons 'description (org-social-parser--get-value feed "DESCRIPTION"))
+         (cons 'avatar (org-social-parser--get-value feed "AVATAR"))
+         (cons 'url org-social-file)  ; Add URL for replies
+         (cons 'follow (mapcar #'org-social-parser--parse-follow (delq nil follows-list)))
+         (cons 'group (mapcar #'org-social-parser--parse-group (delq nil groups-list)))
+         (cons 'posts (org-social-parser--get-posts-from-feed feed)))))))
 
 (defun org-social-parser--extract-property (text prop-name)
   "Extract a property value from TEXT.
@@ -128,26 +142,26 @@ PROP-NAME should be the property name without colons."
 	      (setq text (string-trim
 			  (buffer-substring-no-properties (point) post-end))))
 
-	    ;; Add post if we have required data
-	    (when (and id text date properties-text)
-	      (let ((post-data (list
-				(cons 'id (gensym))
-				(cons 'timestamp id)
-				(cons 'date (float-time date))
-				(cons 'text text))))
+            ;; Add post if we have required data
+            (when (and id text date properties-text)
+              (let ((post-data (list
+                                (cons 'id (gensym))
+                                (cons 'timestamp id)
+                                (cons 'date (float-time date))
+                                (cons 'text text))))
 
-		;; Extract all possible properties
-		(dolist (prop '("LANG" "TAGS" "CLIENT" "REPLY_TO" "POLL_END"
-				"POLL_OPTION" "MOOD" "TITLE" "URL"))
-		  (let ((value (org-social-parser--extract-property properties-text prop)))
-		    (when value
-		      (setq post-data (cons (cons (intern (downcase prop)) value) post-data)))))
+                ;; Extract all possible properties
+                (dolist (prop '("LANG" "TAGS" "CLIENT" "REPLY_TO" "POLL_END"
+                                "POLL_OPTION" "MOOD" "TITLE" "URL" "GROUP"))
+                  (let ((value (org-social-parser--extract-property properties-text prop)))
+                    (when value
+                      (setq post-data (cons (cons (intern (downcase prop)) value) post-data)))))
 
-		(setq posts (cons post-data posts))))
+                (setq posts (cons post-data posts))))
 
-	    ;; Move to the post we found (if any)
-	    (when (< (point) post-end)
-	      (goto-char post-end))))))
+            ;; Move to the post we found (if any)
+            (when (< (point) post-end)
+              (goto-char post-end))))))
     (reverse posts)))
 
 (provide 'org-social-parser)

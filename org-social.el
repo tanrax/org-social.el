@@ -53,6 +53,8 @@
 (declare-function org-social-file--new-poll "org-social-file" ())
 (declare-function org-social-timeline--display "org-social-timeline" ())
 (declare-function org-social-file--validate "org-social-file" ())
+(declare-function org-social-notifications--is-feed-followed-p "org-social-notifications" (url))
+(declare-function org-social-parser--get-my-profile "org-social-parser" ())
 
 (defun org-social--ensure-loaded ()
   "Ensure all org-social modules are loaded."
@@ -142,6 +144,70 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
   (interactive)
   (org-social--ensure-loaded)
   (org-social-file--new-poll))
+
+;;;###autoload
+(defun org-social-check-relay-mentions ()
+  "Check and display mentions from the relay server."
+  (interactive)
+  (org-social--ensure-loaded)
+  (require 'org-social-notifications)
+  (org-social-check-relay-mentions))
+
+;;;###autoload
+(defun org-social-debug-follow-list ()
+  "Debug function to show the current follow list."
+  (interactive)
+  (org-social--ensure-loaded)
+  (require 'org-social-notifications)
+  (let ((my-profile (org-social-parser--get-my-profile)))
+    (when my-profile
+      (let ((follow-list (alist-get 'follow my-profile))
+            (buffer-name "*Follow List Debug*"))
+        (with-current-buffer (get-buffer-create buffer-name)
+          (let ((inhibit-read-only t))
+            (erase-buffer)
+            (insert "* Follow List Debug\n\n")
+            (if follow-list
+                (progn
+                  (insert (format "Found %d follows:\n\n" (length follow-list)))
+                  (dolist (follow follow-list)
+                    (let ((name (alist-get 'name follow))
+                          (url (alist-get 'url follow)))
+                      (insert (format "- Name: %s\n" (or name "No name")))
+                      (insert (format "  URL: %s\n\n" (or url "No URL"))))))
+              (insert "No follows found!\n"))
+            (goto-char (point-min))
+            (display-buffer (current-buffer))))))))
+
+;;;###autoload
+(defun org-social-test-feed-comparison ()
+  "Test function to debug specific feed URL comparisons."
+  (interactive)
+  (org-social--ensure-loaded)
+  (require 'org-social-notifications)
+  (let ((test-urls '("https://www.alessandroliguori.it/social.org"
+                     "https://shom.dev/social.org"
+                     "http://gemini.quietplace.xyz/~razzlom/social.org"
+                     "https://notxor.nueva-actitud.org/social.org"
+                     "https://emillo.net/social.org"))
+        (buffer-name "*Feed Comparison Test*"))
+    (with-current-buffer (get-buffer-create buffer-name)
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert "* Feed Comparison Test\n\n")
+        (dolist (test-url test-urls)
+          (let ((is-followed (org-social-notifications--is-feed-followed-p test-url)))
+            (insert (format "Testing: %s\n" test-url))
+            (insert (format "Result: %s\n\n" (if is-followed "✅ FOLLOWED" "❌ NOT FOLLOWED")))))
+        (insert "\n* Raw Follow List:\n\n")
+        (let ((my-profile (org-social-parser--get-my-profile)))
+          (when my-profile
+            (let ((follow-list (alist-get 'follow my-profile)))
+              (dolist (follow follow-list)
+                (let ((url (alist-get 'url follow)))
+                  (insert (format "- %s\n" url)))))))
+        (goto-char (point-min))
+        (display-buffer (current-buffer))))))
 
 (provide 'org-social)
 ;;; org-social.el ends here

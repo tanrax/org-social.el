@@ -140,6 +140,10 @@ Create a new poll in your Org-social feed.
 
 Insert a mention of a user in your post.
 
+### `org-social-check-relay-mentions`
+
+Check and display mentions from the relay server in a separate buffer. Only works when relay is configured.
+
 ### `org-social-validate-file`
 
 Verifies that your file has the correct structure.
@@ -220,7 +224,7 @@ For example, to automatically upload your social file to a remote server after s
 | Org Social Preview Generator | ✅ |
 | Relay: Self-register | ✅ |
 | Relay: List all feeds | ✅ |
-| Relay: Mentions | ❌ |
+| Relay: Mentions | ✅ |
 | Relay: Replies/threads | ❌ |
 | Relay: Search | ❌ |
 | Relay: Groups | ❌ |
@@ -240,6 +244,11 @@ GPL-3.0 - See LICENSE file for details.
 - Added  `org-social-only-relay-followers` variable to restrict follows to feeds registered in the Relay.
 - Added `org-social-my-public-url` variable to specify the public URL of your social.org file.
 - Added `org-social-relay` variable to specify the Relay server URL.
+- Added relay mentions support via `/mentions/` endpoint.
+  - Automatically fetches mentions from relay when `org-social-relay` and `org-social-my-public-url` are configured.
+  - Falls back to local mention detection when relay is not available.
+  - Smart notification handling for mentions from unfollowed feeds.
+  - Maintains backwards compatibility with existing configurations.
 
 # 📝 Changelog
 
