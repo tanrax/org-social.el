@@ -66,11 +66,11 @@ Example: \"https://andros.dev/static/preview/\" would generate URLs like
                  (string :tag "Preview base URL"))
   :group 'org-social)
 
-(defcustom org-social-relay nil
+(defcustom org-social-relay "https://org-social-relay.andros.dev"
   "URL of the Org Social Relay server.
 When set, the relay will be used to register your feed and discover mentions,
 replies, and other social interactions.
-Example: \"https://relay.example.com\""
+Default is set to the public relay server."
   :type '(choice (const :tag "No relay server" nil)
                  (string :tag "Relay server URL"))
   :group 'org-social)

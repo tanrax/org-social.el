@@ -183,5 +183,314 @@ Call CALLBACK with the list of post URLs that mention the user."
              (message "get-mentions endpoint not found in relay API")
              (funcall callback nil))))))))
 
+(defun org-social-relay--fetch-replies (post-url callback)
+  "Fetch replies for POST-URL from the relay server.
+Call CALLBACK with the thread structure."
+  (when (and org-social-relay
+             (not (string-empty-p org-social-relay)))
+    (let ((relay-url (string-trim-right org-social-relay "/")))
+      (org-social-relay--discover-endpoints
+       relay-url
+       (lambda (endpoints)
+         (let ((replies-endpoint (gethash "get-replies" endpoints)))
+           (if replies-endpoint
+               (let ((href (plist-get replies-endpoint :href))
+                     (method (plist-get replies-endpoint :method)))
+                 (let ((url (concat relay-url
+                                   (replace-regexp-in-string
+                                    "{url post}"
+                                    (url-hexify-string post-url)
+                                    href))))
+                   (request url
+                            :type method
+                            :timeout 10
+                            :success (cl-function
+                                      (lambda (&key data &allow-other-keys)
+                                        (condition-case err
+                                            (let* ((response (json-read-from-string data))
+                                                   (response-type (cdr (assoc 'type response)))
+                                                   (replies-data (cdr (assoc 'data response))))
+                                              (if (string= response-type "Success")
+                                                  (let ((replies-list (if (vectorp replies-data)
+                                                                         (append replies-data nil)
+                                                                       replies-data)))
+                                                    (funcall callback replies-list))
+                                                (progn
+                                                  (message "Relay returned error response: %s" response-type)
+                                                  (funcall callback nil))))
+                                          (error
+                                           (message "Failed to parse relay replies response: %s" (error-message-string err))
+                                           (funcall callback nil)))))
+                            :error (cl-function
+                                    (lambda (&key error-thrown &allow-other-keys)
+                                      (message "Failed to fetch replies from relay: %s"
+                                               (if error-thrown
+                                                   (error-message-string error-thrown)
+                                                 "Unknown error"))
+                                      (funcall callback nil))))))
+             (message "get-replies endpoint not found in relay API")
+             (funcall callback nil))))))))
+
+(defun org-social-relay--search-posts (query callback)
+  "Search posts by QUERY from the relay server.
+Call CALLBACK with the list of matching post URLs."
+  (when (and org-social-relay
+             (not (string-empty-p org-social-relay)))
+    (let ((relay-url (string-trim-right org-social-relay "/")))
+      (org-social-relay--discover-endpoints
+       relay-url
+       (lambda (endpoints)
+         (let ((search-endpoint (gethash "search" endpoints)))
+           (if search-endpoint
+               (let ((href (plist-get search-endpoint :href))
+                     (method (plist-get search-endpoint :method)))
+                 (let ((url (concat relay-url
+                                   (replace-regexp-in-string
+                                    "{query}"
+                                    (url-hexify-string query)
+                                    href))))
+                   (request url
+                            :type method
+                            :timeout 15
+                            :success (cl-function
+                                      (lambda (&key data &allow-other-keys)
+                                        (condition-case err
+                                            (let* ((response (json-read-from-string data))
+                                                   (response-type (cdr (assoc 'type response)))
+                                                   (search-data (cdr (assoc 'data response))))
+                                              (if (string= response-type "Success")
+                                                  (let ((search-list (if (vectorp search-data)
+                                                                        (append search-data nil)
+                                                                      search-data)))
+                                                    (funcall callback search-list))
+                                                (progn
+                                                  (message "Relay returned error response: %s" response-type)
+                                                  (funcall callback nil))))
+                                          (error
+                                           (message "Failed to parse relay search response: %s" (error-message-string err))
+                                           (funcall callback nil)))))
+                            :error (cl-function
+                                    (lambda (&key error-thrown &allow-other-keys)
+                                      (message "Failed to search posts from relay: %s"
+                                               (if error-thrown
+                                                   (error-message-string error-thrown)
+                                                 "Unknown error"))
+                                      (funcall callback nil))))))
+             (message "search endpoint not found in relay API")
+             (funcall callback nil))))))))
+
+(defun org-social-relay--fetch-groups (callback)
+  "Fetch list of groups from the relay server.
+Call CALLBACK with the list of groups."
+  (when (and org-social-relay
+             (not (string-empty-p org-social-relay)))
+    (let ((relay-url (string-trim-right org-social-relay "/")))
+      (org-social-relay--discover-endpoints
+       relay-url
+       (lambda (endpoints)
+         (let ((groups-endpoint (gethash "list-groups" endpoints)))
+           (if groups-endpoint
+               (let ((href (plist-get groups-endpoint :href))
+                     (method (plist-get groups-endpoint :method)))
+                 (request (concat relay-url href)
+                          :type method
+                          :timeout 10
+                          :success (cl-function
+                                    (lambda (&key data &allow-other-keys)
+                                      (condition-case err
+                                          (let* ((response (json-read-from-string data))
+                                                 (response-type (cdr (assoc 'type response)))
+                                                 (groups-data (cdr (assoc 'data response))))
+                                            (if (string= response-type "Success")
+                                                (let ((groups-list (if (vectorp groups-data)
+                                                                      (append groups-data nil)
+                                                                    groups-data)))
+                                                  (funcall callback groups-list))
+                                              (progn
+                                                (message "Relay returned error response: %s" response-type)
+                                                (funcall callback nil))))
+                                        (error
+                                         (message "Failed to parse relay groups response: %s" (error-message-string err))
+                                         (funcall callback nil)))))
+                          :error (cl-function
+                                  (lambda (&key error-thrown &allow-other-keys)
+                                    (message "Failed to fetch groups from relay: %s"
+                                             (if error-thrown
+                                                 (error-message-string error-thrown)
+                                               "Unknown error"))
+                                    (funcall callback nil)))))
+             (message "list-groups endpoint not found in relay API")
+             (funcall callback nil))))))))
+
+(defun org-social-relay--fetch-group-posts (group-id callback)
+  "Fetch posts from GROUP-ID from the relay server.
+Call CALLBACK with the list of group posts."
+  (when (and org-social-relay
+             (not (string-empty-p org-social-relay)))
+    (let ((relay-url (string-trim-right org-social-relay "/")))
+      (org-social-relay--discover-endpoints
+       relay-url
+       (lambda (endpoints)
+         (let ((group-messages-endpoint (gethash "get-group-messages" endpoints)))
+           (if group-messages-endpoint
+               (let ((href (plist-get group-messages-endpoint :href))
+                     (method (plist-get group-messages-endpoint :method)))
+                 (let ((url (concat relay-url
+                                   (replace-regexp-in-string
+                                    "{group id}"
+                                    (number-to-string group-id)
+                                    href))))
+                   (request url
+                            :type method
+                            :timeout 15
+                            :success (cl-function
+                                      (lambda (&key data &allow-other-keys)
+                                        (condition-case err
+                                            (let* ((response (json-read-from-string data))
+                                                   (response-type (cdr (assoc 'type response)))
+                                                   (posts-data (cdr (assoc 'data response))))
+                                              (if (string= response-type "Success")
+                                                  (let ((posts-list (if (vectorp posts-data)
+                                                                       (append posts-data nil)
+                                                                     posts-data)))
+                                                    (funcall callback posts-list))
+                                                (progn
+                                                  (message "Relay returned error response: %s" response-type)
+                                                  (funcall callback nil))))
+                                          (error
+                                           (message "Failed to parse relay group posts response: %s" (error-message-string err))
+                                           (funcall callback nil)))))
+                            :error (cl-function
+                                    (lambda (&key error-thrown &allow-other-keys)
+                                      (message "Failed to fetch group posts from relay: %s"
+                                               (if error-thrown
+                                                   (error-message-string error-thrown)
+                                                 "Unknown error"))
+                                      (funcall callback nil))))))
+             (message "get-group-messages endpoint not found in relay API")
+             (funcall callback nil))))))))
+
+(defun org-social-relay--fetch-polls (callback)
+  "Fetch polls from the relay server.
+Call CALLBACK with the list of poll URLs."
+  (when (and org-social-relay
+             (not (string-empty-p org-social-relay)))
+    (let ((relay-url (string-trim-right org-social-relay "/")))
+      (org-social-relay--discover-endpoints
+       relay-url
+       (lambda (endpoints)
+         (let ((polls-endpoint (gethash "list-polls" endpoints)))
+           (if polls-endpoint
+               (let ((href (plist-get polls-endpoint :href))
+                     (method (plist-get polls-endpoint :method)))
+                 (request (concat relay-url href)
+                          :type method
+                          :timeout 10
+                          :success (cl-function
+                                    (lambda (&key data &allow-other-keys)
+                                      (condition-case err
+                                          (let* ((response (json-read-from-string data))
+                                                 (response-type (cdr (assoc 'type response)))
+                                                 (polls-data (cdr (assoc 'data response))))
+                                            (if (string= response-type "Success")
+                                                (let ((polls-list (if (vectorp polls-data)
+                                                                     (append polls-data nil)
+                                                                   polls-data)))
+                                                  (funcall callback polls-list))
+                                              (progn
+                                                (message "Relay returned error response: %s" response-type)
+                                                (funcall callback nil))))
+                                        (error
+                                         (message "Failed to parse relay polls response: %s" (error-message-string err))
+                                         (funcall callback nil)))))
+                          :error (cl-function
+                                  (lambda (&key error-thrown &allow-other-keys)
+                                    (message "Failed to fetch polls from relay: %s"
+                                             (if error-thrown
+                                                 (error-message-string error-thrown)
+                                               "Unknown error"))
+                                    (funcall callback nil)))))
+             (message "list-polls endpoint not found in relay API")
+             (funcall callback nil))))))))
+
+(defun org-social-relay--fetch-poll-votes (post-url callback)
+  "Fetch votes for poll at POST-URL from the relay server.
+Call CALLBACK with the poll votes data."
+  (when (and org-social-relay
+             (not (string-empty-p org-social-relay)))
+    (let ((relay-url (string-trim-right org-social-relay "/")))
+      (org-social-relay--discover-endpoints
+       relay-url
+       (lambda (endpoints)
+         (let ((poll-votes-endpoint (gethash "get-poll-votes" endpoints)))
+           (if poll-votes-endpoint
+               (let ((href (plist-get poll-votes-endpoint :href))
+                     (method (plist-get poll-votes-endpoint :method)))
+                 (let ((url (concat relay-url
+                                   (replace-regexp-in-string
+                                    "{url post}"
+                                    (url-hexify-string post-url)
+                                    href))))
+                   (request url
+                            :type method
+                            :timeout 10
+                            :success (cl-function
+                                      (lambda (&key data &allow-other-keys)
+                                        (condition-case err
+                                            (let* ((response (json-read-from-string data))
+                                                   (response-type (cdr (assoc 'type response)))
+                                                   (votes-data (cdr (assoc 'data response))))
+                                              (if (string= response-type "Success")
+                                                  (let ((votes-list (if (vectorp votes-data)
+                                                                       (append votes-data nil)
+                                                                     votes-data)))
+                                                    (funcall callback votes-list))
+                                                (progn
+                                                  (message "Relay returned error response: %s" response-type)
+                                                  (funcall callback nil))))
+                                          (error
+                                           (message "Failed to parse relay poll votes response: %s" (error-message-string err))
+                                           (funcall callback nil)))))
+                            :error (cl-function
+                                    (lambda (&key error-thrown &allow-other-keys)
+                                      (message "Failed to fetch poll votes from relay: %s"
+                                               (if error-thrown
+                                                   (error-message-string error-thrown)
+                                                 "Unknown error"))
+                                      (funcall callback nil))))))
+             (message "get-poll-votes endpoint not found in relay API")
+             (funcall callback nil))))))))
+
+;; Utility functions for getting data synchronously (for compatibility)
+(defun org-social-relay--get-timeline ()
+  "Get timeline from relay (fallback to local feeds if relay unavailable)."
+  (if (and org-social-relay (not (string-empty-p org-social-relay)))
+      ;; For now, use feed-based approach until we implement full timeline endpoint
+      (when (fboundp 'org-social-feed--get-timeline)
+        (org-social-feed--get-timeline))
+    ;; Fallback to local feeds
+    (when (fboundp 'org-social-feed--get-timeline)
+      (org-social-feed--get-timeline))))
+
+(defun org-social-relay--get-thread (post-url)
+  "Get thread for POST-URL from relay."
+  ;; This will be implemented when we create the UI
+  (message "Getting thread for %s" post-url))
+
+(defun org-social-relay--get-mentions (feed-url)
+  "Get mentions for FEED-URL from relay."
+  ;; This will be implemented when we create the UI
+  (message "Getting mentions for %s" feed-url))
+
+(defun org-social-relay--get-groups ()
+  "Get groups from relay."
+  ;; This will be implemented when we create the UI
+  (message "Getting groups from relay"))
+
+(defun org-social-relay--get-group-posts (group-id)
+  "Get posts for GROUP-ID from relay."
+  ;; This will be implemented when we create the UI
+  (message "Getting posts for group %s" group-id))
+
 (provide 'org-social-relay)
 ;;; org-social-relay.el ends here

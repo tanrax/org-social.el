@@ -70,13 +70,23 @@
           (require 'cl-lib)
           (require 'seq))
       (error
-       (error"Failed to load core org-social modules: %s" (error-message-string err))))
+       (error "Failed to load core org-social modules: %s" (error-message-string err))))
     
+    ;; Load request library (included with org-social)
+    (condition-case nil
+        (require 'request)
+      (error
+       ;; Try loading bundled request
+       (condition-case nil
+           (load-file (expand-file-name "request.el" org-social--root-dir))
+         (error
+          (message "Warning: Could not load request library. Some timeline features may not work.")))))
+
     ;; Load optional modules (can fail gracefully)
     (condition-case nil
         (require 'org-social-feed)
       (error
-       (message "Warning: Could not load org-social-feed module (requires 'request' package)")))
+       (message "Warning: Could not load org-social-feed module")))
     
     (condition-case nil
         (require 'org-social-notifications)
@@ -92,7 +102,13 @@
         (require 'org-social-timeline)
       (error
        (message "Warning: Could not load org-social-timeline module")))
-    
+
+    ;; Load new UI system
+    (condition-case nil
+        (require 'org-social-ui)
+      (error
+       (message "Warning: Could not load org-social-ui module")))
+
     ;; Always try to ensure timeline function is loaded
     (unless (fboundp 'org-social-timeline--display)
       (condition-case nil
@@ -117,12 +133,22 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
 
 ;;;###autoload
 (defun org-social-timeline ()
-  "View timeline with posts from all followers."
+  "View timeline with posts from all followers using the new UI."
   (interactive)
   (org-social--ensure-loaded)
-  (unless (fboundp 'org-social-timeline--display)
-    (error "Org-social-timeline--display function not available.  Check if org-social-timeline module loaded correctly"))
-  (org-social-timeline--display))
+  ;; Try to load the new UI module
+  (condition-case nil
+      (require 'org-social-ui)
+    (error
+     (message "New UI system not available, falling back to classic timeline")))
+
+  (if (fboundp 'org-social-ui-timeline)
+      (org-social-ui-timeline)
+    ;; Fallback to old timeline
+    (progn
+      (unless (fboundp 'org-social-timeline--display)
+        (error "Timeline functionality not available.  Check if org-social-timeline module loaded correctly"))
+      (org-social-timeline--display))))
 
 ;;;###autoload
 (defun org-social-setup ()
@@ -207,7 +233,34 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
                 (let ((url (alist-get 'url follow)))
                   (insert (format "- %s\n" url)))))))
         (goto-char (point-min))
-        (display-buffer (current-buffer))))))
+        (display-buffer (current-buffer)))))
+
+;;;###autoload
+(defun org-social-ui ()
+  "Launch the Org Social UI interface."
+  (interactive)
+  (org-social--ensure-loaded)
+  (if (fboundp 'org-social-ui-timeline)
+      (org-social-ui-timeline)
+    (error "New UI system not available.  Please check if org-social-ui module is loaded correctly")))
+
+;;;###autoload
+(defun org-social-notifications ()
+  "View notifications using the new UI."
+  (interactive)
+  (org-social--ensure-loaded)
+  (if (fboundp 'org-social-ui-notifications)
+      (org-social-ui-notifications)
+    (error "Notifications UI not available.  Please check if org-social-ui module is loaded correctly")))
+
+;;;###autoload
+(defun org-social-groups ()
+  "View groups using the new UI."
+  (interactive)
+  (org-social--ensure-loaded)
+  (if (fboundp 'org-social-ui-groups)
+      (org-social-ui-groups)
+    (error "Groups UI not available.  Please check if org-social-ui module is loaded correctly"))))
 
 (provide 'org-social)
 ;;; org-social.el ends here
