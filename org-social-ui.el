@@ -39,6 +39,10 @@
 (declare-function request "request" (url &rest args))
 (declare-function visual-fill-column-mode "visual-fill-column" (&optional arg))
 
+;; Declare visual-fill-column variables to avoid compilation warnings
+(defvar visual-fill-column-center-text)
+(defvar visual-fill-column-width)
+
 ;; UI Constants
 (defconst org-social-ui--char-separator ?-)
 (defconst org-social-ui--timeline-buffer-name "*Org Social Timeline*")
@@ -86,8 +90,10 @@
 (define-derived-mode org-social-ui-mode special-mode "Org-Social"
   "Major mode for viewing Org Social content."
   ;; Enable centering like lobsters
-  (setq visual-fill-column-center-text t)
-  (setq visual-fill-column-width 90)
+  (when (boundp 'visual-fill-column-center-text)
+    (setq visual-fill-column-center-text t))
+  (when (boundp 'visual-fill-column-width)
+    (setq visual-fill-column-width 90))
   (when (fboundp 'visual-fill-column-mode)
     (visual-fill-column-mode 1))
   (use-local-map org-social-ui-mode-map))
@@ -101,8 +107,10 @@
   (display-line-numbers-mode 0)
   ;; Ensure visual-fill-column is enabled for centering
   (when (fboundp 'visual-fill-column-mode)
-    (setq visual-fill-column-center-text t)
-    (setq visual-fill-column-width 90)
+    (when (boundp 'visual-fill-column-center-text)
+      (setq visual-fill-column-center-text t))
+    (when (boundp 'visual-fill-column-width)
+      (setq visual-fill-column-width 90))
     (visual-fill-column-mode 1)))
 
 (defun org-social-ui--insert-formatted-text (text &optional size font-color background-color)
@@ -173,42 +181,48 @@
       (while (re-search-forward "\\*\\*\\([^*\n]+\\)\\*\\*" end t)
         (let ((overlay (make-overlay (match-beginning 1) (match-end 1))))
           (overlay-put overlay 'face 'bold)
-          (overlay-put overlay 'priority 100))) ; High priority to override widgets
+          (overlay-put overlay 'priority 100)
+          (overlay-put overlay 'org-social-overlay t))) ; Mark as org-social overlay
 
       ;; Italic text: /text/
       (goto-char start)
       (while (re-search-forward "/\\([^/\n]+\\)/" end t)
         (let ((overlay (make-overlay (match-beginning 1) (match-end 1))))
           (overlay-put overlay 'face 'italic)
-          (overlay-put overlay 'priority 100)))
+          (overlay-put overlay 'priority 100)
+          (overlay-put overlay 'org-social-overlay t)))
 
       ;; Code text: =text=
       (goto-char start)
       (while (re-search-forward "=\\([^=\n]+\\)=" end t)
         (let ((overlay (make-overlay (match-beginning 1) (match-end 1))))
           (overlay-put overlay 'face 'org-code)
-          (overlay-put overlay 'priority 100)))
+          (overlay-put overlay 'priority 100)
+          (overlay-put overlay 'org-social-overlay t)))
 
       ;; Verbatim text: ~text~
       (goto-char start)
       (while (re-search-forward "~\\([^~\n]+\\)~" end t)
         (let ((overlay (make-overlay (match-beginning 1) (match-end 1))))
           (overlay-put overlay 'face 'org-verbatim)
-          (overlay-put overlay 'priority 100)))
+          (overlay-put overlay 'priority 100)
+          (overlay-put overlay 'org-social-overlay t)))
 
       ;; Strike-through: +text+
       (goto-char start)
       (while (re-search-forward "\\+\\([^+\n]+\\)\\+" end t)
         (let ((overlay (make-overlay (match-beginning 1) (match-end 1))))
           (overlay-put overlay 'face '(:strike-through t))
-          (overlay-put overlay 'priority 100)))
+          (overlay-put overlay 'priority 100)
+          (overlay-put overlay 'org-social-overlay t)))
 
       ;; Underline: _text_
       (goto-char start)
       (while (re-search-forward "_\\([^_\n]+\\)_" end t)
         (let ((overlay (make-overlay (match-beginning 1) (match-end 1))))
           (overlay-put overlay 'face 'underline)
-          (overlay-put overlay 'priority 100)))
+          (overlay-put overlay 'priority 100)
+          (overlay-put overlay 'org-social-overlay t)))
 
       ;; Links: [[url][description]] or [[url]]
       (goto-char start)
@@ -226,22 +240,26 @@
           (let ((overlay (make-overlay link-start (+ link-start (length display-text)))))
             (overlay-put overlay 'face 'org-link)
             (overlay-put overlay 'priority 100)
+            (overlay-put overlay 'org-social-overlay t)
             ;; Store URL for potential click handling
             (overlay-put overlay 'org-social-url url))))
 
-      ;; Hashtags: #tag (custom green highlighting with highest priority)
+      ;; Hashtags: #tag (custom green highlighting with highest priority and persistent marking)
       (goto-char start)
       (while (re-search-forward "\\(^\\|\\s-\\)\\(#[a-zA-Z0-9_-]+\\)\\($\\|\\s-\\)" end t)
         (let ((overlay (make-overlay (match-beginning 2) (match-end 2))))
           (overlay-put overlay 'face '(:foreground "#00aa00" :weight bold))
-          (overlay-put overlay 'priority 110))) ; Even higher priority for hashtags
+          (overlay-put overlay 'priority 110) ; Even higher priority for hashtags
+          (overlay-put overlay 'org-social-overlay t)
+          (overlay-put overlay 'hashtag t))) ; Special mark for hashtags
 
       ;; List items: - item or + item or * item
       (goto-char start)
       (while (re-search-forward "^\\s-*\\([-+*]\\)\\s-+" end t)
         (let ((overlay (make-overlay (match-beginning 1) (match-end 1))))
           (overlay-put overlay 'face 'org-list-dt)
-          (overlay-put overlay 'priority 100)))
+          (overlay-put overlay 'priority 100)
+          (overlay-put overlay 'org-social-overlay t)))
 
       ;; Tables: | cell | cell | (highlight table delimiters)
       (goto-char start)
@@ -251,14 +269,16 @@
           ;; Highlight the entire table row
           (let ((overlay (make-overlay line-start line-end)))
             (overlay-put overlay 'face 'org-table)
-            (overlay-put overlay 'priority 95))
+            (overlay-put overlay 'priority 95)
+            (overlay-put overlay 'org-social-overlay t))
           ;; Highlight individual separators
           (save-excursion
             (goto-char line-start)
             (while (re-search-forward "|" line-end t)
               (let ((overlay (make-overlay (match-beginning 0) (match-end 0))))
                 (overlay-put overlay 'face '(:foreground "#888888" :weight bold))
-                (overlay-put overlay 'priority 100)))))))))
+                (overlay-put overlay 'priority 100)
+                (overlay-put overlay 'org-social-overlay t)))))))))
 
 (defun org-social-ui--format-relative-time (timestamp)
   "Format TIMESTAMP as relative time."
@@ -324,6 +344,8 @@
         (org-social-ui--insert-timeline-posts-paginated)
         ;; Insert new loading button if there are more posts
         (org-social-ui--timeline-insert-loading)
+        ;; Ensure overlays are maintained - refresh all org-mode overlays in buffer
+        (org-social-ui--refresh-all-overlays)
         ;; Move cursor to the beginning of the first new post
         (goto-char first-new-post-start)
         ;; Skip any whitespace and position at the start of the first new post content
@@ -1020,7 +1042,7 @@
   (if (not (featurep 'request))
       (progn
         (org-social-ui--insert-formatted-text "Error: request library not available.\n" nil "#ff6b6b")
-        (org-social-ui--insert-formatted-text "Profile viewing requires the request library.\n" nil "#666666"))
+        (org-social-ui--insert-formatted-text "Profile viewing requires the 'request' package to be installed.\n" nil "#666666"))
     (request user-url
              :timeout 15
              :success (cl-function
@@ -1394,6 +1416,29 @@
           (org-social-ui--insert-formatted-text "To view and participate in groups, configure:\n" nil "#666666")
           (org-social-ui--insert-formatted-text "- org-social-relay (relay server URL)\n" nil "#666666")
           (setq buffer-read-only t))))))
+
+(defun org-social-ui--refresh-all-overlays ()
+  "Refresh all org-mode syntax overlays in the current buffer."
+  (interactive)
+  ;; Get all text content areas (skip headers and buttons)
+  (save-excursion
+    (goto-char (point-min))
+    ;; Find all separator lines to identify post content
+    (let ((separator-regex (concat "^" (regexp-quote (org-social-ui--string-separator)) "$")))
+      (while (re-search-forward separator-regex nil t)
+        (let ((post-start (point)))
+          ;; Find next separator or end of buffer
+          (if (re-search-forward separator-regex nil t)
+              (progn
+                (beginning-of-line)
+                ;; Apply overlays to this post content
+                (org-social-ui--apply-org-mode-to-region post-start (point))
+                ;; Move back to current separator for next iteration
+                (end-of-line))
+            ;; Last post - apply to end of buffer
+            (org-social-ui--apply-org-mode-to-region post-start (point-max))
+            ;; Break the loop
+            (goto-char (point-max))))))))
 
 ;; Add hook for automatic pagination when scrolling to last post
 (add-hook 'org-social-ui--last-post-hook

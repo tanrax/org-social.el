@@ -31,9 +31,17 @@
 
 (require 'org-social-variables)
 (require 'org-social-parser)
-(require 'request)
 (require 'seq)
 (require 'cl-lib)
+
+;; Optional require with error handling
+(condition-case nil
+    (require 'request)
+  (error
+   (message "Warning: 'request' package not available. Some feed features may not work.")))
+
+;; Declare request function to avoid compilation warnings
+(declare-function request "request" (url &rest args))
 
 ;; Declare functions from org-social-relay
 (declare-function org-social-relay--fetch-feeds "org-social-relay" (callback))

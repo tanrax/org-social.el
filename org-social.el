@@ -98,15 +98,11 @@ TIMESTAMP should be in RFC 3339 format or a time value."
       (error
        (error "Failed to load core org-social modules: %s" (error-message-string err))))
     
-    ;; Load request library (included with org-social)
+    ;; Load request library (from package dependencies)
     (condition-case nil
         (require 'request)
       (error
-       ;; Try loading bundled request
-       (condition-case nil
-           (load-file (expand-file-name "request.el" org-social--root-dir))
-         (error
-          (message "Warning: Could not load request library. Some timeline features may not work.")))))
+       (message "Warning: Could not load request library. Some timeline features may not work.")))
 
     ;; Load optional modules (can fail gracefully)
     (condition-case nil

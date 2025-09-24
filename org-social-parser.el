@@ -35,8 +35,13 @@
 (declare-function org-social--format-date "org-social" (timestamp))
 
 (defun org-social-parser--generate-timestamp ()
-  "Generate a timestamp in RFC 3339 format for use as post ID."
-  (format-time-string "%Y-%m-%dT%H:%M:%S%z"))
+  "Generate a timestamp in RFC 3339 format for use as post ID.
+Follows Org Social specification format."
+  (let ((timestamp (format-time-string "%Y-%m-%dT%H:%M:%S%z")))
+    ;; Ensure proper timezone format (+##:## instead of +####)
+    (if (string-match "\\(.*[+-][0-9]\{2\}\\)\\([0-9]\{2\}\\)$" timestamp)
+        (format "%s:%s" (match-string 1 timestamp) (match-string 2 timestamp))
+      timestamp)))
 
 (defun org-social-parser--format-timestamp (timestamp)
   "Format TIMESTAMP to human-readable date format: '24 Sep 2025, 15:30'.
@@ -104,14 +109,17 @@ Argument GROUP-LINE text."
          (cons 'posts (org-social-parser--get-posts-from-feed feed)))))))
 
 (defun org-social-parser--extract-property (text prop-name)
-  "Extract a property value from TEXT.
-PROP-NAME should be the property name without colons."
+  "Extract a property value from TEXT according to Org Social specification.
+PROP-NAME should be the property name without colons.
+Validates format according to specification - ignores invalid values."
   (when (string-match (format ":%s:\\s-*\\([^\n]+\\)" (regexp-quote prop-name)) text)
     (let ((value (string-trim (match-string 1 text))))
-      ;; Simple validation without length limitation
+      ;; Enhanced validation according to Org Social specification
       (when (and (not (string-empty-p value))
                  (not (string-match-p "^:END:$" value))
-                 (not (string-match-p "^#" value)))
+                 (not (string-match-p "^#" value))
+                 (not (string-match-p "^:" value))  ; Property lines
+                 (org-social-parser--validate-property prop-name value))
         value))))
 
 (defun org-social-parser--get-posts-from-feed (feed)
@@ -169,9 +177,10 @@ PROP-NAME should be the property name without colons."
                                 (cons 'date (float-time date))
                                 (cons 'text text))))
 
-                ;; Extract all possible properties
+                ;; Extract only official properties according to Org Social specification
+                ;; Official properties: LANG, TAGS, CLIENT, REPLY_TO, POLL_END, POLL_OPTION, GROUP, MOOD
                 (dolist (prop '("LANG" "TAGS" "CLIENT" "REPLY_TO" "POLL_END"
-                                "POLL_OPTION" "MOOD" "TITLE" "URL" "GROUP"))
+                                "POLL_OPTION" "GROUP" "MOOD"))
                   (let ((value (org-social-parser--extract-property properties-text prop)))
                     (when value
                       (setq post-data (cons (cons (intern (downcase prop)) value) post-data)))))
@@ -182,6 +191,41 @@ PROP-NAME should be the property name without colons."
             (when (< (point) post-end)
               (goto-char post-end))))))
     (reverse posts)))
+
+(defun org-social-parser--validate-property (prop-name value)
+  "Validate PROP-NAME VALUE according to Org Social specification.
+Returns t if valid, nil if invalid (should be ignored)."
+  (cond
+   ;; REPLY_TO must be URL#timestamp format
+   ((string= prop-name "REPLY_TO")
+    (string-match-p "^https?://[^#]+#[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}" value))
+   ;; POLL_END must be RFC 3339 format
+   ((string= prop-name "POLL_END")
+    (string-match-p "^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}" value))
+   ;; GROUP must be: groupname relayurl format
+   ((string= prop-name "GROUP")
+    (let ((parts (split-string value "\\s-+" t)))
+      (and (>= (length parts) 2)
+           (string-match-p "^https?://" (cadr parts)))))
+   ;; LANG must be language code (2-5 chars, letters/hyphens only)
+   ((string= prop-name "LANG")
+    (string-match-p "^[a-z]\{2,5\}\\(-[a-z]\{2,3\}\\)?$" value))
+   ;; TAGS must be space-separated alphanumeric words
+   ((string= prop-name "TAGS")
+    (string-match-p "^[a-zA-Z0-9_-]+\\(\\s-+[a-zA-Z0-9_-]+\\)*$" value))
+   ;; CLIENT, POLL_OPTION, MOOD - just check they're reasonable text
+   ((member prop-name '("CLIENT" "POLL_OPTION" "MOOD"))
+    (and (< (length value) 200)  ; Reasonable length limit
+         (not (string-match-p "[\n\r]" value))))  ; No newlines
+   ;; Default: accept other properties
+   (t t)))
+
+(defun org-social-parser--validate-id (id)
+  "Validate that ID is in proper RFC 3339 format according to specification.
+Accepts formats: ####-##-##T##:##:##+##:## or ####-##-##T##:##:##-####"
+  (when (stringp id)
+    (or (string-match-p "^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}[+-][0-9]\{2\}:[0-9]\{2\}$" id)
+        (string-match-p "^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}[+-][0-9]\{4\}$" id))))
 
 (provide 'org-social-parser)
 ;;; org-social-parser.el ends here
