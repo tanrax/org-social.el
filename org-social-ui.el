@@ -35,6 +35,7 @@
 (declare-function org-social-feed--process-queue "org-social-feed" ())
 (declare-function org-social--format-date "org-social" (timestamp))
 (declare-function org-social-parser--get-value "org-social-parser" (feed key))
+(declare-function org-social-parser--get-posts-from-feed "org-social-parser" (feed))
 (declare-function request "request" (url &rest args))
 (declare-function visual-fill-column-mode "visual-fill-column" (&optional arg))
 
@@ -107,7 +108,8 @@
 (defun org-social-ui--insert-formatted-text (text &optional size font-color background-color)
   "Insert TEXT with optional formatting SIZE, FONT-COLOR, and BACKGROUND-COLOR."
   (let ((start (point)))
-    (insert text)
+    (let ((inhibit-read-only t))
+      (insert text))
     (let ((end (point))
           (props (list)))
       (when size
@@ -380,14 +382,18 @@
                       (alist-get 'poll-end post)))
          (tags (or (alist-get 'tags post) ""))
          (mood (or (alist-get 'mood post) ""))
+         (client (alist-get 'client post))
          (my-nick (alist-get 'nick org-social-variables--my-profile))
          (is-my-post (or (string= author my-nick)
                         (string= author-url (alist-get 'url org-social-variables--my-profile)))))
 
-    ;; Post header with author name and timestamp
+    ;; Post header with author name, timestamp, and client
     (org-social-ui--insert-formatted-text (format "@%s" author) 1.1 "#4a90e2")
     (org-social-ui--insert-formatted-text " • ")
     (org-social-ui--insert-formatted-text (org-social--format-date timestamp) nil "#666666")
+    (when (and client (not (string-empty-p client)))
+      (org-social-ui--insert-formatted-text " • ")
+      (org-social-ui--insert-formatted-text client nil "#ffaa00"))
     (org-social-ui--insert-formatted-text "\n")
 
     ;; Start of org-mode content region
@@ -792,7 +798,7 @@
     (let ((timeline (when (fboundp 'org-social-feed--get-timeline)
                      (org-social-feed--get-timeline))))
       (org-social-ui--display-timeline timeline)
-      (message "Timeline loaded with %d posts" (length timeline)))))
+      (message "Timeline loaded with %d posts" (if timeline (length timeline) 0)))))
 
 (defun org-social-ui-notifications ()
   "Display notifications screen."

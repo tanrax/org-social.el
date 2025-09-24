@@ -128,6 +128,22 @@ M-x customize-group RET org-social RET
 
 Downloads feeds from people you follow and displays a unified timeline with enhanced navigation and reply functionality.
 
+### `org-social-timeline-raw`
+
+Display timeline in raw Org mode format following the Org Social specification. This function creates a buffer showing all timeline posts formatted according to the official Org Social specification with proper metadata, properties, and structure. Useful for:
+
+- **Exporting timeline data**: Copy and paste posts in standard format
+- **Understanding the format**: See exactly how Org Social posts are structured
+- **Debugging**: Inspect post metadata and properties
+- **Learning**: Understand the Org Social specification by example
+
+The generated buffer follows the complete specification including:
+- Proper `* Posts` section
+- Level 2 headers (`**`) for each post
+- `:PROPERTIES:` drawers with metadata (ID, LANG, TAGS, CLIENT, MOOD, etc.)
+- Author information as comments
+- Original content preservation with multiline support
+
 ### `org-social-new-post`
 
 Make a new post in your social feed.
