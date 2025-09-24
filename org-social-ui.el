@@ -161,33 +161,104 @@
   (org-social-ui--insert-formatted-text "\n"))
 
 (defun org-social-ui--apply-org-mode-to-region (start end)
-  "Apply `org-mode' syntax highlighting to region from START to END."
+  "Apply org-mode syntax highlighting from START to END using overlays."
   (save-excursion
     (save-restriction
       (narrow-to-region start end)
       (goto-char start)
-      ;; Create a temporary buffer with org-mode to get the font-lock properties
-      (let ((content (buffer-substring-no-properties start end))
-            (target-buffer (current-buffer)))
-        (with-temp-buffer
-          ;; Set up temporary org-mode buffer
-          (insert content)
-          (goto-char (point-min))
-          (org-mode)
-          (font-lock-ensure)
 
-          ;; Copy font-lock properties to original buffer
-          (let ((temp-start (point-min))
-                (temp-end (point-max)))
-            (while (< temp-start temp-end)
-              (let* ((next-change (or (next-property-change temp-start nil temp-end) temp-end))
-                     (face (get-text-property temp-start 'face))
-                     (target-start (+ start (- temp-start (point-min))))
-                     (target-end (+ start (- next-change (point-min)))))
-                (when face
-                  (with-current-buffer target-buffer
-                    (put-text-property target-start target-end 'face face)))
-                (setq temp-start next-change)))))))))
+      ;; Create overlays with higher priority than widgets for org-mode syntax
+      ;; Bold text: **text**
+      (goto-char start)
+      (while (re-search-forward "\\*\\*\\([^*\n]+\\)\\*\\*" end t)
+        (let ((overlay (make-overlay (match-beginning 1) (match-end 1))))
+          (overlay-put overlay 'face 'bold)
+          (overlay-put overlay 'priority 100))) ; High priority to override widgets
+
+      ;; Italic text: /text/
+      (goto-char start)
+      (while (re-search-forward "/\\([^/\n]+\\)/" end t)
+        (let ((overlay (make-overlay (match-beginning 1) (match-end 1))))
+          (overlay-put overlay 'face 'italic)
+          (overlay-put overlay 'priority 100)))
+
+      ;; Code text: =text=
+      (goto-char start)
+      (while (re-search-forward "=\\([^=\n]+\\)=" end t)
+        (let ((overlay (make-overlay (match-beginning 1) (match-end 1))))
+          (overlay-put overlay 'face 'org-code)
+          (overlay-put overlay 'priority 100)))
+
+      ;; Verbatim text: ~text~
+      (goto-char start)
+      (while (re-search-forward "~\\([^~\n]+\\)~" end t)
+        (let ((overlay (make-overlay (match-beginning 1) (match-end 1))))
+          (overlay-put overlay 'face 'org-verbatim)
+          (overlay-put overlay 'priority 100)))
+
+      ;; Strike-through: +text+
+      (goto-char start)
+      (while (re-search-forward "\\+\\([^+\n]+\\)\\+" end t)
+        (let ((overlay (make-overlay (match-beginning 1) (match-end 1))))
+          (overlay-put overlay 'face '(:strike-through t))
+          (overlay-put overlay 'priority 100)))
+
+      ;; Underline: _text_
+      (goto-char start)
+      (while (re-search-forward "_\\([^_\n]+\\)_" end t)
+        (let ((overlay (make-overlay (match-beginning 1) (match-end 1))))
+          (overlay-put overlay 'face 'underline)
+          (overlay-put overlay 'priority 100)))
+
+      ;; Links: [[url][description]] or [[url]]
+      (goto-char start)
+      (while (re-search-forward "\\[\\[\\([^]]+\\)\\]\\(?:\\[\\([^]]+\\)\\]\\)?\\]" end t)
+        (let* ((url (match-string 1))
+               (desc (match-string 2))
+               (display-text (or desc url))
+               (link-start (match-beginning 0))
+               (link-end (match-end 0)))
+          ;; Replace the entire link syntax with just the display text
+          (delete-region link-start link-end)
+          (goto-char link-start)
+          (insert display-text)
+          ;; Create overlay for the display text
+          (let ((overlay (make-overlay link-start (+ link-start (length display-text)))))
+            (overlay-put overlay 'face 'org-link)
+            (overlay-put overlay 'priority 100)
+            ;; Store URL for potential click handling
+            (overlay-put overlay 'org-social-url url))))
+
+      ;; Hashtags: #tag (custom green highlighting with highest priority)
+      (goto-char start)
+      (while (re-search-forward "\\(^\\|\\s-\\)\\(#[a-zA-Z0-9_-]+\\)\\($\\|\\s-\\)" end t)
+        (let ((overlay (make-overlay (match-beginning 2) (match-end 2))))
+          (overlay-put overlay 'face '(:foreground "#00aa00" :weight bold))
+          (overlay-put overlay 'priority 110))) ; Even higher priority for hashtags
+
+      ;; List items: - item or + item or * item
+      (goto-char start)
+      (while (re-search-forward "^\\s-*\\([-+*]\\)\\s-+" end t)
+        (let ((overlay (make-overlay (match-beginning 1) (match-end 1))))
+          (overlay-put overlay 'face 'org-list-dt)
+          (overlay-put overlay 'priority 100)))
+
+      ;; Tables: | cell | cell | (highlight table delimiters)
+      (goto-char start)
+      (while (re-search-forward "^\\s-*\\(|.*|\\)\\s-*$" end t)
+        (let ((line-start (match-beginning 1))
+              (line-end (match-end 1)))
+          ;; Highlight the entire table row
+          (let ((overlay (make-overlay line-start line-end)))
+            (overlay-put overlay 'face 'org-table)
+            (overlay-put overlay 'priority 95))
+          ;; Highlight individual separators
+          (save-excursion
+            (goto-char line-start)
+            (while (re-search-forward "|" line-end t)
+              (let ((overlay (make-overlay (match-beginning 0) (match-end 0))))
+                (overlay-put overlay 'face '(:foreground "#888888" :weight bold))
+                (overlay-put overlay 'priority 100)))))))))
 
 (defun org-social-ui--format-relative-time (timestamp)
   "Format TIMESTAMP as relative time."
@@ -399,9 +470,10 @@
     ;; Start of org-mode content region
     (let ((org-content-start (point)))
 
-      ;; Tags if any
+      ;; Tags if any - format each tag with # prefix
       (when (and tags (not (string-empty-p tags)))
-        (insert (format " #%s\n" tags)))
+        (let ((tag-list (split-string tags "\\s-+" t)))
+          (insert (format " %s\n\n" (mapconcat (lambda (tag) (format "#%s" tag)) tag-list " ")))))
 
       ;; Post content
       (when (and text (not (string-empty-p text)))
