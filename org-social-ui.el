@@ -26,12 +26,16 @@
 (declare-function org-social-relay--get-thread "org-social-relay" (post-url))
 (declare-function org-social-relay--get-mentions "org-social-relay" (feed-url))
 (declare-function org-social-relay--get-groups "org-social-relay" ())
-(declare-function org-social-relay--get-group-posts "org-social-relay" (group-id))
+(declare-function org-social-relay--get-group-posts "org-social-relay" (group-name))
 (declare-function org-social-relay--fetch-mentions "org-social-relay" (callback))
 (declare-function org-social-relay--fetch-groups "org-social-relay" (callback))
-(declare-function org-social-relay--fetch-group-posts "org-social-relay" (group-id callback))
+(declare-function org-social-relay--fetch-group-posts "org-social-relay" (group-name callback))
 (declare-function org-social-file--new-post "org-social-file" (&optional reply-url reply-id))
 (declare-function org-social-file--new-poll "org-social-file" ())
+(declare-function org-social-feed--process-queue "org-social-feed" ())
+(declare-function org-social--format-date "org-social" (timestamp))
+(declare-function org-social-parser--get-value "org-social-parser" (feed key))
+(declare-function request "request" (url &rest args))
 (declare-function visual-fill-column-mode "visual-fill-column" (&optional arg))
 
 ;; UI Constants
@@ -47,10 +51,16 @@
   "Current screen being displayed.")
 (defvar org-social-ui--current-data nil
   "Current data for the screen.")
-(defvar org-social-ui--posts-per-page 20
+(defvar org-social-ui--posts-per-page 10
   "Number of posts to display per page.")
 (defvar org-social-ui--current-page 1
   "Current page number.")
+(defvar org-social-ui--timeline-current-list nil
+  "Current timeline data for pagination.")
+(defvar org-social-ui--timeline-widget-loading-more nil
+  "Widget for loading more posts.")
+(defvar org-social-ui--last-post-hook nil
+  "Hook run when scrolled to last post.")
 
 ;; Define keymap for org-social-ui-mode
 (defvar org-social-ui-mode-map
@@ -148,6 +158,35 @@
   (org-social-ui--insert-formatted-text (org-social-ui--string-separator) nil "#666666")
   (org-social-ui--insert-formatted-text "\n"))
 
+(defun org-social-ui--apply-org-mode-to-region (start end)
+  "Apply `org-mode' syntax highlighting to region from START to END."
+  (save-excursion
+    (save-restriction
+      (narrow-to-region start end)
+      (goto-char start)
+      ;; Create a temporary buffer with org-mode to get the font-lock properties
+      (let ((content (buffer-substring-no-properties start end))
+            (target-buffer (current-buffer)))
+        (with-temp-buffer
+          ;; Set up temporary org-mode buffer
+          (insert content)
+          (goto-char (point-min))
+          (org-mode)
+          (font-lock-ensure)
+
+          ;; Copy font-lock properties to original buffer
+          (let ((temp-start (point-min))
+                (temp-end (point-max)))
+            (while (< temp-start temp-end)
+              (let* ((next-change (or (next-property-change temp-start nil temp-end) temp-end))
+                     (face (get-text-property temp-start 'face))
+                     (target-start (+ start (- temp-start (point-min))))
+                     (target-end (+ start (- next-change (point-min)))))
+                (when face
+                  (with-current-buffer target-buffer
+                    (put-text-property target-start target-end 'face face)))
+                (setq temp-start next-change)))))))))
+
 (defun org-social-ui--format-relative-time (timestamp)
   "Format TIMESTAMP as relative time."
   (condition-case nil
@@ -162,8 +201,8 @@
          ((> days 0) (format "%d day%s ago" days (if (= days 1) "" "s")))
          ((> hours 0) (format "%d hour%s ago" hours (if (= hours 1) "" "s")))
          ((> minutes 0) (format "%d minute%s ago" minutes (if (= minutes 1) "" "s")))
-         (t "just now")))
-    (error "unknown time")))
+         (t "Just now")))
+    (error "Unknown time")))
 
 ;;; Navigation Functions
 
@@ -172,7 +211,11 @@
   (interactive)
   (let ((separator-regex (concat "^" (regexp-quote (org-social-ui--string-separator)) "$")))
     (if (search-forward-regexp separator-regex nil t)
-        (forward-line 1)
+        (progn
+          (forward-line 1)
+          ;; Check if we've reached the last post and trigger hook
+          (when (org-social-ui--last-separator-p)
+            (run-hooks 'org-social-ui--last-post-hook)))
       (message "No more posts"))))
 
 (defun org-social-ui--goto-previous-post ()
@@ -183,6 +226,50 @@
     (unless (search-backward-regexp separator-regex nil t)
       (goto-char (point-min)))
     (forward-line 1)))
+
+(defun org-social-ui--last-separator-p ()
+  "Check if we're at the last separator (near bottom of posts)."
+  (save-excursion
+    (let ((separator-regex (concat "^" (regexp-quote (org-social-ui--string-separator)) "$")))
+      (not (search-forward-regexp separator-regex nil t)))))
+
+(defun org-social-ui--timeline-next-page ()
+  "Load the next page of timeline posts."
+  (when (and (string= (buffer-name) org-social-ui--timeline-buffer-name)
+             org-social-ui--timeline-current-list
+             (< (* org-social-ui--current-page org-social-ui--posts-per-page)
+                (length org-social-ui--timeline-current-list)))
+    (setq org-social-ui--current-page (1+ org-social-ui--current-page))
+    (let ((inhibit-read-only t))
+      ;; Delete the loading widget if it exists
+      (when org-social-ui--timeline-widget-loading-more
+        (widget-delete org-social-ui--timeline-widget-loading-more)
+        (setq org-social-ui--timeline-widget-loading-more nil))
+      ;; Mark where new posts will start
+      (let ((first-new-post-start (point)))
+        ;; Insert the new posts
+        (org-social-ui--insert-timeline-posts-paginated)
+        ;; Insert new loading button if there are more posts
+        (org-social-ui--timeline-insert-loading)
+        ;; Move cursor to the beginning of the first new post
+        (goto-char first-new-post-start)
+        ;; Skip any whitespace and position at the start of the first new post content
+        (skip-chars-forward " \t\n")
+        ;; Recenter the view to show the new posts
+        (recenter 5)))))
+
+(defun org-social-ui--timeline-insert-loading ()
+  "Insert the \\='Show more\\=' button for timeline pagination."
+  (when (and org-social-ui--timeline-current-list
+             (< (* org-social-ui--current-page org-social-ui--posts-per-page)
+                (length org-social-ui--timeline-current-list)))
+    (org-social-ui--insert-formatted-text "\n")
+    (setq org-social-ui--timeline-widget-loading-more
+          (widget-create 'push-button
+                         :notify (lambda (&rest _)
+                                   (org-social-ui--timeline-next-page))
+                         " ↓ Show more ↓ "))
+    (org-social-ui--insert-formatted-text "\n")))
 
 ;;; Action Functions
 
@@ -247,6 +334,11 @@
 (defun org-social-ui--refresh ()
   "Refresh current screen."
   (interactive)
+  ;; Reset pagination state
+  (setq org-social-ui--current-page 1
+        org-social-ui--timeline-current-list nil)
+  (when org-social-ui--timeline-widget-loading-more
+    (setq org-social-ui--timeline-widget-loading-more nil))
   (cond
    ((eq org-social-ui--current-screen 'timeline)
     (org-social-ui-timeline))
@@ -292,29 +384,37 @@
          (is-my-post (or (string= author my-nick)
                         (string= author-url (alist-get 'url org-social-variables--my-profile)))))
 
-      ;; Post header with author name and timestamp
-      (org-social-ui--insert-formatted-text (format "@%s" author) 1.1 "#4a90e2")
-      (org-social-ui--insert-formatted-text " • ")
-      (org-social-ui--insert-formatted-text (org-social-ui--format-relative-time timestamp) nil "#666666")
-      (org-social-ui--insert-formatted-text "\n")
+    ;; Post header with author name and timestamp
+    (org-social-ui--insert-formatted-text (format "@%s" author) 1.1 "#4a90e2")
+    (org-social-ui--insert-formatted-text " • ")
+    (org-social-ui--insert-formatted-text (org-social--format-date timestamp) nil "#666666")
+    (org-social-ui--insert-formatted-text "\n")
+
+    ;; Start of org-mode content region
+    (let ((org-content-start (point)))
 
       ;; Tags if any
       (when (and tags (not (string-empty-p tags)))
-        (org-social-ui--insert-formatted-text (format " #%s" tags) nil "#008000")
-        (org-social-ui--insert-formatted-text "\n"))
+        (insert (format " #%s\n" tags)))
 
       ;; Post content
-      (org-social-ui--insert-formatted-text text)
-      (org-social-ui--insert-formatted-text "\n")
+      (when (and text (not (string-empty-p text)))
+        (insert text)
+        (insert "\n"))
 
       ;; Mood reaction if any
       (when (and mood (not (string-empty-p mood)))
-        (org-social-ui--insert-formatted-text (format " %s" mood) 1.2)
-        (org-social-ui--insert-formatted-text "\n"))
+        (insert (format " %s\n" mood)))
 
-      ;; Action buttons
-      (org-social-ui--insert-formatted-text "  ")
-      (let ((first-button t))
+      ;; Add extra line break before action buttons
+      (insert "\n")
+
+      ;; Apply org-mode syntax highlighting to this region only
+      (org-social-ui--apply-org-mode-to-region org-content-start (point)))
+
+    ;; Action buttons
+    (org-social-ui--insert-formatted-text "  ")
+    (let ((first-button t))
         ;; Reply button (only for others' posts)
         (when (not is-my-post)
           (widget-create 'push-button
@@ -414,9 +514,26 @@
 (defun org-social-ui--insert-timeline-posts (posts)
   "Insert timeline POSTS."
   (if posts
-      (dolist (post posts)
-        (org-social-ui--post-component post posts))
+      (progn
+        ;; Store the full list for pagination
+        (setq org-social-ui--timeline-current-list posts)
+        (setq org-social-ui--current-page 1)
+        ;; Insert first page of posts
+        (org-social-ui--insert-timeline-posts-paginated)
+        ;; Insert loading button if there are more posts
+        (org-social-ui--timeline-insert-loading))
     (org-social-ui--insert-formatted-text "No posts available. Check your relay configuration or followed users.\n" nil "#ff6600")))
+
+(defun org-social-ui--insert-timeline-posts-paginated ()
+  "Insert the current page of timeline posts."
+  (when org-social-ui--timeline-current-list
+    (let* ((start-idx (* (- org-social-ui--current-page 1) org-social-ui--posts-per-page))
+           (end-idx (* org-social-ui--current-page org-social-ui--posts-per-page))
+           (posts-to-show (cl-subseq org-social-ui--timeline-current-list
+                                    start-idx
+                                    (min end-idx (length org-social-ui--timeline-current-list)))))
+      (dolist (post posts-to-show)
+        (org-social-ui--post-component post org-social-ui--timeline-current-list)))))
 
 ;;; Notifications Screen
 
@@ -483,7 +600,7 @@
       (org-social-ui--insert-formatted-text " • ")
 
       (when timestamp
-        (org-social-ui--insert-formatted-text (org-social-ui--format-relative-time timestamp) nil "#666666")))
+        (org-social-ui--insert-formatted-text (org-social--format-date timestamp) nil "#666666")))
 
     (org-social-ui--insert-formatted-text "\n  ")
 
@@ -573,24 +690,56 @@
   "Load timeline from local feeds."
   (condition-case err
       (progn
-        ;; Try to get timeline from existing feed system
-        (let ((timeline (when (fboundp 'org-social-feed--get-timeline)
-                         (org-social-feed--get-timeline))))
-          (with-current-buffer org-social-ui--timeline-buffer-name
-            (let ((inhibit-read-only t)
-                  (buffer-read-only nil))
-              (goto-char (point-max))
-              ;; Remove loading message
-              (goto-char (point-min))
-              (when (search-forward "Loading timeline..." nil t)
-                (beginning-of-line)
-                (kill-line 1))
-              ;; Insert posts
-              (goto-char (point-max))
-              (org-social-ui--insert-timeline-posts timeline)
-              ;; Enable read-only mode
-              (setq buffer-read-only t)
-              (goto-char (point-min))))))
+        ;; Ensure we have required modules
+        (require 'org-social-feed)
+        (require 'org-social-file)
+
+        (message "Debug: Checking existing feeds...")
+        (message "Debug: org-social-variables--feeds bound: %s" (boundp 'org-social-variables--feeds))
+        (when (boundp 'org-social-variables--feeds)
+          (message "Debug: org-social-variables--feeds length: %s"
+                   (if org-social-variables--feeds (length org-social-variables--feeds) 0)))
+
+        ;; Check if we already have feeds loaded
+        (if (and (boundp 'org-social-variables--feeds)
+                 org-social-variables--feeds
+                 (> (length org-social-variables--feeds) 0))
+            ;; We have feeds, display them
+            (progn
+              (message "Debug: Using existing feeds...")
+              (let ((timeline (when (fboundp 'org-social-feed--get-timeline)
+                               (org-social-feed--get-timeline))))
+                (message "Debug: Timeline length: %s" (if timeline (length timeline) 0))
+                (org-social-ui--display-timeline timeline)))
+          ;; No feeds loaded yet, start the loading process
+          (progn
+            (message "Debug: No feeds loaded, starting initialization...")
+            ;; Load my profile first to get followers list
+            (when (fboundp 'org-social-file--read-my-profile)
+              (message "Debug: Reading my profile...")
+              (org-social-file--read-my-profile))
+
+            ;; Check if we have relay configured
+            (message "Debug: Relay configured: %s"
+                     (and (boundp 'org-social-relay) org-social-relay (not (string-empty-p org-social-relay))))
+
+            ;; Initialize feeds from relay if available, otherwise from local followers
+            (if (and (boundp 'org-social-relay)
+                     org-social-relay
+                     (not (string-empty-p org-social-relay))
+                     (fboundp 'org-social-feed--initialize-queue-from-relay))
+                (progn
+                  (message "Debug: Initializing feeds from relay...")
+                  (org-social-feed--initialize-queue-from-relay))
+              (progn
+                (message "Debug: Initializing feeds from local followers...")
+                ;; Initialize queue from local followers
+                (when (fboundp 'org-social-feed--initialize-queue)
+                  (org-social-feed--initialize-queue)
+                  (org-social-feed--process-queue))))
+
+            ;; Show message and set up timer to check for loaded feeds
+            (org-social-ui--setup-timeline-refresh-timer))))
     (error
      (with-current-buffer org-social-ui--timeline-buffer-name
        (let ((inhibit-read-only t))
@@ -598,6 +747,52 @@
          (org-social-ui--insert-formatted-text
           (format "Error loading timeline: %s\n" (error-message-string err))
           nil "#ff0000"))))))
+
+(defun org-social-ui--display-timeline (timeline)
+  "Display TIMELINE in the timeline buffer."
+  (with-current-buffer org-social-ui--timeline-buffer-name
+    (let ((inhibit-read-only t)
+          (buffer-read-only nil))
+      (goto-char (point-max))
+      ;; Remove loading message
+      (goto-char (point-min))
+      (when (search-forward "Loading timeline..." nil t)
+        (beginning-of-line)
+        (kill-line 1))
+      ;; Insert posts
+      (goto-char (point-max))
+      (if (and timeline (> (length timeline) 0))
+          (org-social-ui--insert-timeline-posts timeline)
+        (org-social-ui--insert-formatted-text
+         "No posts available. Check your relay configuration or followed users.\n"
+         nil "#888888"))
+      ;; Enable read-only mode
+      (setq buffer-read-only t)
+      (goto-char (point-min)))))
+
+(defvar org-social-ui--refresh-timer nil
+  "Timer for refreshing timeline content.")
+
+(defun org-social-ui--setup-timeline-refresh-timer ()
+  "Set up a timer to check for loaded feeds and refresh timeline."
+  (when org-social-ui--refresh-timer
+    (cancel-timer org-social-ui--refresh-timer))
+  (setq org-social-ui--refresh-timer
+        (run-with-timer 2 1 'org-social-ui--check-and-refresh-timeline)))
+
+(defun org-social-ui--check-and-refresh-timeline ()
+  "Check if feeds are loaded and refresh timeline if they are."
+  (when (and (boundp 'org-social-variables--feeds)
+             org-social-variables--feeds
+             (> (length org-social-variables--feeds) 0))
+    ;; Feeds are loaded, cancel timer and display timeline
+    (when org-social-ui--refresh-timer
+      (cancel-timer org-social-ui--refresh-timer)
+      (setq org-social-ui--refresh-timer nil))
+    (let ((timeline (when (fboundp 'org-social-feed--get-timeline)
+                     (org-social-feed--get-timeline))))
+      (org-social-ui--display-timeline timeline)
+      (message "Timeline loaded with %d posts" (length timeline)))))
 
 (defun org-social-ui-notifications ()
   "Display notifications screen."
@@ -677,7 +872,198 @@
   "Display profile screen for USER-URL."
   (interactive "sUser URL: ")
   (setq org-social-ui--current-screen 'profile)
-  (message "Profile screen for %s - to be implemented" user-url))
+
+  (let ((buffer-name org-social-ui--profile-buffer-name))
+    (switch-to-buffer buffer-name)
+    (kill-all-local-variables)
+
+    ;; Disable read-only mode before modifying buffer
+    (setq buffer-read-only nil)
+
+    (let ((inhibit-read-only t))
+      (erase-buffer))
+    (remove-overlays)
+
+    ;; Insert header
+    (org-social-ui--insert-profile-header)
+
+    ;; Show loading message
+    (org-social-ui--insert-formatted-text
+     (format "Loading profile for %s...\n" user-url) nil "#4a90e2")
+
+    ;; Set up the buffer with centering
+    (org-social-ui--setup-centered-buffer)
+    (goto-char (point-min))
+
+    ;; Fetch and display profile
+    (org-social-ui--fetch-and-display-profile user-url)))
+
+;;; Profile Screen
+
+(defun org-social-ui--insert-profile-header ()
+  "Insert profile header with navigation and actions."
+  (org-social-ui--insert-logo)
+
+  ;; Navigation buttons
+  (widget-create 'push-button
+                 :notify (lambda (&rest _) (org-social-ui-timeline))
+                 :help-echo "View timeline"
+                 " 📰 Timeline ")
+
+  (org-social-ui--insert-formatted-text " ")
+
+  (widget-create 'push-button
+                 :notify (lambda (&rest _) (org-social-ui-notifications))
+                 :help-echo "View notifications"
+                 " 🔔 Notifications ")
+
+  (org-social-ui--insert-formatted-text " ")
+
+  (widget-create 'push-button
+                 :notify (lambda (&rest _) (org-social-ui-groups))
+                 :help-echo "View groups"
+                 " 👥 Groups ")
+
+  (org-social-ui--insert-formatted-text "\n\n")
+
+  ;; Action buttons
+  (widget-create 'push-button
+                 :notify (lambda (&rest _) (org-social-ui--refresh))
+                 :help-echo "Refresh profile"
+                 " 🔄 Refresh ")
+
+  (org-social-ui--insert-formatted-text "\n\n")
+
+  (org-social-ui--insert-separator))
+
+(defun org-social-ui--fetch-and-display-profile (user-url)
+  "Fetch and display profile data for USER-URL."
+  (require 'request nil t)
+  (if (not (featurep 'request))
+      (progn
+        (org-social-ui--insert-formatted-text "Error: request library not available.\n" nil "#ff6b6b")
+        (org-social-ui--insert-formatted-text "Profile viewing requires the request library.\n" nil "#666666"))
+    (request user-url
+             :timeout 15
+             :success (cl-function
+                       (lambda (&key data &allow-other-keys)
+                         (org-social-ui--display-profile-data user-url data)))
+             :error (cl-function
+                     (lambda (&key error-thrown &allow-other-keys)
+                       (org-social-ui--display-profile-error user-url error-thrown))))))
+
+(defun org-social-ui--display-profile-data (user-url data)
+  "Display profile DATA for USER-URL in the current buffer."
+  (with-current-buffer org-social-ui--profile-buffer-name
+    (setq buffer-read-only nil)
+    (let ((inhibit-read-only t))
+      ;; Remove loading message
+      (goto-char (point-min))
+      (when (re-search-forward "Loading profile.*\n" nil t)
+        (replace-match ""))
+
+      ;; Insert profile info
+      (goto-char (point-max))
+      (org-social-ui--insert-formatted-text
+       (format "Profile: %s\n\n" (file-name-nondirectory user-url))
+       'bold "#2c3e50")
+
+      ;; Parse and display profile data
+      (condition-case err
+          (org-social-ui--parse-and-display-profile data user-url)
+        (error
+         (org-social-ui--insert-formatted-text
+          (format "Error parsing profile: %s\n" (error-message-string err))
+          nil "#ff6b6b")))
+
+      ;; Insert raw content section
+      (org-social-ui--insert-formatted-text "\n")
+      (org-social-ui--insert-separator)
+      (org-social-ui--insert-formatted-text "Raw Feed Content:\n\n" 'bold "#2c3e50")
+
+      ;; Display raw content in org-mode
+      (let ((content-start (point)))
+        (insert data)
+        (let ((content-end (point)))
+          ;; Apply org-mode syntax highlighting to content only
+          (save-excursion
+            (goto-char content-start)
+            (org-mode)
+            (font-lock-fontify-region content-start content-end))))
+
+      ;; Setup buffer
+      (goto-char (point-min))
+      (setq buffer-read-only t))))
+
+(defun org-social-ui--display-profile-error (user-url error)
+  "Display ERROR message for failed profile fetch of USER-URL."
+  (with-current-buffer org-social-ui--profile-buffer-name
+    (setq buffer-read-only nil)
+    (let ((inhibit-read-only t))
+      ;; Remove loading message
+      (goto-char (point-min))
+      (when (re-search-forward "Loading profile.*\n" nil t)
+        (replace-match ""))
+
+      ;; Insert error message
+      (goto-char (point-max))
+      (org-social-ui--insert-formatted-text
+       (format "Failed to fetch profile from %s\n" user-url)
+       'bold "#ff6b6b")
+      (org-social-ui--insert-formatted-text
+       (format "Error: %s\n\n" error)
+       nil "#666666")
+      (org-social-ui--insert-formatted-text
+       "Please check the URL and your internet connection.\n"
+       nil "#666666")
+
+      ;; Setup buffer
+      (goto-char (point-min))
+      (setq buffer-read-only t))))
+
+(defun org-social-ui--parse-and-display-profile (data user-url)
+  "Parse and display profile DATA from USER-URL."
+  (let* ((feed-data data)
+         (nick (org-social-parser--get-value feed-data "NICK"))
+         (title (org-social-parser--get-value feed-data "TITLE"))
+         (description (org-social-parser--get-value feed-data "DESCRIPTION"))
+         (avatar (org-social-parser--get-value feed-data "AVATAR"))
+         (follows (org-social-parser--get-value feed-data "FOLLOW"))
+         (groups (org-social-parser--get-value feed-data "GROUP")))
+
+    ;; Display profile metadata
+    (when nick
+      (org-social-ui--insert-formatted-text "Nick: " 'bold "#2c3e50")
+      (org-social-ui--insert-formatted-text (format "%s\n" nick) nil "#333333"))
+
+    (when title
+      (org-social-ui--insert-formatted-text "Title: " 'bold "#2c3e50")
+      (org-social-ui--insert-formatted-text (format "%s\n" title) nil "#333333"))
+
+    (when description
+      (org-social-ui--insert-formatted-text "Description: " 'bold "#2c3e50")
+      (org-social-ui--insert-formatted-text (format "%s\n" description) nil "#333333"))
+
+    (when avatar
+      (org-social-ui--insert-formatted-text "Avatar: " 'bold "#2c3e50")
+      (org-social-ui--insert-formatted-text (format "%s\n" avatar) nil "#333333"))
+
+    (org-social-ui--insert-formatted-text "URL: " 'bold "#2c3e50")
+    (org-social-ui--insert-formatted-text (format "%s\n" user-url) nil "#333333")
+
+    ;; Display follow information
+    (when follows
+      (org-social-ui--insert-formatted-text "\nFollows:\n" 'bold "#2c3e50")
+      (let ((follows-list (if (listp follows) follows (list follows))))
+        (dolist (follow follows-list)
+          (org-social-ui--insert-formatted-text (format "- %s\n" follow) nil "#666666"))))
+
+    ;; Display group information
+    (when groups
+      (org-social-ui--insert-formatted-text "\nGroups:\n" 'bold "#2c3e50")
+      (let ((groups-list (if (listp groups) groups (list groups))))
+        (dolist (group groups-list)
+          (org-social-ui--insert-formatted-text (format "- %s\n" group) nil "#666666"))))))
 
 ;;; Groups Screen
 
@@ -723,13 +1109,19 @@
   (org-social-ui--insert-separator))
 
 (defun org-social-ui--group-component (group)
-  "Insert a group component for GROUP."
-  (let-alist group
-    (let ((group-id (or .id 0))
-          (group-name (or .name "Unknown"))
-          (description (or .description "No description"))
-          (member-count (or .members 0))
-          (post-count (or .posts 0)))
+  "Insert a group component for GROUP (can be string or object)."
+  (let* ((group-name (if (stringp group)
+                         group
+                       (or (alist-get 'name group) "Unknown")))
+         (description (if (stringp group)
+                          "Group description"
+                        (or (alist-get 'description group) "No description")))
+         (member-count (if (stringp group)
+                           0
+                         (or (alist-get 'members group) 0)))
+         (post-count (if (stringp group)
+                         0
+                       (or (alist-get 'posts group) 0))))
 
       ;; Group header
       (org-social-ui--insert-formatted-text "👥 " 1.2 "#4a90e2")
@@ -756,7 +1148,7 @@
       (org-social-ui--insert-formatted-text "  ")
       (widget-create 'push-button
                      :notify `(lambda (&rest _)
-                               (org-social-ui-group-posts ,group-id ,group-name))
+                               (org-social-ui-group-posts ,group-name))
                      :help-echo (format "View posts in %s group" group-name)
                      " 📄 View Posts ")
 
@@ -769,7 +1161,7 @@
                      " ➕ Join Group ")
 
       (org-social-ui--insert-formatted-text "\n")
-      (org-social-ui--insert-separator))))
+      (org-social-ui--insert-separator)))
 
 (defun org-social-ui--insert-groups-content (groups)
   "Insert groups content with GROUPS."
@@ -787,8 +1179,8 @@
     (org-social-ui--insert-formatted-text "\nRelay URL: " nil "#666666")
     (org-social-ui--insert-formatted-text (or org-social-relay "Not configured") nil "#4a90e2")))
 
-(defun org-social-ui-group-posts (group-id group-name)
-  "Display posts for GROUP-ID with GROUP-NAME."
+(defun org-social-ui-group-posts (group-name)
+  "Display posts for GROUP-NAME."
   (let ((buffer-name (format "*Org Social Group: %s*" group-name)))
     (switch-to-buffer buffer-name)
     (kill-all-local-variables)
@@ -825,7 +1217,7 @@
              org-social-relay
              (not (string-empty-p org-social-relay)))
         (org-social-relay--fetch-group-posts
-         group-id
+         group-name
          (lambda (posts)
            (with-current-buffer buffer-name
              (let ((inhibit-read-only t)
@@ -924,6 +1316,12 @@
           (org-social-ui--insert-formatted-text "To view and participate in groups, configure:\n" nil "#666666")
           (org-social-ui--insert-formatted-text "- org-social-relay (relay server URL)\n" nil "#666666")
           (setq buffer-read-only t))))))
+
+;; Add hook for automatic pagination when scrolling to last post
+(add-hook 'org-social-ui--last-post-hook
+          (lambda ()
+            (when (eq org-social-ui--current-screen 'timeline)
+              (org-social-ui--timeline-next-page))))
 
 (provide 'org-social-ui)
 ;;; org-social-ui.el ends here

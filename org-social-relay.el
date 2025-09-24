@@ -35,17 +35,31 @@ Call CALLBACK with discovered endpoints."
                            (let* ((response (json-read-from-string data))
                                   (links (cdr (assoc '_links response)))
                                   (endpoints (make-hash-table :test 'equal)))
-                             ;; Parse each link and store by rel
-                             ;; Handle both vectors (JSON arrays) and lists
-                             (let ((links-list (if (vectorp links)
-                                                    (append links nil)
-                                                  links)))
-                               (dolist (link links-list)
-                                 (let ((rel (cdr (assoc 'rel link)))
-                                       (href (cdr (assoc 'href link)))
-                                       (method (cdr (assoc 'method link))))
-                                   (when (and rel href method)
-                                     (puthash rel (list :href href :method method) endpoints)))))
+                             ;; Parse _links structure - can be either object (new format) or array (old format)
+                             (cond
+                              ;; Check if this is the new object format by looking for 'href key in first element
+                              ((and (listp links)
+                                    (listp (car links))
+                                    (assoc 'href (cdr (car links))))
+                               ;; New format: _links is an alist with endpoint names as keys
+                               (dolist (endpoint-pair links)
+                                 (let* ((endpoint-name (symbol-name (car endpoint-pair)))
+                                        (endpoint-data (cdr endpoint-pair))
+                                        (href (cdr (assoc 'href endpoint-data)))
+                                        (method (cdr (assoc 'method endpoint-data))))
+                                   (when (and href method)
+                                     (puthash endpoint-name (list :href href :method method) endpoints)))))
+                              ;; Old format: _links is an array of objects with rel, href, method
+                              (t
+                               (let ((links-list (if (vectorp links)
+                                                      (append links nil)
+                                                    links)))
+                                 (dolist (link links-list)
+                                   (let ((rel (cdr (assoc 'rel link)))
+                                         (href (cdr (assoc 'href link)))
+                                         (method (cdr (assoc 'method link))))
+                                     (when (and rel href method)
+                                       (puthash rel (list :href href :method method) endpoints)))))))
                              (funcall callback endpoints))
                          (error
                           (message "Failed to parse relay API response: %s" (error-message-string err))))))
@@ -98,10 +112,10 @@ Call CALLBACK with the list of feed URLs."
       (org-social-relay--discover-endpoints
        relay-url
        (lambda (endpoints)
-         (let ((list-feeds-endpoint (gethash "list-feeds" endpoints)))
-           (if list-feeds-endpoint
-               (let ((href (plist-get list-feeds-endpoint :href))
-                     (method (plist-get list-feeds-endpoint :method)))
+         (let ((feeds-endpoint (gethash "feeds" endpoints)))
+           (if feeds-endpoint
+               (let ((href (plist-get feeds-endpoint :href))
+                     (method (plist-get feeds-endpoint :method)))
                  (request (concat relay-url href)
                           :type method
                           :timeout 10
@@ -125,7 +139,7 @@ Call CALLBACK with the list of feed URLs."
                                                  (error-message-string error-thrown)
                                                "Unknown error"))
                                     (funcall callback nil)))))
-             (message "list-feeds endpoint not found in relay API")
+             (message "feeds endpoint not found in relay API")
              (funcall callback nil))))))))
 
 (defun org-social-relay--fetch-mentions (callback)
@@ -140,14 +154,14 @@ Call CALLBACK with the list of post URLs that mention the user."
       (org-social-relay--discover-endpoints
        relay-url
        (lambda (endpoints)
-         (let ((mentions-endpoint (gethash "get-mentions" endpoints)))
+         (let ((mentions-endpoint (gethash "mentions" endpoints)))
            (if mentions-endpoint
                (let ((href (plist-get mentions-endpoint :href))
                      (method (plist-get mentions-endpoint :method)))
-                 ;; Replace {url feed} placeholder with actual feed URL
+                 ;; Replace {feed_url} or {url feed} placeholder with actual feed URL
                  (let ((url (concat relay-url
                                    (replace-regexp-in-string
-                                    "{url feed}"
+                                    "{\\(feed_url\\|url feed\\)}"
                                     (url-hexify-string feed-url)
                                     href))))
                    (request url
@@ -180,7 +194,7 @@ Call CALLBACK with the list of post URLs that mention the user."
                                                    (error-message-string error-thrown)
                                                  "Unknown error"))
                                       (funcall callback nil))))))
-             (message "get-mentions endpoint not found in relay API")
+             (message "mentions endpoint not found in relay API")
              (funcall callback nil))))))))
 
 (defun org-social-relay--fetch-replies (post-url callback)
@@ -192,13 +206,13 @@ Call CALLBACK with the thread structure."
       (org-social-relay--discover-endpoints
        relay-url
        (lambda (endpoints)
-         (let ((replies-endpoint (gethash "get-replies" endpoints)))
+         (let ((replies-endpoint (gethash "replies" endpoints)))
            (if replies-endpoint
                (let ((href (plist-get replies-endpoint :href))
                      (method (plist-get replies-endpoint :method)))
                  (let ((url (concat relay-url
                                    (replace-regexp-in-string
-                                    "{url post}"
+                                    "{\\(post_url\\|url post\\)}"
                                     (url-hexify-string post-url)
                                     href))))
                    (request url
@@ -228,11 +242,12 @@ Call CALLBACK with the thread structure."
                                                    (error-message-string error-thrown)
                                                  "Unknown error"))
                                       (funcall callback nil))))))
-             (message "get-replies endpoint not found in relay API")
+             (message "replies endpoint not found in relay API")
              (funcall callback nil))))))))
 
-(defun org-social-relay--search-posts (query callback)
+(defun org-social-relay--search-posts (query callback &optional search-type)
   "Search posts by QUERY from the relay server.
+SEARCH-TYPE can be \\='tag to search by tag, defaults to text search.
 Call CALLBACK with the list of matching post URLs."
   (when (and org-social-relay
              (not (string-empty-p org-social-relay)))
@@ -244,11 +259,11 @@ Call CALLBACK with the list of matching post URLs."
            (if search-endpoint
                (let ((href (plist-get search-endpoint :href))
                      (method (plist-get search-endpoint :method)))
-                 (let ((url (concat relay-url
-                                   (replace-regexp-in-string
-                                    "{query}"
-                                    (url-hexify-string query)
-                                    href))))
+                 (let ((url (format "%s%s?%s=%s"
+                                   relay-url
+                                   href
+                                   (if (eq search-type 'tag) "tag" "q")
+                                   (url-hexify-string query))))
                    (request url
                             :type method
                             :timeout 15
@@ -288,7 +303,7 @@ Call CALLBACK with the list of groups."
       (org-social-relay--discover-endpoints
        relay-url
        (lambda (endpoints)
-         (let ((groups-endpoint (gethash "list-groups" endpoints)))
+         (let ((groups-endpoint (gethash "groups" endpoints)))
            (if groups-endpoint
                (let ((href (plist-get groups-endpoint :href))
                      (method (plist-get groups-endpoint :method)))
@@ -319,11 +334,11 @@ Call CALLBACK with the list of groups."
                                                  (error-message-string error-thrown)
                                                "Unknown error"))
                                     (funcall callback nil)))))
-             (message "list-groups endpoint not found in relay API")
+             (message "groups endpoint not found in relay API")
              (funcall callback nil))))))))
 
-(defun org-social-relay--fetch-group-posts (group-id callback)
-  "Fetch posts from GROUP-ID from the relay server.
+(defun org-social-relay--fetch-group-posts (group-name callback)
+  "Fetch posts from GROUP-NAME from the relay server.
 Call CALLBACK with the list of group posts."
   (when (and org-social-relay
              (not (string-empty-p org-social-relay)))
@@ -331,15 +346,17 @@ Call CALLBACK with the list of group posts."
       (org-social-relay--discover-endpoints
        relay-url
        (lambda (endpoints)
-         (let ((group-messages-endpoint (gethash "get-group-messages" endpoints)))
+         (let ((group-messages-endpoint (gethash "group-messages" endpoints)))
            (if group-messages-endpoint
                (let ((href (plist-get group-messages-endpoint :href))
                      (method (plist-get group-messages-endpoint :method)))
-                 (let ((url (concat relay-url
-                                   (replace-regexp-in-string
-                                    "{group id}"
-                                    (number-to-string group-id)
-                                    href))))
+                 (let ((url (if (string-match-p "{group id}" href)
+                               (concat relay-url "/groups/" (url-hexify-string group-name) "/")
+                             (concat relay-url
+                                    (replace-regexp-in-string
+                                     "{group_name}"
+                                     (url-hexify-string group-name)
+                                     href)))))
                    (request url
                             :type method
                             :timeout 15
@@ -367,7 +384,7 @@ Call CALLBACK with the list of group posts."
                                                    (error-message-string error-thrown)
                                                  "Unknown error"))
                                       (funcall callback nil))))))
-             (message "get-group-messages endpoint not found in relay API")
+             (message "group-messages endpoint not found in relay API")
              (funcall callback nil))))))))
 
 (defun org-social-relay--fetch-polls (callback)
@@ -379,7 +396,7 @@ Call CALLBACK with the list of poll URLs."
       (org-social-relay--discover-endpoints
        relay-url
        (lambda (endpoints)
-         (let ((polls-endpoint (gethash "list-polls" endpoints)))
+         (let ((polls-endpoint (gethash "polls" endpoints)))
            (if polls-endpoint
                (let ((href (plist-get polls-endpoint :href))
                      (method (plist-get polls-endpoint :method)))
@@ -410,7 +427,7 @@ Call CALLBACK with the list of poll URLs."
                                                  (error-message-string error-thrown)
                                                "Unknown error"))
                                     (funcall callback nil)))))
-             (message "list-polls endpoint not found in relay API")
+             (message "polls endpoint not found in relay API")
              (funcall callback nil))))))))
 
 (defun org-social-relay--fetch-poll-votes (post-url callback)
@@ -422,13 +439,13 @@ Call CALLBACK with the poll votes data."
       (org-social-relay--discover-endpoints
        relay-url
        (lambda (endpoints)
-         (let ((poll-votes-endpoint (gethash "get-poll-votes" endpoints)))
+         (let ((poll-votes-endpoint (gethash "poll-votes" endpoints)))
            (if poll-votes-endpoint
                (let ((href (plist-get poll-votes-endpoint :href))
                      (method (plist-get poll-votes-endpoint :method)))
                  (let ((url (concat relay-url
                                    (replace-regexp-in-string
-                                    "{url post}"
+                                    "{\\(post_url\\|url post\\)}"
                                     (url-hexify-string post-url)
                                     href))))
                    (request url
@@ -458,7 +475,7 @@ Call CALLBACK with the poll votes data."
                                                    (error-message-string error-thrown)
                                                  "Unknown error"))
                                       (funcall callback nil))))))
-             (message "get-poll-votes endpoint not found in relay API")
+             (message "poll-votes endpoint not found in relay API")
              (funcall callback nil))))))))
 
 ;; Utility functions for getting data synchronously (for compatibility)
@@ -487,10 +504,10 @@ Call CALLBACK with the poll votes data."
   ;; This will be implemented when we create the UI
   (message "Getting groups from relay"))
 
-(defun org-social-relay--get-group-posts (group-id)
-  "Get posts for GROUP-ID from relay."
+(defun org-social-relay--get-group-posts (group-name)
+  "Get posts for GROUP-NAME from relay."
   ;; This will be implemented when we create the UI
-  (message "Getting posts for group %s" group-id))
+  (message "Getting posts for group %s" group-name))
 
 (provide 'org-social-relay)
 ;;; org-social-relay.el ends here

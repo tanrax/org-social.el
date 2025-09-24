@@ -31,9 +31,17 @@
 
 (require 'org-social-variables)
 
+;; Forward declarations
+(declare-function org-social--format-date "org-social" (timestamp))
+
 (defun org-social-parser--generate-timestamp ()
   "Generate a timestamp in RFC 3339 format for use as post ID."
   (format-time-string "%Y-%m-%dT%H:%M:%S%z"))
+
+(defun org-social-parser--format-timestamp (timestamp)
+  "Format TIMESTAMP to human-readable date format: '24 Sep 2025, 15:30'.
+TIMESTAMP should be in RFC 3339 format or a time value."
+  (org-social--format-date timestamp))
 
 (defun org-social-parser--get-value (feed key)
   "Extract values from an Org-social FEED based on KEY."
@@ -139,8 +147,18 @@ PROP-NAME should be the property name without colons."
 	    (goto-char post-start)
 	    (when (re-search-forward ":END:" post-end t)
 	      (forward-line)
-	      (setq text (string-trim
-			  (buffer-substring-no-properties (point) post-end))))
+	      (let ((content-start (point))
+	            (content-lines '()))
+	        ;; Process each line and filter out comments
+	        (while (< (point) post-end)
+	          (let ((line-start (point)))
+	            (end-of-line)
+	            (let ((line (buffer-substring-no-properties line-start (point))))
+	              ;; Only include lines that don't start with # (comments)
+	              (unless (string-match-p "^\\s-*#" line)
+	                (push line content-lines)))
+	            (forward-line 1)))
+	        (setq text (string-trim (string-join (reverse content-lines) "\n")))))
 
             ;; Add post if we have required data
             (when (and id text date properties-text)
