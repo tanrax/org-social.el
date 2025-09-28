@@ -509,5 +509,73 @@ Call CALLBACK with the poll votes data."
   ;; This will be implemented when we create the UI
   (message "Getting posts for group %s" group-name))
 
+(defun org-social-relay--check-posts-for-replies (post-urls callback)
+  "Check multiple POST-URLS for replies and call CALLBACK with results.
+CALLBACK receives an alist where each entry is (post-url . has-replies).
+Designed for small batches of posts (e.g., current page)."
+  (when (and org-social-relay
+             (not (string-empty-p org-social-relay))
+             post-urls)
+    (let ((relay-url (string-trim-right org-social-relay "/"))
+          (results '())
+          (completed 0)
+          (total (length post-urls)))
+      (message "Checking %d posts for replies..." total)
+      (org-social-relay--discover-endpoints
+       relay-url
+       (lambda (endpoints)
+         (let ((replies-endpoint (gethash "replies" endpoints)))
+           (if replies-endpoint
+               (let ((href (plist-get replies-endpoint :href))
+                     (method (plist-get replies-endpoint :method)))
+                 (dolist (post-url post-urls)
+                   (let ((url (concat relay-url
+                                     (replace-regexp-in-string
+                                      "{\\(post_url\\|url post\\)}"
+                                      (url-hexify-string post-url)
+                                      href))))
+                     (request url
+                              :type method
+                              :timeout 10
+                              :success (cl-function
+                                        (lambda (&key data &allow-other-keys)
+                                          (condition-case _err
+                                              (let* ((response (json-read-from-string data))
+                                                     (response-type (cdr (assoc 'type response)))
+                                                     (replies-data (cdr (assoc 'data response))))
+                                                (let ((has-replies
+                                                       (and (string= response-type "Success")
+                                                            replies-data
+                                                            (listp replies-data)
+                                                            (> (length replies-data) 0))))
+                                                  (push (cons post-url has-replies) results)
+                                                  (setq completed (1+ completed))
+                                                  (when (= completed total)
+                                                    (message "Finished checking posts for replies")
+                                                    (funcall callback results))))
+                                            (error
+                                             (push (cons post-url nil) results)
+                                             (setq completed (1+ completed))
+                                             (when (= completed total)
+                                               (funcall callback results))))))
+                              :error (cl-function
+                                      (lambda (&key &allow-other-keys)
+                                        (push (cons post-url nil) results)
+                                        (setq completed (1+ completed))
+                                        (when (= completed total)
+                                          (funcall callback results))))))))
+             (progn
+               (message "replies endpoint not found in relay API")
+               (funcall callback nil)))))))))
+
+(defun org-social-relay--check-post-has-replies (post-url callback)
+  "Check if POST-URL has replies from the relay server.
+Call CALLBACK with t if post has replies, nil otherwise."
+  (org-social-relay--check-posts-for-replies
+   (list post-url)
+   (lambda (results)
+     (let ((result (alist-get post-url results nil nil 'string=)))
+       (funcall callback result)))))
+
 (provide 'org-social-relay)
 ;;; org-social-relay.el ends here

@@ -33,6 +33,7 @@
 (require 'org-social-parser)
 (require 'org-social-file)
 (require 'org)
+(require 'cl-lib)
 
 ;; Optional requires with error handling
 (condition-case nil
@@ -47,6 +48,9 @@
 (declare-function org-social-polls--vote-on-poll "org-social-polls" (&optional author-url timestamp))
 (declare-function org-social-notifications--render-section "org-social-notifications" (timeline))
 (declare-function org-social-relay--register-feed "org-social-relay" ())
+(declare-function org-social-relay--check-post-has-replies "org-social-relay" (post-url callback))
+(declare-function org-social-relay--check-posts-for-replies "org-social-relay" (post-urls callback))
+(declare-function org-social-ui-thread "org-social-ui" (post-url))
 (declare-function request "request" (url &rest args))
 
 ;; Require remaining modules after base dependencies
@@ -134,7 +138,17 @@
    :export (lambda (_path desc _backend)
 	     desc)))
 
-;; Initialize reply, profile, vote, parent, mention, and share links when module loads
+;; Define custom link type for viewing threads
+(defun org-social-timeline--setup-thread-links ()
+  "Setup custom org-social-thread link type."
+  (org-link-set-parameters
+   "org-social-thread"
+   :follow (lambda (path)
+	     (org-social-timeline--view-thread path))
+   :export (lambda (_path desc _backend)
+	     desc)))
+
+;; Initialize reply, profile, vote, parent, mention, share, and thread links when module loads
 (eval-after-load 'org
   '(progn
      (org-social-timeline--setup-reply-links)
@@ -142,7 +156,8 @@
      (org-social-timeline--setup-vote-links)
      (org-social-timeline--setup-parent-links)
      (org-social-timeline--setup-mention-links)
-     (org-social-timeline--setup-share-links)))
+     (org-social-timeline--setup-share-links)
+     (org-social-timeline--setup-thread-links)))
 
 ;; Also initialize if org is already loaded
 (when (featurep 'org)
@@ -151,7 +166,8 @@
   (org-social-timeline--setup-vote-links)
   (org-social-timeline--setup-parent-links)
   (org-social-timeline--setup-mention-links)
-  (org-social-timeline--setup-share-links))
+  (org-social-timeline--setup-share-links)
+  (org-social-timeline--setup-thread-links))
 
 ;; Timeline mode definition
 
@@ -353,6 +369,15 @@
 		      (message "Failed to fetch profile from %s: %s"
 			       author-url (plist-get args :error-thrown))))))
 
+(defun org-social-timeline--view-thread (post-url)
+  "View the thread for POST-URL using the UI thread viewer."
+  (condition-case nil
+      (progn
+        (require 'org-social-ui)
+        (org-social-ui-thread post-url))
+    (error
+     (message "Thread viewing requires org-social-ui to be loaded"))))
+
 (defun org-social-timeline--goto-user-post (author-url)
   "Open the profile/feed of the user with AUTHOR-URL in a new buffer.
 If in timeline, also try to navigate to their most recent post."
@@ -536,10 +561,46 @@ to '2025-09-15T09-22-05plus0200.html' format."
   (when (fboundp 'org-social-relay--register-feed)
     (org-social-relay--register-feed))
 
-  ;; Show the timeline
-  (org-social-timeline--layout)
+  ;; Check for replies and then show the timeline
+  (org-social-timeline--check-replies-and-display)
 
   (message "Timeline completed!"))
+
+(defun org-social-timeline--check-replies-and-display ()
+  "Check which posts have replies and then display timeline.
+Only checks the first batch of posts to avoid overwhelming the server."
+  (let ((timeline (org-social-feed--get-timeline)))
+    (if (and timeline
+             (> (length timeline) 0)
+             (boundp 'org-social-relay)
+             org-social-relay
+             (not (string-empty-p org-social-relay)))
+        (progn
+          ;; Only check first 20 posts (typical screen size)
+          (let* ((posts-to-check (cl-subseq timeline 0 (min 20 (length timeline))))
+                 (post-urls '()))
+            (dolist (post posts-to-check)
+              (let* ((author-url (or (alist-get 'author-url post)
+                                    (alist-get 'url post)))
+                     (timestamp (or (alist-get 'timestamp post)
+                                   (alist-get 'id post)))
+                     (post-url (when (and author-url timestamp)
+                                (format "%s#%s" author-url timestamp))))
+                (when post-url
+                  (push post-url post-urls))))
+            ;; Batch check for replies (only first batch)
+            (if post-urls
+                (org-social-relay--check-posts-for-replies
+                 (nreverse post-urls)
+                 (lambda (results)
+                   ;; Store results globally
+                   (setq org-social-variables--posts-with-replies results)
+                   ;; Now display timeline
+                   (org-social-timeline--layout)))
+              ;; No valid post URLs, just display timeline
+              (org-social-timeline--layout))))
+      ;; No timeline or relay not configured, just display
+      (org-social-timeline--layout))))
 
 (defun org-social-timeline--layout ()
   "Create and display the timeline buffer."
@@ -549,6 +610,17 @@ to '2025-09-15T09-22-05plus0200.html' format."
       (let ((buffer-read-only nil))
         (erase-buffer)
         (org-mode)
+        ;; Disable org-mode font-lock for hashtags to prevent conflicts
+        (setq-local font-lock-extra-managed-props
+                    (append font-lock-extra-managed-props '(hashtag)))
+        ;; Remove org-mode hashtag patterns from font-lock if they exist
+        (when (boundp 'org-font-lock-keywords)
+          (setq-local font-lock-keywords
+                      (cl-remove-if (lambda (keyword)
+                                      (and (listp keyword)
+                                           (stringp (car keyword))
+                                           (string-match-p "#" (car keyword))))
+                                    font-lock-keywords)))
         (insert "#+TITLE: Org Social Timeline\n\n")
         (insert "# Navigation: (n) Next | (p) Previous | (t) Go to parent | (RET/C-c C-o) Follow link\n")
         (insert "# Post: (c) New | (l) New Poll | (r) Reply | (v) Vote | (s) Share | (P) Profile\n")
@@ -641,6 +713,14 @@ to '2025-09-15T09-22-05plus0200.html' format."
 	              (insert (format "[[org-social-parent:%s][Go to parent]]"
 			              reply-to))
 	              (setq first-button nil))
+	            ;; Add Thread button - show directly if post has replies
+	            (let ((post-url (format "%s#%s" author-url timestamp)))
+	              ;; Check if this post has replies from pre-loaded data
+	              (let ((has-replies (alist-get post-url org-social-variables--posts-with-replies nil nil 'string=)))
+	                (when has-replies
+	                  (unless first-button (insert " · "))
+	                  (insert (format "[[org-social-thread:%s][Thread]]" post-url))
+	                  (setq first-button nil))))
 	            ;; Add Vote button for polls
 	            (when poll-end
 	              (unless first-button (insert " · "))

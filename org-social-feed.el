@@ -176,7 +176,14 @@ Argument NEW-RESPONSE"
                                                  post)) ; Incluir TODAS las propiedades del post original
                                        posts)))
                            org-social-variables--feeds))
-         (timeline-sorted (sort timeline
+         (timeline-filtered (seq-filter (lambda (post)
+                                          ;; Filter out posts with empty or nil text content
+                                          (let ((text (alist-get 'text post)))
+                                            (and text
+                                                 (stringp text)
+                                                 (not (string-empty-p (string-trim text))))))
+                                        timeline))
+         (timeline-sorted (sort timeline-filtered
                                 (lambda (a b)
                                   (> (alist-get 'date a)
                                      (alist-get 'date b))))))

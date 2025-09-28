@@ -59,7 +59,7 @@ and view profiles (P)."
   "Base URL for post previews.
 When set, a Share button will appear in the timeline to copy the full
 preview URL for posts.  The URL is constructed by appending the post ID
-(with '+' replacing '+' and ':' being removed) and '.html' to this base URL.
+\(with '+' replacing '+' and ':' being removed) and '.html' to this base URL.
 Example: \"https://andros.dev/static/preview/\" would generate URLs like
 \"https://andros.dev/static/preview/2025-09-15T09-22-05plus0200.html\""
   :type '(choice (const :tag "No preview URL" nil)
@@ -86,9 +86,16 @@ Example: \"https://example.com/social.org\""
 (defcustom org-social-only-relay-followers-p nil
   "When non-nil, use only feeds from the relay server for timeline.
 If t, the timeline will be built exclusively from feeds listed in the relay,
-ignoring local followers list. This requires both `org-social-relay' and
+ignoring local followers list.  This requires both `org-social-relay' and
 `org-social-my-public-url' to be configured."
   :type 'boolean
+  :group 'org-social)
+
+(defcustom org-social-hashtag-color "#ffaa00"
+  "Color for hashtag highlighting in posts.
+This color is used when displaying hashtags (#tag) in the user interface.
+Should be a hex color code like \"#ffaa00\" for yellow."
+  :type 'string
   :group 'org-social)
 
 ;; Variables for state management
@@ -101,6 +108,10 @@ ignoring local followers list. This requires both `org-social-relay' and
 
 (defvar org-social-variables--queue nil
   "Queue for downloading feeds asynchronously.")
+
+(defvar org-social-variables--posts-with-replies nil
+  "Alist of posts that have replies.
+Each entry is (post-url . t) for posts with replies.")
 
 ;; Hooks
 

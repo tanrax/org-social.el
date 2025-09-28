@@ -30,6 +30,8 @@
 (declare-function org-social-relay--fetch-mentions "org-social-relay" (callback))
 (declare-function org-social-relay--fetch-groups "org-social-relay" (callback))
 (declare-function org-social-relay--fetch-group-posts "org-social-relay" (group-name callback))
+(declare-function org-social-relay--check-post-has-replies "org-social-relay" (post-url callback))
+(declare-function org-social-relay--check-posts-for-replies "org-social-relay" (post-urls callback))
 (declare-function org-social-file--new-post "org-social-file" (&optional reply-url reply-id))
 (declare-function org-social-file--new-poll "org-social-file" ())
 (declare-function org-social-feed--process-queue "org-social-feed" ())
@@ -169,7 +171,7 @@
   (org-social-ui--insert-formatted-text "\n"))
 
 (defun org-social-ui--apply-org-mode-to-region (start end)
-  "Apply org-mode syntax highlighting from START to END using overlays."
+  "Apply `org-mode' syntax highlighting from START to END using overlays."
   (save-excursion
     (save-restriction
       (narrow-to-region start end)
@@ -244,14 +246,8 @@
             ;; Store URL for potential click handling
             (overlay-put overlay 'org-social-url url))))
 
-      ;; Hashtags: #tag (custom green highlighting with highest priority and persistent marking)
-      (goto-char start)
-      (while (re-search-forward "\\(^\\|\\s-\\)\\(#[a-zA-Z0-9_-]+\\)\\($\\|\\s-\\)" end t)
-        (let ((overlay (make-overlay (match-beginning 2) (match-end 2))))
-          (overlay-put overlay 'face '(:foreground "#00aa00" :weight bold))
-          (overlay-put overlay 'priority 110) ; Even higher priority for hashtags
-          (overlay-put overlay 'org-social-overlay t)
-          (overlay-put overlay 'hashtag t))) ; Special mark for hashtags
+      ;; Hashtags: No longer needed - now handled by org-social-ui--insert-formatted-text
+      ;; (Hashtag coloring moved to use same technique as name/date/client)
 
       ;; List items: - item or + item or * item
       (goto-char start)
@@ -279,6 +275,13 @@
                 (overlay-put overlay 'face '(:foreground "#888888" :weight bold))
                 (overlay-put overlay 'priority 100)
                 (overlay-put overlay 'org-social-overlay t)))))))))
+
+;; (defun org-social-ui--refresh-hashtag-colors ()
+;;   "Force refresh of hashtag colors in current buffer."
+;;   ;; No longer needed - hashtags now use org-social-ui--insert-formatted-text
+;;   ;; like name/date/client which work perfectly
+;;   (interactive)
+;;   (message "Hashtag colors now use org-social-ui--insert-formatted-text - no refresh needed"))
 
 (defun org-social-ui--format-relative-time (timestamp)
   "Format TIMESTAMP as relative time."
@@ -333,25 +336,29 @@
              (< (* org-social-ui--current-page org-social-ui--posts-per-page)
                 (length org-social-ui--timeline-current-list)))
     (setq org-social-ui--current-page (1+ org-social-ui--current-page))
-    (let ((inhibit-read-only t))
-      ;; Delete the loading widget if it exists
-      (when org-social-ui--timeline-widget-loading-more
-        (widget-delete org-social-ui--timeline-widget-loading-more)
-        (setq org-social-ui--timeline-widget-loading-more nil))
-      ;; Mark where new posts will start
-      (let ((first-new-post-start (point)))
-        ;; Insert the new posts
-        (org-social-ui--insert-timeline-posts-paginated)
-        ;; Insert new loading button if there are more posts
-        (org-social-ui--timeline-insert-loading)
-        ;; Ensure overlays are maintained - refresh all org-mode overlays in buffer
-        (org-social-ui--refresh-all-overlays)
-        ;; Move cursor to the beginning of the first new post
-        (goto-char first-new-post-start)
-        ;; Skip any whitespace and position at the start of the first new post content
-        (skip-chars-forward " \t\n")
-        ;; Recenter the view to show the new posts
-        (recenter 5)))))
+
+    ;; Check replies for new page before displaying
+    (org-social-ui--check-replies-for-current-page
+     (lambda ()
+       (let ((inhibit-read-only t))
+         ;; Delete the loading widget if it exists
+         (when org-social-ui--timeline-widget-loading-more
+           (widget-delete org-social-ui--timeline-widget-loading-more)
+           (setq org-social-ui--timeline-widget-loading-more nil))
+         ;; Mark where new posts will start
+         (let ((first-new-post-start (point)))
+           ;; Insert the new posts
+           (org-social-ui--insert-timeline-posts-paginated)
+           ;; Insert new loading button if there are more posts
+           (org-social-ui--timeline-insert-loading)
+           ;; Ensure overlays are maintained - refresh all org-mode overlays in buffer
+           (org-social-ui--refresh-all-overlays)
+           ;; Move cursor to the beginning of the first new post
+           (goto-char first-new-post-start)
+           ;; Skip any whitespace and position at the start of the first new post content
+           (skip-chars-forward " \t\n")
+           ;; Recenter the view to show the new posts
+           (recenter 5)))))))
 
 (defun org-social-ui--timeline-insert-loading ()
   "Insert the \\='Show more\\=' button for timeline pagination."
@@ -480,24 +487,13 @@
          (is-my-post (or (string= author my-nick)
                         (string= author-url (alist-get 'url org-social-variables--my-profile)))))
 
-    ;; Post header with author name, timestamp, and client
-    (org-social-ui--insert-formatted-text (format "@%s" author) 1.1 "#4a90e2")
-    (org-social-ui--insert-formatted-text " • ")
-    (org-social-ui--insert-formatted-text (org-social--format-date timestamp) nil "#666666")
-    (when (and client (not (string-empty-p client)))
-      (org-social-ui--insert-formatted-text " • ")
-      (org-social-ui--insert-formatted-text client nil "#ffaa00"))
+    ;; 1. Add line break after separator before content
     (org-social-ui--insert-formatted-text "\n")
 
-    ;; Start of org-mode content region
+    ;; Start of org-mode content region for post content
     (let ((org-content-start (point)))
 
-      ;; Tags if any - format each tag with # prefix
-      (when (and tags (not (string-empty-p tags)))
-        (let ((tag-list (split-string tags "\\s-+" t)))
-          (insert (format " %s\n\n" (mapconcat (lambda (tag) (format "#%s" tag)) tag-list " ")))))
-
-      ;; Post content
+      ;; 2. Post content
       (when (and text (not (string-empty-p text)))
         (insert text)
         (insert "\n"))
@@ -506,13 +502,25 @@
       (when (and mood (not (string-empty-p mood)))
         (insert (format " %s\n" mood)))
 
-      ;; Add extra line break before action buttons
-      (insert "\n")
-
       ;; Apply org-mode syntax highlighting to this region only
       (org-social-ui--apply-org-mode-to-region org-content-start (point)))
 
-    ;; Action buttons
+    ;; 3. Add line break between content and hashtags
+    (org-social-ui--insert-formatted-text "\n")
+
+    ;; 4. Tags if any - format each tag with # prefix using same technique as name/date/client
+    (when (and tags (not (string-empty-p tags)))
+      (let ((tag-list (split-string tags "\\s-+" t)))
+        (org-social-ui--insert-formatted-text " ")
+        (dolist (tag tag-list)
+          (org-social-ui--insert-formatted-text (format "#%s" tag) nil org-social-hashtag-color)
+          (org-social-ui--insert-formatted-text " "))
+        (org-social-ui--insert-formatted-text "\n")))
+
+    ;; Add line break before action buttons
+    (insert "\n")
+
+    ;; 3. Action buttons
     (org-social-ui--insert-formatted-text "  ")
     (let ((first-button t))
         ;; Reply button (only for others' posts)
@@ -523,17 +531,21 @@
                          " ↳ Reply ")
           (setq first-button nil))
 
-        ;; Thread button
-        (unless first-button (org-social-ui--insert-formatted-text " "))
-        (widget-create 'push-button
-                       :notify `(lambda (&rest _)
-                                 (org-social-ui-thread ,(if (string-empty-p author-url)
-                                                           (format "%s#%s"
-                                                                  (alist-get 'url org-social-variables--my-profile)
-                                                                  timestamp)
-                                                         (format "%s#%s" author-url timestamp))))
-                       " 🧵 Thread ")
-        (setq first-button nil)
+        ;; Thread button - show directly if post has replies
+        (let ((post-url (if (string-empty-p author-url)
+                           (format "%s#%s"
+                                  (alist-get 'url org-social-variables--my-profile)
+                                  timestamp)
+                         (format "%s#%s" author-url timestamp))))
+          ;; Check if this post has replies from pre-loaded data
+          (let ((has-replies (alist-get post-url org-social-variables--posts-with-replies nil nil 'string=)))
+            (when has-replies
+              (unless first-button (org-social-ui--insert-formatted-text " "))
+              (widget-create 'push-button
+                             :notify `(lambda (&rest _)
+                                       (org-social-ui-thread ,post-url))
+                             " 🧵 Thread ")
+              (setq first-button nil))))
 
         ;; Profile button (only for others' posts)
         (when (not is-my-post)
@@ -551,8 +563,22 @@
                                    (message "Poll voting - to be implemented"))
                          " 🗳 Vote ")))
 
-      (org-social-ui--insert-formatted-text "\n")
-      (org-social-ui--insert-separator)))
+    ;; 5. Add line break between buttons and user info
+    (org-social-ui--insert-formatted-text "\n\n")
+
+    ;; 6. Post header with author name, timestamp, and client at the end
+    (org-social-ui--insert-formatted-text (format "@%s" author) 1.1 "#4a90e2")
+    (org-social-ui--insert-formatted-text " • ")
+    (org-social-ui--insert-formatted-text (org-social--format-date timestamp) nil "#666666")
+    (when (and client (not (string-empty-p client)))
+      (org-social-ui--insert-formatted-text " • ")
+      (org-social-ui--insert-formatted-text client nil "#ffaa00"))
+
+    ;; 7. Add line break between user info and separator
+    (org-social-ui--insert-formatted-text "\n")
+
+    ;; 8. Final separator
+    (org-social-ui--insert-separator)))
 
 ;;; Timeline Screen
 
@@ -810,7 +836,7 @@
               (let ((timeline (when (fboundp 'org-social-feed--get-timeline)
                                (org-social-feed--get-timeline))))
                 (message "Debug: Timeline length: %s" (if timeline (length timeline) 0))
-                (org-social-ui--display-timeline timeline)))
+                (org-social-ui--check-replies-and-display-timeline timeline)))
           ;; No feeds loaded yet, start the loading process
           (progn
             (message "Debug: No feeds loaded, starting initialization...")
@@ -847,6 +873,90 @@
          (org-social-ui--insert-formatted-text
           (format "Error loading timeline: %s\n" (error-message-string err))
           nil "#ff0000"))))))
+
+(defun org-social-ui--check-replies-and-display-timeline (timeline)
+  "Check which posts have replies and then display TIMELINE.
+Only checks posts that will be visible on the current page."
+  (if (and timeline
+           (> (length timeline) 0)
+           (boundp 'org-social-relay)
+           org-social-relay
+           (not (string-empty-p org-social-relay)))
+      (progn
+        ;; Get only posts for current page
+        (let* ((start-idx (* (- org-social-ui--current-page 1) org-social-ui--posts-per-page))
+               (end-idx (* org-social-ui--current-page org-social-ui--posts-per-page))
+               (visible-posts (cl-subseq timeline
+                                        start-idx
+                                        (min end-idx (length timeline))))
+               (post-urls '()))
+          ;; Extract post URLs only from visible posts
+          (dolist (post visible-posts)
+            (let* ((author-url (or (alist-get 'author-url post)
+                                  (alist-get 'url post)))
+                   (timestamp (or (alist-get 'timestamp post)
+                                 (alist-get 'id post)))
+                   (post-url (when (and author-url timestamp)
+                              (if (string-empty-p author-url)
+                                  (format "%s#%s"
+                                         (alist-get 'url org-social-variables--my-profile)
+                                         timestamp)
+                                (format "%s#%s" author-url timestamp)))))
+              (when post-url
+                (push post-url post-urls))))
+          ;; Batch check for replies (only for visible posts)
+          (if post-urls
+              (org-social-relay--check-posts-for-replies
+               (nreverse post-urls)
+               (lambda (results)
+                 ;; Store results globally
+                 (setq org-social-variables--posts-with-replies results)
+                 ;; Now display timeline
+                 (org-social-ui--display-timeline timeline)))
+            ;; No valid post URLs, just display timeline
+            (org-social-ui--display-timeline timeline))))
+    ;; No timeline or relay not configured, just display
+    (org-social-ui--display-timeline timeline)))
+
+(defun org-social-ui--check-replies-for-current-page (callback)
+  "Check replies for posts in current page and call CALLBACK when done."
+  (if (and (boundp 'org-social-relay)
+           org-social-relay
+           (not (string-empty-p org-social-relay))
+           org-social-ui--timeline-current-list)
+      (let* ((start-idx (* (- org-social-ui--current-page 1) org-social-ui--posts-per-page))
+             (end-idx (* org-social-ui--current-page org-social-ui--posts-per-page))
+             (visible-posts (cl-subseq org-social-ui--timeline-current-list
+                                      start-idx
+                                      (min end-idx (length org-social-ui--timeline-current-list))))
+             (post-urls '()))
+        ;; Extract post URLs only from visible posts
+        (dolist (post visible-posts)
+          (let* ((author-url (or (alist-get 'author-url post)
+                                (alist-get 'url post)))
+                 (timestamp (or (alist-get 'timestamp post)
+                               (alist-get 'id post)))
+                 (post-url (when (and author-url timestamp)
+                            (if (string-empty-p author-url)
+                                (format "%s#%s"
+                                       (alist-get 'url org-social-variables--my-profile)
+                                       timestamp)
+                              (format "%s#%s" author-url timestamp)))))
+            (when post-url
+              (push post-url post-urls))))
+        ;; Check for replies (only for visible posts)
+        (if post-urls
+            (org-social-relay--check-posts-for-replies
+             (nreverse post-urls)
+             (lambda (results)
+               ;; Merge with existing results
+               (setq org-social-variables--posts-with-replies
+                     (append results org-social-variables--posts-with-replies))
+               (funcall callback)))
+          ;; No posts to check, just continue
+          (funcall callback)))
+    ;; No relay configured, just continue
+    (funcall callback)))
 
 (defun org-social-ui--display-timeline (timeline)
   "Display TIMELINE in the timeline buffer."
@@ -891,7 +1001,7 @@
       (setq org-social-ui--refresh-timer nil))
     (let ((timeline (when (fboundp 'org-social-feed--get-timeline)
                      (org-social-feed--get-timeline))))
-      (org-social-ui--display-timeline timeline)
+      (org-social-ui--check-replies-and-display-timeline timeline)
       (message "Timeline loaded with %d posts" (if timeline (length timeline) 0)))))
 
 (defun org-social-ui-notifications ()
@@ -1418,7 +1528,7 @@
           (setq buffer-read-only t))))))
 
 (defun org-social-ui--refresh-all-overlays ()
-  "Refresh all org-mode syntax overlays in the current buffer."
+  "Refresh all `org-mode' syntax overlays in the current buffer."
   (interactive)
   ;; Get all text content areas (skip headers and buttons)
   (save-excursion
