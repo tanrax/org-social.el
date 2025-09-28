@@ -5,7 +5,7 @@
 ;; Author: Andros Fenollosa <hi@andros.dev>
 ;; Version: 1.6
 ;; URL: https://github.com/tanrax/org-social.el
-;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5"))
+;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5") (emojify "1.2"))
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -34,12 +34,14 @@
 (declare-function org-social-relay--check-posts-for-replies "org-social-relay" (post-urls callback))
 (declare-function org-social-file--new-post "org-social-file" (&optional reply-url reply-id))
 (declare-function org-social-file--new-poll "org-social-file" ())
+(declare-function org-social-file--new-reaction "org-social-file" (reply-url reply-id emoji))
 (declare-function org-social-feed--process-queue "org-social-feed" ())
 (declare-function org-social--format-date "org-social" (timestamp))
 (declare-function org-social-parser--get-value "org-social-parser" (feed key))
 (declare-function org-social-parser--get-posts-from-feed "org-social-parser" (feed))
 (declare-function request "request" (url &rest args))
 (declare-function visual-fill-column-mode "visual-fill-column" (&optional arg))
+(declare-function emojify-completing-read "emojify" (&optional prompt))
 
 ;; Declare visual-fill-column variables to avoid compilation warnings
 (defvar visual-fill-column-center-text)
@@ -394,6 +396,17 @@
             (timestamp (alist-get 'timestamp post-data)))
         (org-social-file--new-post author-url timestamp)))))
 
+(defun org-social-ui--add-reaction (author-url timestamp)
+  "Add a reaction to a post using emojify selector.
+AUTHOR-URL is the URL of the post author.
+TIMESTAMP is the timestamp of the post being reacted to."
+  (interactive)
+  (if (fboundp 'emojify-completing-read)
+      (let ((selected-emoji (emojify-completing-read "Select reaction: ")))
+        (when selected-emoji
+          (org-social-file--new-reaction author-url timestamp selected-emoji)))
+    (message "Emojify not available. Please install the emojify package.")))
+
 (defun org-social-ui--get-post-at-point ()
   "Get post data at current point."
   ;; This should be implemented to extract post data from the current position
@@ -511,7 +524,6 @@
     ;; 4. Tags if any - format each tag with # prefix using same technique as name/date/client
     (when (and tags (not (string-empty-p tags)))
       (let ((tag-list (split-string tags "\\s-+" t)))
-        (org-social-ui--insert-formatted-text " ")
         (dolist (tag tag-list)
           (org-social-ui--insert-formatted-text (format "#%s" tag) nil org-social-hashtag-color)
           (org-social-ui--insert-formatted-text " "))
@@ -521,7 +533,6 @@
     (insert "\n")
 
     ;; 3. Action buttons
-    (org-social-ui--insert-formatted-text "  ")
     (let ((first-button t))
         ;; Reply button (only for others' posts)
         (when (not is-my-post)
@@ -529,6 +540,15 @@
                          :notify `(lambda (&rest _)
                                    (org-social-file--new-post ,author-url ,timestamp))
                          " ↳ Reply ")
+          (setq first-button nil))
+
+        ;; Reaction button (only for others' posts)
+        (when (not is-my-post)
+          (unless first-button (org-social-ui--insert-formatted-text " "))
+          (widget-create 'push-button
+                         :notify `(lambda (&rest _)
+                                   (org-social-ui--add-reaction ,author-url ,timestamp))
+                         " 😊 React ")
           (setq first-button nil))
 
         ;; Thread button - show directly if post has replies
@@ -544,7 +564,7 @@
               (widget-create 'push-button
                              :notify `(lambda (&rest _)
                                        (org-social-ui-thread ,post-url))
-                             " 🧵 Thread ")
+                             " 🧵 Open thread ")
               (setq first-button nil))))
 
         ;; Profile button (only for others' posts)

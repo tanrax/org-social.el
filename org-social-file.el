@@ -5,7 +5,7 @@
 ;; Author: Andros Fenollosa <hi@andros.dev>
 ;; Version: 1.6
 ;; URL: https://github.com/tanrax/org-social.el
-;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5"))
+;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5") (emojify "1.2"))
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -189,6 +189,37 @@ Interactively prompts for the poll question, options, and duration."
           (org-social-file--insert-poll-template question options poll-end))
         (goto-char (point-max))
         (message "Poll created with %d options, ending at %s" (length options) poll-end)))))
+
+(defun org-social-file--new-reaction (reply-url reply-id emoji)
+  "Create a new reaction post with EMOJI to a post at REPLY-URL with REPLY-ID.
+This creates an empty post with only the MOOD field set to EMOJI and REPLY_TO.
+REPLY-URL is the URL of the post being reacted to.
+REPLY-ID is the timestamp ID of the post being reacted to.
+EMOJI is the reaction emoji to add."
+  (unless (and (buffer-file-name)
+	       (string= (expand-file-name (buffer-file-name))
+			(expand-file-name org-social-file)))
+    (org-social-file--open))
+  (save-excursion
+    (org-social-file--find-posts-section)
+    (goto-char (point-max))
+    (org-social-file--insert-reaction-template reply-url reply-id emoji))
+  (goto-char (point-max))
+  (message "Reaction %s added to post" emoji))
+
+(defun org-social-file--insert-reaction-template (reply-url reply-id emoji)
+  "Insert a reaction template at the current position.
+REPLY-URL is the URL of the post being reacted to.
+REPLY-ID is the timestamp ID of the post being reacted to.
+EMOJI is the reaction emoji."
+  (let ((timestamp (org-social-parser--generate-timestamp)))
+    (insert "\n**\n:PROPERTIES:\n")
+    (insert (format ":ID: %s\n" timestamp))
+    (insert ":CLIENT: org-social.el\n")
+    (insert (format ":REPLY_TO: %s#%s\n" reply-url reply-id))
+    (insert (format ":MOOD: %s\n" emoji))
+    (insert ":END:\n\n")
+    (goto-char (point-max))))
 
 (defun org-social-file--validate ()
   "Validate the current Org-social file structure."

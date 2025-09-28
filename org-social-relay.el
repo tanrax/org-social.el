@@ -520,7 +520,6 @@ Designed for small batches of posts (e.g., current page)."
           (results '())
           (completed 0)
           (total (length post-urls)))
-      (message "Checking %d posts for replies..." total)
       (org-social-relay--discover-endpoints
        relay-url
        (lambda (endpoints)
@@ -546,12 +545,11 @@ Designed for small batches of posts (e.g., current page)."
                                                 (let ((has-replies
                                                        (and (string= response-type "Success")
                                                             replies-data
-                                                            (listp replies-data)
-                                                            (> (length replies-data) 0))))
+                                                            (or (and (listp replies-data) (> (length replies-data) 0))
+                                                                (and (vectorp replies-data) (> (length replies-data) 0))))))
                                                   (push (cons post-url has-replies) results)
                                                   (setq completed (1+ completed))
                                                   (when (= completed total)
-                                                    (message "Finished checking posts for replies")
                                                     (funcall callback results))))
                                             (error
                                              (push (cons post-url nil) results)
