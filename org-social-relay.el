@@ -221,17 +221,21 @@ Call CALLBACK with the thread structure."
                             :success (cl-function
                                       (lambda (&key data &allow-other-keys)
                                         (condition-case err
-                                            (let* ((response (json-read-from-string data))
-                                                   (response-type (cdr (assoc 'type response)))
-                                                   (replies-data (cdr (assoc 'data response))))
-                                              (if (string= response-type "Success")
-                                                  (let ((replies-list (if (vectorp replies-data)
-                                                                         (append replies-data nil)
-                                                                       replies-data)))
-                                                    (funcall callback replies-list))
-                                                (progn
-                                                  (message "Relay returned error response: %s" response-type)
-                                                  (funcall callback nil))))
+                                            (if (and data (not (string-empty-p data)))
+                                                (let* ((response (json-read-from-string data))
+                                                       (response-type (cdr (assoc 'type response)))
+                                                       (replies-data (cdr (assoc 'data response))))
+                                                  (if (string= response-type "Success")
+                                                      (let ((replies-list (if (vectorp replies-data)
+                                                                             (append replies-data nil)
+                                                                           replies-data)))
+                                                        (funcall callback replies-list))
+                                                    (progn
+                                                      (message "Relay returned error response: %s" response-type)
+                                                      (funcall callback nil))))
+                                              (progn
+                                                (message "Received empty or nil response from relay")
+                                                (funcall callback nil)))
                                           (error
                                            (message "Failed to parse relay replies response: %s" (error-message-string err))
                                            (funcall callback nil)))))

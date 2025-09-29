@@ -32,6 +32,7 @@
 (declare-function org-social-relay--fetch-group-posts "org-social-relay" (group-name callback))
 (declare-function org-social-relay--check-post-has-replies "org-social-relay" (post-url callback))
 (declare-function org-social-relay--check-posts-for-replies "org-social-relay" (post-urls callback))
+(declare-function org-social-relay--fetch-replies "org-social-relay" (post-url callback))
 (declare-function org-social-file--new-post "org-social-file" (&optional reply-url reply-id))
 (declare-function org-social-file--new-poll "org-social-file" ())
 (declare-function org-social-file--new-reaction "org-social-file" (reply-url reply-id emoji))
@@ -40,6 +41,7 @@
 (declare-function org-social-parser--get-value "org-social-parser" (feed key))
 (declare-function org-social-parser--get-posts-from-feed "org-social-parser" (feed))
 (declare-function request "request" (url &rest args))
+(declare-function request-response-status-code "request" (response))
 (declare-function visual-fill-column-mode "visual-fill-column" (&optional arg))
 (declare-function emojify-completing-read "emojify" (&optional prompt))
 
@@ -54,6 +56,13 @@
 (defconst org-social-ui--notifications-buffer-name "*Org Social Notifications*")
 (defconst org-social-ui--profile-buffer-name "*Org Social Profile*")
 (defconst org-social-ui--groups-buffer-name "*Org Social Groups*")
+
+;; Thread tracking variables
+(defvar org-social-ui--thread-stack nil
+  "Stack of parent post URLs for thread navigation.")
+
+(defvar org-social-ui--thread-level 0
+  "Current thread nesting level.")
 
 ;; UI Variables
 (defvar org-social-ui--current-screen nil
@@ -86,6 +95,7 @@
     (define-key map (kbd "G") 'org-social-ui--view-groups)
     (define-key map (kbd "T") 'org-social-ui--view-timeline)
     (define-key map (kbd "g") 'org-social-ui--refresh)
+    (define-key map (kbd "b") 'kill-current-buffer)
     (define-key map (kbd "q") 'org-social-ui--quit)
     map)
   "Keymap for `org-social-ui-mode'.")
@@ -320,10 +330,18 @@
   "Go to the previous post."
   (interactive)
   (let ((separator-regex (concat "^" (regexp-quote (org-social-ui--string-separator)) "$")))
-    (search-backward-regexp separator-regex nil t)
-    (unless (search-backward-regexp separator-regex nil t)
-      (goto-char (point-min)))
-    (forward-line 1)))
+    (if (search-backward-regexp separator-regex nil t)
+        (progn
+          (if (search-backward-regexp separator-regex nil t)
+              (forward-line 1)
+            (progn
+              (goto-char (point-min))
+              ;; Only move forward if there's content to move to
+              (when (> (point-max) (point-min))
+                (forward-line 1)))))
+      (progn
+        (goto-char (point-min))
+        (message "Already at first post")))))
 
 (defun org-social-ui--last-separator-p ()
   "Check if we're at the last separator (near bottom of posts)."
@@ -415,6 +433,14 @@ TIMESTAMP is the timestamp of the post being reacted to."
 
 ;;; Screen Navigation Functions
 
+(defun org-social-ui--go-back ()
+  "Go back to previous buffer."
+  (interactive)
+  (let ((previous-buffer (other-buffer (current-buffer) 1)))
+    (if previous-buffer
+        (switch-to-buffer previous-buffer)
+      (org-social-ui-timeline))))
+
 (defun org-social-ui--view-timeline ()
   "Switch to timeline view."
   (interactive)
@@ -472,7 +498,16 @@ TIMESTAMP is the timestamp of the post being reacted to."
                              org-social-ui--profile-buffer-name
                              org-social-ui--groups-buffer-name))
     (when (get-buffer buffer-name)
-      (kill-buffer buffer-name))))
+      (kill-buffer buffer-name)))
+
+  ;; Clear all thread level buffers
+  (dolist (buffer (buffer-list))
+    (when (string-match-p "\\*Org Social Thread Level [0-9]+\\*" (buffer-name buffer))
+      (kill-buffer buffer)))
+
+  ;; Reset thread tracking variables
+  (setq org-social-ui--thread-stack nil)
+  (setq org-social-ui--thread-level 0))
 
 ;;; Post Component
 
@@ -1096,7 +1131,35 @@ Only checks posts that will be visible on the current page."
   "Display thread screen for POST-URL."
   (interactive "sPost URL: ")
   (setq org-social-ui--current-screen 'thread)
-  (message "Thread screen for %s - to be implemented" post-url))
+
+  ;; Add current post to thread stack and increment level
+  (push post-url org-social-ui--thread-stack)
+  (setq org-social-ui--thread-level (length org-social-ui--thread-stack))
+
+  (let ((buffer-name (format "*Org Social Thread Level %d*" org-social-ui--thread-level)))
+    (switch-to-buffer buffer-name)
+    (kill-all-local-variables)
+
+    ;; Disable read-only mode before modifying buffer
+    (setq buffer-read-only nil)
+
+    (let ((inhibit-read-only t))
+      (erase-buffer))
+    (remove-overlays)
+
+    ;; Insert header
+    (org-social-ui--insert-thread-header post-url)
+
+    ;; Show loading message
+    (org-social-ui--insert-formatted-text
+     (format "Loading thread for level %d...\n" org-social-ui--thread-level) nil "#4a90e2")
+
+    ;; Set up the buffer with centering
+    (org-social-ui--setup-centered-buffer)
+    (goto-char (point-min))
+
+    ;; Fetch and display thread
+    (org-social-ui--fetch-and-display-thread post-url)))
 
 (defun org-social-ui-profile (user-url)
   "Display profile screen for USER-URL."
@@ -1114,15 +1177,14 @@ Only checks posts that will be visible on the current page."
       (erase-buffer))
     (remove-overlays)
 
-    ;; Insert header
+    ;; Insert header (but don't activate special-mode yet)
     (org-social-ui--insert-profile-header)
 
     ;; Show loading message
     (org-social-ui--insert-formatted-text
      (format "Loading profile for %s...\n" user-url) nil "#4a90e2")
 
-    ;; Set up the buffer with centering
-    (org-social-ui--setup-centered-buffer)
+    ;; Don't set up special-mode yet - let the async fetch complete first
     (goto-char (point-min))
 
     ;; Fetch and display profile
@@ -1133,6 +1195,221 @@ Only checks posts that will be visible on the current page."
 (defun org-social-ui--insert-profile-header ()
   "Insert profile header with navigation and actions."
   (org-social-ui--insert-logo)
+
+  ;; Back button (kill buffer)
+  (widget-create 'push-button
+                 :notify (lambda (&rest _) (kill-current-buffer))
+                 :help-echo "Close profile"
+                 " ← Back ")
+
+  (org-social-ui--insert-formatted-text "\n")
+
+  (org-social-ui--insert-separator))
+
+(defun org-social-ui--fetch-and-display-profile (user-url)
+  "Fetch and display profile data for USER-URL."
+  (require 'request nil t)
+  (if (not (featurep 'request))
+      (progn
+        (org-social-ui--insert-formatted-text "Error: request library not available.\n" nil "#ff6b6b")
+        (org-social-ui--insert-formatted-text "Profile viewing requires the 'request' package to be installed.\n" nil "#666666"))
+    (let ((url user-url))  ; Capture variable for closures
+      (request url
+               :timeout 15
+               :success (cl-function
+                         (lambda (&key data &allow-other-keys)
+                           (org-social-ui--display-profile-data url data)))
+               :error (cl-function
+                       (lambda (&key error-thrown response &allow-other-keys)
+                         (let ((status-code (when response (request-response-status-code response))))
+                           (if (eq status-code 404)
+                               ;; Handle 404 silently - don't spam the user
+                               (org-social-ui--display-profile-error url "Profile not found (404)")
+                             ;; Handle other errors normally
+                             (org-social-ui--display-profile-error url error-thrown)))))))))
+
+(defun org-social-ui--display-profile-data (user-url data)
+  "Display profile DATA for USER-URL in the current buffer."
+  (with-current-buffer org-social-ui--profile-buffer-name
+    (let ((inhibit-read-only t))
+      (setq buffer-read-only nil)
+
+      ;; Remove loading message
+      (goto-char (point-min))
+      (when (re-search-forward "Loading profile.*\n" nil t)
+        (replace-match ""))
+
+      ;; Insert profile info
+      (goto-char (point-max))
+
+      ;; Parse and display profile data
+      (condition-case err
+          (org-social-ui--parse-and-display-profile data user-url)
+        (error
+         (org-social-ui--insert-formatted-text
+          (format "Error parsing profile: %s\n" (error-message-string err))
+          nil "#ff6b6b")))
+
+      ;; Insert raw content section (collapsed by default)
+      (org-social-ui--insert-separator)
+      (org-social-ui--insert-formatted-text "📄 Raw Feed Content:\n\n" nil "#666666")
+
+      ;; Display raw content (as plain text, without org-mode formatting)
+      (insert data)
+
+      ;; Setup buffer with special mode and centering
+      (org-social-ui--setup-centered-buffer)
+      (goto-char (point-min))
+      (setq buffer-read-only t))))
+
+(defun org-social-ui--display-profile-error (user-url error)
+  "Display ERROR message for failed profile fetch of USER-URL."
+  (with-current-buffer org-social-ui--profile-buffer-name
+    (let ((inhibit-read-only t))
+      (setq buffer-read-only nil)
+
+      ;; Remove loading message
+      (goto-char (point-min))
+      (when (re-search-forward "Loading profile.*\n" nil t)
+        (replace-match ""))
+
+      ;; Insert error message
+      (goto-char (point-max))
+      (org-social-ui--insert-formatted-text
+       (format "Failed to fetch profile from %s\n" user-url)
+       'bold "#ff6b6b")
+      (org-social-ui--insert-formatted-text
+       (format "Error: %s\n\n" error)
+       nil "#666666")
+      (org-social-ui--insert-formatted-text
+       "Please check the URL and your internet connection.\n"
+       nil "#666666")
+
+      ;; Setup buffer with special mode and centering
+      (org-social-ui--setup-centered-buffer)
+      (goto-char (point-min))
+      (setq buffer-read-only t))))
+
+(defun org-social-ui--parse-and-display-profile (data user-url)
+  "Parse and display profile DATA from USER-URL."
+  (let* ((feed-data data)
+         (nick (org-social-parser--get-value feed-data "NICK"))
+         (description (org-social-parser--get-value feed-data "DESCRIPTION"))
+         (avatar (org-social-parser--get-value feed-data "AVATAR"))
+         (links (org-social-parser--get-value feed-data "LINK"))
+         (contacts (org-social-parser--get-value feed-data "CONTACT"))
+         (follows (org-social-parser--get-value feed-data "FOLLOW"))
+         (groups (org-social-parser--get-value feed-data "GROUP")))
+
+    ;; Nick section
+    (org-social-ui--insert-formatted-text "Nick: " 'bold "#ffaa00")
+    (if nick
+        (org-social-ui--insert-formatted-text (format "🧑‍💻 %s\n" nick))
+      (org-social-ui--insert-formatted-text "🧑‍💻 Anonymous User\n"))
+
+    ;; Description section
+    (when (and description (not (string-empty-p description)))
+      (org-social-ui--insert-formatted-text "Description: " 'bold "#ffaa00")
+      (org-social-ui--insert-formatted-text (format "%s\n" description)))
+
+    ;; Avatar section
+    (when (and avatar (not (string-empty-p avatar)))
+      (org-social-ui--insert-formatted-text "Avatar: " 'bold "#ffaa00")
+      (org-social-ui--insert-formatted-text "🖼️ ")
+      (widget-create 'push-button
+                     :notify `(lambda (&rest _)
+                               (browse-url ,avatar))
+                     :help-echo "View avatar image"
+                     avatar)
+      (org-social-ui--insert-formatted-text "\n"))
+
+    ;; Profile URL section
+    (org-social-ui--insert-formatted-text "URL: " 'bold "#ffaa00")
+    (org-social-ui--insert-formatted-text "🔗 ")
+    (widget-create 'push-button
+                   :notify `(lambda (&rest _)
+                             (browse-url ,user-url))
+                   :help-echo "Open profile URL"
+                   user-url)
+    (org-social-ui--insert-formatted-text "\n")
+
+    ;; Links section
+    (when links
+      (org-social-ui--insert-formatted-text "\nLinks: " 'bold "#ffaa00")
+      (org-social-ui--insert-formatted-text "\n")
+      (let ((links-list (if (listp links) links (list links))))
+        (dolist (link links-list)
+          (org-social-ui--insert-formatted-text "  • ")
+          (widget-create 'push-button
+                         :notify `(lambda (&rest _)
+                                   (browse-url ,link))
+                         :help-echo "Open link"
+                         link)
+          (org-social-ui--insert-formatted-text "\n"))))
+
+    ;; Contact section
+    (when contacts
+      (org-social-ui--insert-formatted-text "\nContact: " 'bold "#ffaa00")
+      (org-social-ui--insert-formatted-text "\n")
+      (let ((contacts-list (if (listp contacts) contacts (list contacts))))
+        (dolist (contact contacts-list)
+          (org-social-ui--insert-formatted-text "  • ")
+          (cond
+           ((string-prefix-p "mailto:" contact)
+            (org-social-ui--insert-formatted-text "✉️ ")
+            (widget-create 'push-button
+                           :notify `(lambda (&rest _)
+                                     (browse-url ,contact))
+                           :help-echo "Send email"
+                           (substring contact 7)))
+           ((string-prefix-p "xmpp:" contact)
+            (org-social-ui--insert-formatted-text "💬 ")
+            (org-social-ui--insert-formatted-text (substring contact 5)))
+           ((string-prefix-p "https://" contact)
+            (org-social-ui--insert-formatted-text "🌍 ")
+            (widget-create 'push-button
+                           :notify `(lambda (&rest _)
+                                     (browse-url ,contact))
+                           :help-echo "Open profile"
+                           contact))
+           (t
+            (org-social-ui--insert-formatted-text "📞 ")
+            (org-social-ui--insert-formatted-text contact)))
+          (org-social-ui--insert-formatted-text "\n"))))
+
+    ;; Follows section
+    (when follows
+      (org-social-ui--insert-formatted-text "\nFollowing: " 'bold "#ffaa00")
+      (org-social-ui--insert-formatted-text "\n")
+      (let ((follows-list (if (listp follows) follows (list follows))))
+        (dolist (follow follows-list)
+          (org-social-ui--insert-formatted-text "  • ")
+          (org-social-ui--insert-formatted-text follow)
+          (org-social-ui--insert-formatted-text "\n"))))
+
+    ;; Groups section
+    (when groups
+      (org-social-ui--insert-formatted-text "\nGroups: " 'bold "#ffaa00")
+      (org-social-ui--insert-formatted-text "\n")
+      (let ((groups-list (if (listp groups) groups (list groups))))
+        (dolist (group groups-list)
+          (org-social-ui--insert-formatted-text "  • ")
+          (org-social-ui--insert-formatted-text group)
+          (org-social-ui--insert-formatted-text "\n"))))))
+
+;;; Thread Screen
+
+(defun org-social-ui--insert-thread-header (_post-url)
+  "Insert thread header with navigation and back button for POST-URL."
+  (org-social-ui--insert-logo)
+
+  ;; Back button to previous thread level or timeline
+  (widget-create 'push-button
+                 :notify (lambda (&rest _) (org-social-ui--thread-go-back))
+                 :help-echo "Go back to previous thread level"
+                 " ← Back ")
+
+  (org-social-ui--insert-formatted-text " ")
 
   ;; Navigation buttons
   (widget-create 'push-button
@@ -1156,144 +1433,110 @@ Only checks posts that will be visible on the current page."
 
   (org-social-ui--insert-formatted-text "\n\n")
 
-  ;; Action buttons
-  (widget-create 'push-button
-                 :notify (lambda (&rest _) (org-social-ui--refresh))
-                 :help-echo "Refresh profile"
-                 " 🔄 Refresh ")
-
-  (org-social-ui--insert-formatted-text "\n\n")
+  ;; Thread level indicator
+  (org-social-ui--insert-formatted-text
+   (format "🧵 Thread Level %d " org-social-ui--thread-level) 1.2 "#3498db")
+  (org-social-ui--insert-formatted-text
+   (format "(%d level%s deep)\n\n"
+           org-social-ui--thread-level
+           (if (= org-social-ui--thread-level 1) "" "s"))
+   nil "#666666")
 
   (org-social-ui--insert-separator))
 
-(defun org-social-ui--fetch-and-display-profile (user-url)
-  "Fetch and display profile data for USER-URL."
+(defun org-social-ui--thread-go-back ()
+  "Go back to previous thread level or timeline."
+  (interactive)
+  (if (> (length org-social-ui--thread-stack) 1)
+      (progn
+        ;; Remove current level from stack
+        (pop org-social-ui--thread-stack)
+        (setq org-social-ui--thread-level (length org-social-ui--thread-stack))
+        ;; Go to previous thread level
+        (let ((parent-post-url (car org-social-ui--thread-stack)))
+          (org-social-ui-thread parent-post-url)))
+    ;; If at top level, go back to timeline and clear stack
+    (setq org-social-ui--thread-stack nil)
+    (setq org-social-ui--thread-level 0)
+    (org-social-ui-timeline)))
+
+(defun org-social-ui--fetch-and-display-parent-post (post-url)
+  "Display the parent post for POST-URL."
+  ;; Just display the post URL and link for now, avoid HTTP requests that cause 404s
+  (org-social-ui--insert-formatted-text "📝 Original Post:\n\n" 1.1 "#3498db")
+  (org-social-ui--insert-formatted-text
+   (format "%s\n\n" post-url) nil "#4a90e2")
+  (org-social-ui--insert-separator))
+
+
+(defun org-social-ui--fetch-and-display-thread (post-url)
+  "Fetch and display thread replies for POST-URL."
   (require 'request nil t)
   (if (not (featurep 'request))
       (progn
         (org-social-ui--insert-formatted-text "Error: request library not available.\n" nil "#ff6b6b")
-        (org-social-ui--insert-formatted-text "Profile viewing requires the 'request' package to be installed.\n" nil "#666666"))
-    (request user-url
-             :timeout 15
-             :success (cl-function
-                       (lambda (&key data &allow-other-keys)
-                         (org-social-ui--display-profile-data user-url data)))
-             :error (cl-function
-                     (lambda (&key error-thrown &allow-other-keys)
-                       (org-social-ui--display-profile-error user-url error-thrown))))))
+        (org-social-ui--insert-formatted-text "Thread viewing requires the 'request' package to be installed.\n" nil "#666666"))
+    (org-social-relay--fetch-replies
+     post-url
+     (lambda (replies)
+       (org-social-ui--display-thread-replies post-url replies)))))
 
-(defun org-social-ui--display-profile-data (user-url data)
-  "Display profile DATA for USER-URL in the current buffer."
-  (with-current-buffer org-social-ui--profile-buffer-name
-    (setq buffer-read-only nil)
-    (let ((inhibit-read-only t))
-      ;; Remove loading message
-      (goto-char (point-min))
-      (when (re-search-forward "Loading profile.*\n" nil t)
-        (replace-match ""))
+(defun org-social-ui--display-thread-replies (post-url replies)
+  "Display REPLIES for POST-URL in the current thread buffer."
+  (let ((buffer-name (format "*Org Social Thread Level %d*" org-social-ui--thread-level)))
+    (with-current-buffer buffer-name
+      (setq buffer-read-only nil)
+      (let ((inhibit-read-only t))
+        ;; Remove loading message
+        (goto-char (point-min))
+        (when (re-search-forward "Loading thread.*\n" nil t)
+          (replace-match ""))
 
-      ;; Insert profile info
-      (goto-char (point-max))
-      (org-social-ui--insert-formatted-text
-       (format "Profile: %s\n\n" (file-name-nondirectory user-url))
-       'bold "#2c3e50")
+        ;; Insert thread content
+        (goto-char (point-max))
 
-      ;; Parse and display profile data
-      (condition-case err
-          (org-social-ui--parse-and-display-profile data user-url)
-        (error
-         (org-social-ui--insert-formatted-text
-          (format "Error parsing profile: %s\n" (error-message-string err))
-          nil "#ff6b6b")))
+        ;; First try to fetch and display the actual parent post content
+        (org-social-ui--fetch-and-display-parent-post post-url)
 
-      ;; Insert raw content section
-      (org-social-ui--insert-formatted-text "\n")
-      (org-social-ui--insert-separator)
-      (org-social-ui--insert-formatted-text "Raw Feed Content:\n\n" 'bold "#2c3e50")
+        (if (and replies (> (length replies) 0))
+            (progn
+              ;; Filter out the original post from replies to avoid duplication
+              (let ((filtered-replies
+                     (cl-remove-if (lambda (reply)
+                                    (let ((reply-url (alist-get 'url reply))
+                                          (reply-id (or (alist-get 'timestamp reply)
+                                                       (alist-get 'id reply))))
+                                      ;; Remove if this reply matches the original post URL
+                                      (and reply-url reply-id
+                                           (string= (format "%s#%s" reply-url reply-id) post-url))))
+                                  replies)))
+                (if (> (length filtered-replies) 0)
+                    (progn
+                      ;; Display replies header without count
+                      (org-social-ui--insert-formatted-text
+                       "💬 Replies:\n\n" 1.1 "#27ae60")
 
-      ;; Display raw content in org-mode
-      (let ((content-start (point)))
-        (insert data)
-        (let ((content-end (point)))
-          ;; Apply org-mode syntax highlighting to content only
-          (save-excursion
-            (goto-char content-start)
-            (org-mode)
-            (font-lock-fontify-region content-start content-end))))
+                      ;; Display each filtered reply as a timeline-style post
+                      (dolist (reply filtered-replies)
+                        (org-social-ui--post-component reply nil)))
+                  ;; No actual replies after filtering
+                  (progn
+                    (org-social-ui--insert-formatted-text
+                     "📭 No replies found for this post.\n\n" nil "#e67e22")
+                    (org-social-ui--insert-formatted-text
+                     "This might be the end of the thread, or replies may not be available through the relay.\n"
+                     nil "#666666")))))
 
-      ;; Setup buffer
-      (goto-char (point-min))
-      (setq buffer-read-only t))))
+          ;; No replies found
+          (org-social-ui--insert-formatted-text
+           "📭 No replies found for this post.\n\n" nil "#e67e22")
+          (org-social-ui--insert-formatted-text
+           "This might be the end of the thread, or replies may not be available through the relay.\n"
+           nil "#666666"))
 
-(defun org-social-ui--display-profile-error (user-url error)
-  "Display ERROR message for failed profile fetch of USER-URL."
-  (with-current-buffer org-social-ui--profile-buffer-name
-    (setq buffer-read-only nil)
-    (let ((inhibit-read-only t))
-      ;; Remove loading message
-      (goto-char (point-min))
-      (when (re-search-forward "Loading profile.*\n" nil t)
-        (replace-match ""))
-
-      ;; Insert error message
-      (goto-char (point-max))
-      (org-social-ui--insert-formatted-text
-       (format "Failed to fetch profile from %s\n" user-url)
-       'bold "#ff6b6b")
-      (org-social-ui--insert-formatted-text
-       (format "Error: %s\n\n" error)
-       nil "#666666")
-      (org-social-ui--insert-formatted-text
-       "Please check the URL and your internet connection.\n"
-       nil "#666666")
-
-      ;; Setup buffer
-      (goto-char (point-min))
-      (setq buffer-read-only t))))
-
-(defun org-social-ui--parse-and-display-profile (data user-url)
-  "Parse and display profile DATA from USER-URL."
-  (let* ((feed-data data)
-         (nick (org-social-parser--get-value feed-data "NICK"))
-         (title (org-social-parser--get-value feed-data "TITLE"))
-         (description (org-social-parser--get-value feed-data "DESCRIPTION"))
-         (avatar (org-social-parser--get-value feed-data "AVATAR"))
-         (follows (org-social-parser--get-value feed-data "FOLLOW"))
-         (groups (org-social-parser--get-value feed-data "GROUP")))
-
-    ;; Display profile metadata
-    (when nick
-      (org-social-ui--insert-formatted-text "Nick: " 'bold "#2c3e50")
-      (org-social-ui--insert-formatted-text (format "%s\n" nick) nil "#333333"))
-
-    (when title
-      (org-social-ui--insert-formatted-text "Title: " 'bold "#2c3e50")
-      (org-social-ui--insert-formatted-text (format "%s\n" title) nil "#333333"))
-
-    (when description
-      (org-social-ui--insert-formatted-text "Description: " 'bold "#2c3e50")
-      (org-social-ui--insert-formatted-text (format "%s\n" description) nil "#333333"))
-
-    (when avatar
-      (org-social-ui--insert-formatted-text "Avatar: " 'bold "#2c3e50")
-      (org-social-ui--insert-formatted-text (format "%s\n" avatar) nil "#333333"))
-
-    (org-social-ui--insert-formatted-text "URL: " 'bold "#2c3e50")
-    (org-social-ui--insert-formatted-text (format "%s\n" user-url) nil "#333333")
-
-    ;; Display follow information
-    (when follows
-      (org-social-ui--insert-formatted-text "\nFollows:\n" 'bold "#2c3e50")
-      (let ((follows-list (if (listp follows) follows (list follows))))
-        (dolist (follow follows-list)
-          (org-social-ui--insert-formatted-text (format "- %s\n" follow) nil "#666666"))))
-
-    ;; Display group information
-    (when groups
-      (org-social-ui--insert-formatted-text "\nGroups:\n" 'bold "#2c3e50")
-      (let ((groups-list (if (listp groups) groups (list groups))))
-        (dolist (group groups-list)
-          (org-social-ui--insert-formatted-text (format "- %s\n" group) nil "#666666"))))))
+        ;; Setup buffer
+        (goto-char (point-min))
+        (setq buffer-read-only t)))))
 
 ;;; Groups Screen
 
