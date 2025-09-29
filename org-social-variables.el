@@ -98,6 +98,12 @@ Should be a hex color code like \"#ffaa00\" for yellow."
   :type 'string
   :group 'org-social)
 
+(defcustom org-social-image-cache-directory "~/.org-social-cache/"
+  "Directory for caching downloaded profile images.
+Images are downloaded and cached to avoid repeated network requests."
+  :type 'directory
+  :group 'org-social)
+
 ;; Variables for state management
 
 (defvar org-social-variables--feeds nil

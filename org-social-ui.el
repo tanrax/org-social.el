@@ -57,6 +57,10 @@
 (defconst org-social-ui--profile-buffer-name "*Org Social Profile*")
 (defconst org-social-ui--groups-buffer-name "*Org Social Groups*")
 
+;; Image Constants
+(defconst org-social-ui--regex-image "\\bhttps?:\\/\\/[^][()[:space:]]+\\.\\(?:png\\|jpe?g\\|gif\\)\\b"
+  "Regex pattern to match image URLs (PNG, JPG, JPEG, GIF).")
+
 ;; Thread tracking variables
 (defvar org-social-ui--thread-stack nil
   "Stack of parent post URLs for thread navigation.")
@@ -181,6 +185,62 @@
   (org-social-ui--insert-formatted-text "\n")
   (org-social-ui--insert-formatted-text (org-social-ui--string-separator) nil "#666666")
   (org-social-ui--insert-formatted-text "\n"))
+
+;;; Image Functions
+
+(defun org-social-ui--image-p (text)
+  "Check if TEXT contain an image URL."
+  (and text (stringp text) (string-match-p org-social-ui--regex-image text)))
+
+(defun org-social-ui--cache-image-p (url)
+  "Check if an image from URL is already cached."
+  (when (and url (stringp url))
+    (file-exists-p (expand-file-name
+                    (base64-encode-string url :no-line-break)
+                    org-social-image-cache-directory))))
+
+(defun org-social-ui--cache-image (url &optional callback)
+  "Download an image from URL to cache.
+Optional CALLBACK is called with success status when download completes."
+  (when (and url (stringp url))
+    (unless (file-exists-p org-social-image-cache-directory)
+      (make-directory org-social-image-cache-directory t))
+    (require 'request nil t)
+    (if (featurep 'request)
+        (request url
+          :type "GET"
+          :sync t
+          :parser 'buffer-string
+          :success (cl-function
+                    (lambda (&key data &allow-other-keys)
+                      (let ((filename-image (base64-encode-string url :no-line-break)))
+                        (with-temp-file (expand-file-name filename-image org-social-image-cache-directory)
+                          (set-buffer-file-coding-system 'binary)
+                          (insert data))
+                        (when callback (funcall callback t)))))
+          :error (cl-function
+                  (lambda (&key error-thrown &allow-other-keys)
+                    (message "Error downloading image: %S" error-thrown)
+                    (when callback (funcall callback nil)))))
+      (progn
+        (message "Image caching requires the 'request' package")
+        (when callback (funcall callback nil))))))
+
+(defun org-social-ui--put-image-from-cache (url _pos &optional width)
+  "Put an image from cache at URL at position _POS with optional WIDTH."
+  (when (and url (stringp url) (display-graphic-p))
+    (unless (org-social-ui--cache-image-p url)
+      (org-social-ui--cache-image url))
+    (when (org-social-ui--cache-image-p url)
+      (let ((image-file (expand-file-name
+                         (base64-encode-string url :no-line-break)
+                         org-social-image-cache-directory)))
+        (condition-case err
+            (let ((image-props (if width (list :width width) nil)))
+              (insert-image (apply #'create-image image-file nil nil image-props) " "))
+          (error
+           (message "Error displaying image: %S" err)
+           (org-social-ui--insert-formatted-text "🖼️ [Image]" nil "#666666")))))))
 
 (defun org-social-ui--apply-org-mode-to-region (start end)
   "Apply `org-mode' syntax highlighting from START to END using overlays."
@@ -1315,13 +1375,28 @@ Only checks posts that will be visible on the current page."
     ;; Avatar section
     (when (and avatar (not (string-empty-p avatar)))
       (org-social-ui--insert-formatted-text "Avatar: " 'bold "#ffaa00")
-      (org-social-ui--insert-formatted-text "🖼️ ")
-      (widget-create 'push-button
-                     :notify `(lambda (&rest _)
-                               (browse-url ,avatar))
-                     :help-echo "View avatar image"
-                     avatar)
-      (org-social-ui--insert-formatted-text "\n"))
+      (org-social-ui--insert-formatted-text "\n")
+      ;; Display image if it's a valid image URL
+      (if (org-social-ui--image-p avatar)
+          (progn
+            (org-social-ui--insert-formatted-text "  ")
+            (org-social-ui--put-image-from-cache avatar nil 200)
+            (org-social-ui--insert-formatted-text "\n  ")
+            (widget-create 'push-button
+                           :notify `(lambda (&rest _)
+                                     (browse-url ,avatar))
+                           :help-echo "Open image in browser"
+                           "🔗 View in browser")
+            (org-social-ui--insert-formatted-text "\n"))
+        ;; If not an image, show as before
+        (progn
+          (org-social-ui--insert-formatted-text "🖼️ ")
+          (widget-create 'push-button
+                         :notify `(lambda (&rest _)
+                                   (browse-url ,avatar))
+                         :help-echo "View avatar"
+                         avatar)
+          (org-social-ui--insert-formatted-text "\n"))))
 
     ;; Profile URL section
     (org-social-ui--insert-formatted-text "URL: " 'bold "#ffaa00")
