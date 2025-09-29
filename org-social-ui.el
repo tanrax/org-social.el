@@ -111,7 +111,7 @@
   (when (boundp 'visual-fill-column-center-text)
     (setq visual-fill-column-center-text t))
   (when (boundp 'visual-fill-column-width)
-    (setq visual-fill-column-width 90))
+    (setq visual-fill-column-width 75))
   (when (fboundp 'visual-fill-column-mode)
     (visual-fill-column-mode 1))
   (use-local-map org-social-ui-mode-map))
@@ -128,7 +128,7 @@
     (when (boundp 'visual-fill-column-center-text)
       (setq visual-fill-column-center-text t))
     (when (boundp 'visual-fill-column-width)
-      (setq visual-fill-column-width 90))
+      (setq visual-fill-column-width 75))
     (visual-fill-column-mode 1)))
 
 (defun org-social-ui--insert-formatted-text (text &optional size font-color background-color)
@@ -178,7 +178,7 @@
 
 (defun org-social-ui--string-separator ()
   "Return a string with the separator character."
-  (make-string 90 org-social-ui--char-separator))
+  (make-string 75 org-social-ui--char-separator))
 
 (defun org-social-ui--insert-separator ()
   "Insert a horizontal separator line."
@@ -746,8 +746,10 @@ TIMESTAMP is the timestamp of the post being reacted to."
   (org-social-ui--insert-formatted-text "\n\n")
 
   ;; Help text
-  (org-social-ui--insert-formatted-text "Navigation: (n) Next | (p) Previous | (t) Thread | (P) Profile\n" nil "#666666")
-  (org-social-ui--insert-formatted-text "Actions: (c) New Post | (l) New Poll | (r) Reply | (N) Notifications | (G) Groups\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Navigation:\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "(n) Next | (p) Previous | (t) Thread | (P) Profile\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Actions:\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "(c) New Post | (l) New Poll | (r) Reply | (N) Notifications | (G) Groups\n" nil "#666666")
   (org-social-ui--insert-formatted-text "Other: (g) Refresh | (q) Quit\n" nil "#666666")
 
   (org-social-ui--insert-separator))
@@ -814,7 +816,8 @@ TIMESTAMP is the timestamp of the post being reacted to."
 
   ;; Help text
   (org-social-ui--insert-formatted-text "Your Mentions and Replies\n" 1.2 "#4a90e2")
-  (org-social-ui--insert-formatted-text "Navigation: (n) Next | (p) Previous | (T) Timeline | (G) Groups\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Navigation:\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "(n) Next | (p) Previous | (T) Timeline | (G) Groups\n" nil "#666666")
   (org-social-ui--insert-formatted-text "Other: (g) Refresh | (q) Quit\n" nil "#666666")
 
   (org-social-ui--insert-separator))
@@ -1361,21 +1364,8 @@ Only checks posts that will be visible on the current page."
          (follows (org-social-parser--get-value feed-data "FOLLOW"))
          (groups (org-social-parser--get-value feed-data "GROUP")))
 
-    ;; Nick section
-    (org-social-ui--insert-formatted-text "Nick: " 'bold "#ffaa00")
-    (if nick
-        (org-social-ui--insert-formatted-text (format "🧑‍💻 %s\n" nick))
-      (org-social-ui--insert-formatted-text "🧑‍💻 Anonymous User\n"))
-
-    ;; Description section
-    (when (and description (not (string-empty-p description)))
-      (org-social-ui--insert-formatted-text "Description: " 'bold "#ffaa00")
-      (org-social-ui--insert-formatted-text (format "%s\n" description)))
-
-    ;; Avatar section
+    ;; Avatar section (moved above nick)
     (when (and avatar (not (string-empty-p avatar)))
-      (org-social-ui--insert-formatted-text "Avatar: " 'bold "#ffaa00")
-      (org-social-ui--insert-formatted-text "\n")
       ;; Display image if it's a valid image URL
       (if (org-social-ui--image-p avatar)
           (progn
@@ -1387,7 +1377,7 @@ Only checks posts that will be visible on the current page."
                                      (browse-url ,avatar))
                            :help-echo "Open image in browser"
                            "🔗 View in browser")
-            (org-social-ui--insert-formatted-text "\n"))
+            (org-social-ui--insert-formatted-text "\n\n"))
         ;; If not an image, show as before
         (progn
           (org-social-ui--insert-formatted-text "🖼️ ")
@@ -1396,7 +1386,18 @@ Only checks posts that will be visible on the current page."
                                    (browse-url ,avatar))
                          :help-echo "View avatar"
                          avatar)
-          (org-social-ui--insert-formatted-text "\n"))))
+          (org-social-ui--insert-formatted-text "\n\n"))))
+
+    ;; Nick section
+    (org-social-ui--insert-formatted-text "Nick: " 'bold "#ffaa00")
+    (if nick
+        (org-social-ui--insert-formatted-text (format "🧑‍💻 %s\n" nick))
+      (org-social-ui--insert-formatted-text "🧑‍💻 Anonymous User\n"))
+
+    ;; Description section
+    (when (and description (not (string-empty-p description)))
+      (org-social-ui--insert-formatted-text "Description: " 'bold "#ffaa00")
+      (org-social-ui--insert-formatted-text (format "%s\n" description)))
 
     ;; Profile URL section
     (org-social-ui--insert-formatted-text "URL: " 'bold "#ffaa00")
@@ -1651,7 +1652,8 @@ Only checks posts that will be visible on the current page."
 
   ;; Help text
   (org-social-ui--insert-formatted-text "Groups and Communities\n" 1.2 "#4a90e2")
-  (org-social-ui--insert-formatted-text "Navigate: (n) Next | (p) Previous | (T) Timeline | (N) Notifications\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Navigate:\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "(n) Next | (p) Previous | (T) Timeline | (N) Notifications\n" nil "#666666")
   (org-social-ui--insert-formatted-text "Other: (g) Refresh | (q) Quit\n" nil "#666666")
 
   (org-social-ui--insert-separator))
