@@ -609,6 +609,7 @@ Uses cache to avoid redundant queries."
                            ;; Check for HTTP status
                            (when (re-search-forward "^HTTP/[0-9.]+ \\([0-9]+\\)" nil t)
                              (let ((status (string-to-number (match-string 1))))
+                               ;; Only process 200 OK responses, silently ignore 404 and others
                                (when (= status 200)
                                  (goto-char (point-min))
                                  (re-search-forward "^$")
@@ -619,6 +620,7 @@ Uses cache to avoid redundant queries."
                                   (data (alist-get 'data response)))
                              (and data (listp data) (> (length data) 0))))))
                    (error
+                    ;; Silently ignore errors (network issues, 404s, etc)
                     nil))))))
         ;; Cache the result
         (puthash post-url result org-social-ui--replies-cache)
