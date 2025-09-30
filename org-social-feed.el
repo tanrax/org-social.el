@@ -146,11 +146,13 @@ Argument NEW-RESPONSE"
 			     (url (alist-get :url item))
 			     (nick (or (org-social-parser--get-value feed "NICK") "Unknown"))
 			     (title (org-social-parser--get-value feed "TITLE"))
+			     (avatar (org-social-parser--get-value feed "AVATAR"))
 			     (posts (org-social-parser--get-posts-from-feed feed)))
 			(list
 			 (cons 'id (gensym))
 			 (cons 'nick nick)
 			 (cons 'title title)
+			 (cons 'avatar avatar)
 			 (cons 'url url)
 			 (cons 'posts posts))))
 		    org-social-variables--queue))
@@ -166,13 +168,15 @@ Argument NEW-RESPONSE"
                              (let ((author-id (alist-get 'id feed))
                                    (author-nick (alist-get 'nick feed))
                                    (author-url (alist-get 'url feed))
+                                   (author-avatar (alist-get 'avatar feed))
                                    (posts (alist-get 'posts feed)))
                                (mapcar (lambda (post)
                                          ;; Create a new list with author properties AND all post properties
                                          (append (list
                                                   (cons 'author-id author-id)
                                                   (cons 'author-nick author-nick)
-                                                  (cons 'author-url author-url))
+                                                  (cons 'author-url author-url)
+                                                  (cons 'author-avatar author-avatar))
                                                  post)) ; Incluir TODAS las propiedades del post original
                                        posts)))
                            org-social-variables--feeds))

@@ -636,6 +636,9 @@ Uses cache to avoid redundant queries."
          (author-url (or (alist-get 'author-url post)
                         (alist-get 'url post)
                         ""))
+         (avatar (or (alist-get 'author-avatar post)
+                    (alist-get 'avatar post)
+                    (alist-get 'feed-avatar post)))
          (timestamp (or (alist-get 'timestamp post)
                        (alist-get 'id post)
                        (alist-get 'date post)
@@ -741,7 +744,17 @@ Uses cache to avoid redundant queries."
     ;; 5. Add line break between buttons and user info
     (org-social-ui--insert-formatted-text "\n\n")
 
-    ;; 6. Post header with author name, timestamp, and client at the end
+    ;; 6. Post header with avatar, author name, timestamp, and client
+    ;; Avatar image
+    (if (and avatar (not (string-empty-p avatar)))
+        (progn
+          (org-social-ui--insert-formatted-text " ")
+          (org-social-ui--put-image-from-cache avatar (line-number-at-pos) 30)
+          (org-social-ui--insert-formatted-text " "))
+      ;; No avatar - show anonymous emoji
+      (org-social-ui--insert-formatted-text "👤 " nil "#4a90e2"))
+
+    ;; Author name
     (org-social-ui--insert-formatted-text (format "@%s" author) 1.1 "#4a90e2")
     (org-social-ui--insert-formatted-text " • ")
     (org-social-ui--insert-formatted-text (org-social--format-date timestamp) nil "#666666")
