@@ -667,23 +667,24 @@ Uses cache to avoid redundant queries."
         (insert text)
         (insert "\n"))
 
-      ;; Mood reaction if any
-      (when (and mood (not (string-empty-p mood)))
-        (insert (format " %s\n" mood)))
-
       ;; Apply org-mode syntax highlighting to this region only
       (org-social-ui--apply-org-mode-to-region org-content-start (point)))
 
     ;; 3. Add line break between content and hashtags
     (org-social-ui--insert-formatted-text "\n")
 
-    ;; 4. Tags if any - format each tag with # prefix using same technique as name/date/client
-    (when (and tags (not (string-empty-p tags)))
-      (let ((tag-list (split-string tags "\\s-+" t)))
-        (dolist (tag tag-list)
-          (org-social-ui--insert-formatted-text (format "#%s" tag) nil org-social-hashtag-color)
-          (org-social-ui--insert-formatted-text " "))
-        (org-social-ui--insert-formatted-text "\n")))
+    ;; 4. Tags and mood in same line
+    (when (or (and tags (not (string-empty-p tags)))
+              (and mood (not (string-empty-p mood))))
+      (when (and tags (not (string-empty-p tags)))
+        (let ((tag-list (split-string tags "\\s-+" t)))
+          (dolist (tag tag-list)
+            (org-social-ui--insert-formatted-text (format "#%s" tag) nil org-social-hashtag-color)
+            (org-social-ui--insert-formatted-text " "))))
+      ;; Mood at the end of tags line
+      (when (and mood (not (string-empty-p mood)))
+        (org-social-ui--insert-formatted-text (format "%s" mood)))
+      (org-social-ui--insert-formatted-text "\n"))
 
     ;; Add line break before action buttons
     (insert "\n")
