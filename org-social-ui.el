@@ -71,6 +71,12 @@
 (defvar org-social-ui--current-thread-parent-url nil
   "Stores the parent URL of the current thread post.")
 
+(defvar org-social-ui--posts-with-replies nil
+  "Hash table of post URLs that have replies according to relay.")
+
+(defvar org-social-ui--replies-cache (make-hash-table :test 'equal)
+  "Cache for replies check results to avoid redundant relay queries.")
+
 ;; UI Variables
 (defvar org-social-ui--current-screen nil
   "Current screen being displayed.")
@@ -572,6 +578,52 @@ TIMESTAMP is the timestamp of the post being reacted to."
   (setq org-social-ui--thread-stack nil)
   (setq org-social-ui--thread-level 0))
 
+;;; Thread Helper Functions
+
+(defun org-social-ui--post-has-replies-p (post-url)
+  "Check synchronously if POST-URL has replies via relay.
+Returns t if post has replies, nil otherwise.
+Uses cache to avoid redundant queries."
+  ;; Check cache first
+  (let ((cached-result (gethash post-url org-social-ui--replies-cache 'not-found)))
+    (if (not (eq cached-result 'not-found))
+        cached-result
+      ;; Not in cache, query relay
+      (let ((result
+             (when (and org-social-relay
+                        (not (string-empty-p org-social-relay)))
+               (require 'org-social-relay)
+               (require 'url-util)
+               (require 'json)
+               (let* ((relay-url (string-trim-right org-social-relay "/"))
+                      (encoded-url (url-hexify-string post-url))
+                      (full-url (format "%s/replies/?post=%s" relay-url encoded-url))
+                      response-buffer
+                      response-data)
+                 (condition-case _err
+                     (progn
+                       (setq response-buffer (url-retrieve-synchronously full-url t nil 5))
+                       (when response-buffer
+                         (with-current-buffer response-buffer
+                           (goto-char (point-min))
+                           ;; Check for HTTP status
+                           (when (re-search-forward "^HTTP/[0-9.]+ \\([0-9]+\\)" nil t)
+                             (let ((status (string-to-number (match-string 1))))
+                               (when (= status 200)
+                                 (goto-char (point-min))
+                                 (re-search-forward "^$")
+                                 (setq response-data (buffer-substring-no-properties (point) (point-max))))))
+                           (kill-buffer))
+                         (when (and response-data (not (string-empty-p response-data)))
+                           (let* ((response (json-read-from-string response-data))
+                                  (data (alist-get 'data response)))
+                             (and data (listp data) (> (length data) 0))))))
+                   (error
+                    nil))))))
+        ;; Cache the result
+        (puthash post-url result org-social-ui--replies-cache)
+        result))))
+
 ;;; Post Component
 
 (defun org-social-ui--post-component (post _timeline-data)
@@ -649,35 +701,23 @@ TIMESTAMP is the timestamp of the post being reacted to."
                          " 😊 React ")
           (setq first-button nil))
 
-        ;; Calculate post URL and reply-to for various buttons
-        (let ((post-url (if (string-empty-p author-url)
-                           (format "%s#%s"
-                                  (alist-get 'url org-social-variables--my-profile)
-                                  timestamp)
-                         (format "%s#%s" author-url timestamp)))
-              (reply-to (alist-get 'reply_to post)))
-
-          ;; Go to parent button (only if post is a reply)
-          (when (and reply-to (not (string-empty-p reply-to)))
+        ;; Thread button - show if post has reply_to OR has replies
+        (let* ((reply-to (alist-get 'reply_to post))
+               (post-url (if (string-empty-p author-url)
+                            (format "%s#%s"
+                                   (alist-get 'url org-social-variables--my-profile)
+                                   timestamp)
+                          (format "%s#%s" author-url timestamp)))
+               (has-reply-to (and reply-to (not (string-empty-p reply-to))))
+               (has-replies (org-social-ui--post-has-replies-p post-url))
+               (thread-url (if has-reply-to reply-to post-url)))
+          (when (or has-reply-to has-replies)
             (unless first-button (org-social-ui--insert-formatted-text " "))
             (widget-create 'push-button
                            :notify `(lambda (&rest _)
-                                     (org-social-ui-thread ,reply-to))
-                           " ⬆ Go to parent ")
-            (setq first-button nil))
-
-          ;; Thread button - always visible, opens thread view
-          ;; If post has reply_to, open parent's thread (previous level)
-          ;; Otherwise open this post's thread
-          (unless first-button (org-social-ui--insert-formatted-text " "))
-          (let ((thread-url (if (and reply-to (not (string-empty-p reply-to)))
-                               reply-to
-                             post-url)))
-            (widget-create 'push-button
-                           :notify `(lambda (&rest _)
                                      (org-social-ui-thread ,thread-url))
-                           " 🧵 Thread "))
-          (setq first-button nil))
+                           " 🧵 Thread ")
+            (setq first-button nil)))
 
         ;; Profile button (only for others' posts)
         (when (not is-my-post)
@@ -907,6 +947,9 @@ TIMESTAMP is the timestamp of the post being reacted to."
   (interactive)
   (setq org-social-ui--current-screen 'timeline)
   (setq org-social-ui--current-page 1)
+
+  ;; Clear replies cache on timeline refresh
+  (clrhash org-social-ui--replies-cache)
 
   (let ((buffer-name org-social-ui--timeline-buffer-name))
     (switch-to-buffer buffer-name)
@@ -1516,27 +1559,40 @@ Only checks posts that will be visible on the current page."
         (goto-char (point-min))
         ;; Find the Back button and add parent button after it
         (when (search-forward "← Back " nil t)
+          ;; Delete the placeholder space and newline
+          (delete-region (point) (progn (forward-line 1) (point)))
+          ;; Insert the parent button
           (widget-create 'push-button
                          :notify (lambda (&rest _) (org-social-ui--thread-go-up))
                          :help-echo "Go to parent post"
                          " ⬆ Go to parent ")
-          (widget-setup))))))
+          (insert "\n")
+          (widget-setup)
+          ;; Re-insert separator
+          (org-social-ui--insert-separator))))))
 
 (defun org-social-ui--thread-go-back ()
   "Go back to previous thread level or timeline."
   (interactive)
-  (if (> (length org-social-ui--thread-stack) 1)
-      (progn
-        ;; Remove current level from stack
-        (pop org-social-ui--thread-stack)
-        (setq org-social-ui--thread-level (length org-social-ui--thread-stack))
-        ;; Go to previous thread level
-        (let ((parent-post-url (car org-social-ui--thread-stack)))
-          (org-social-ui-thread parent-post-url)))
-    ;; If at top level, go back to timeline and clear stack
-    (setq org-social-ui--thread-stack nil)
-    (setq org-social-ui--thread-level 0)
-    (org-social-ui-timeline)))
+  (let ((current-buffer (current-buffer)))
+    (if (> (length org-social-ui--thread-stack) 1)
+        (progn
+          ;; Remove current level from stack
+          (pop org-social-ui--thread-stack)
+          (setq org-social-ui--thread-level (length org-social-ui--thread-stack))
+          ;; Go to previous thread level
+          (let ((parent-post-url (car org-social-ui--thread-stack)))
+            (org-social-ui-thread parent-post-url))
+          ;; Kill the current thread buffer
+          (when (buffer-live-p current-buffer)
+            (kill-buffer current-buffer)))
+      ;; If at top level, go back to timeline and clear stack
+      (setq org-social-ui--thread-stack nil)
+      (setq org-social-ui--thread-level 0)
+      (org-social-ui-timeline)
+      ;; Kill the current thread buffer
+      (when (buffer-live-p current-buffer)
+        (kill-buffer current-buffer)))))
 
 (defun org-social-ui--thread-go-up ()
   "Go up one level to the parent post."
