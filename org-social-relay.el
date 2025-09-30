@@ -32,7 +32,8 @@ Call CALLBACK with discovered endpoints."
            :success (cl-function
                      (lambda (&key data &allow-other-keys)
                        (condition-case err
-                           (let* ((response (json-read-from-string data))
+                           (if (and data (stringp data) (not (string-empty-p data)))
+                               (let* ((response (json-read-from-string data))
                                   (links (cdr (assoc '_links response)))
                                   (endpoints (make-hash-table :test 'equal)))
                              ;; Parse _links structure - can be either object (new format) or array (old format)
@@ -61,8 +62,12 @@ Call CALLBACK with discovered endpoints."
                                      (when (and rel href method)
                                        (puthash rel (list :href href :method method) endpoints)))))))
                              (funcall callback endpoints))
+                             (progn
+                               (message "Received empty, nil, or non-string response from relay: %S" data)
+                               (funcall callback nil)))
                          (error
-                          (message "Failed to parse relay API response: %s" (error-message-string err))))))
+                          (message "Failed to parse relay API response: %s (data: %S)" (error-message-string err) data)
+                          (funcall callback nil)))))
            :error (cl-function
                    (lambda (&key error-thrown &allow-other-keys)
                      (message "Failed to discover relay endpoints: %s"
@@ -122,15 +127,19 @@ Call CALLBACK with the list of feed URLs."
                           :success (cl-function
                                     (lambda (&key data &allow-other-keys)
                                       (condition-case err
-                                          (let* ((response (json-read-from-string data))
-                                                 (feeds-data (cdr (assoc 'data response))))
-                                            ;; Handle both vectors and lists
-                                            (let ((feeds-list (if (vectorp feeds-data)
-                                                                  (append feeds-data nil)
-                                                                feeds-data)))
-                                              (funcall callback feeds-list)))
+                                          (if (and data (stringp data) (not (string-empty-p data)))
+                                              (let* ((response (json-read-from-string data))
+                                                     (feeds-data (cdr (assoc 'data response))))
+                                                ;; Handle both vectors and lists
+                                                (let ((feeds-list (if (vectorp feeds-data)
+                                                                      (append feeds-data nil)
+                                                                    feeds-data)))
+                                                  (funcall callback feeds-list)))
+                                            (progn
+                                              (message "Received empty, nil, or non-string response from relay: %S" data)
+                                              (funcall callback nil)))
                                         (error
-                                         (message "Failed to parse relay feeds response: %s" (error-message-string err))
+                                         (message "Failed to parse relay feeds response: %s (data: %S)" (error-message-string err) data)
                                          (funcall callback nil)))))
                           :error (cl-function
                                   (lambda (&key error-thrown &allow-other-keys)
@@ -170,22 +179,26 @@ Call CALLBACK with the list of post URLs that mention the user."
                             :success (cl-function
                                       (lambda (&key data &allow-other-keys)
                                         (condition-case err
-                                            (let* ((response (json-read-from-string data))
-                                                   (response-type (cdr (assoc 'type response)))
-                                                   (mentions-data (cdr (assoc 'data response))))
-                                              ;; Check if response is successful
-                                              (if (string= response-type "Success")
-                                                  (progn
-                                                    ;; Handle both vectors and lists
-                                                    (let ((mentions-list (if (vectorp mentions-data)
-                                                                            (append mentions-data nil)
-                                                                          mentions-data)))
-                                                      (funcall callback mentions-list)))
-                                                (progn
-                                                  (message "Relay returned error response: %s" response-type)
-                                                  (funcall callback nil))))
+                                            (if (and data (stringp data) (not (string-empty-p data)))
+                                                (let* ((response (json-read-from-string data))
+                                                       (response-type (cdr (assoc 'type response)))
+                                                       (mentions-data (cdr (assoc 'data response))))
+                                                  ;; Check if response is successful
+                                                  (if (string= response-type "Success")
+                                                      (progn
+                                                        ;; Handle both vectors and lists
+                                                        (let ((mentions-list (if (vectorp mentions-data)
+                                                                                (append mentions-data nil)
+                                                                              mentions-data)))
+                                                          (funcall callback mentions-list)))
+                                                    (progn
+                                                      (message "Relay returned error response: %s" response-type)
+                                                      (funcall callback nil))))
+                                              (progn
+                                                (message "Received empty, nil, or non-string response from relay: %S" data)
+                                                (funcall callback nil)))
                                           (error
-                                           (message "Failed to parse relay mentions response: %s" (error-message-string err))
+                                           (message "Failed to parse relay mentions response: %s (data: %S)" (error-message-string err) data)
                                            (funcall callback nil)))))
                             :error (cl-function
                                     (lambda (&key error-thrown &allow-other-keys)
@@ -221,7 +234,7 @@ Call CALLBACK with the thread structure."
                             :success (cl-function
                                       (lambda (&key data &allow-other-keys)
                                         (condition-case err
-                                            (if (and data (not (string-empty-p data)))
+                                            (if (and data (stringp data) (not (string-empty-p data)))
                                                 (let* ((response (json-read-from-string data))
                                                        (response-type (cdr (assoc 'type response)))
                                                        (replies-data (cdr (assoc 'data response))))
@@ -234,10 +247,10 @@ Call CALLBACK with the thread structure."
                                                       (message "Relay returned error response: %s" response-type)
                                                       (funcall callback nil))))
                                               (progn
-                                                (message "Received empty or nil response from relay")
+                                                (message "Received empty, nil, or non-string response from relay: %S" data)
                                                 (funcall callback nil)))
                                           (error
-                                           (message "Failed to parse relay replies response: %s" (error-message-string err))
+                                           (message "Failed to parse relay replies response: %s (data: %S)" (error-message-string err) data)
                                            (funcall callback nil)))))
                             :error (cl-function
                                     (lambda (&key error-thrown &allow-other-keys)
@@ -274,19 +287,23 @@ Call CALLBACK with the list of matching post URLs."
                             :success (cl-function
                                       (lambda (&key data &allow-other-keys)
                                         (condition-case err
-                                            (let* ((response (json-read-from-string data))
-                                                   (response-type (cdr (assoc 'type response)))
-                                                   (search-data (cdr (assoc 'data response))))
-                                              (if (string= response-type "Success")
-                                                  (let ((search-list (if (vectorp search-data)
-                                                                        (append search-data nil)
-                                                                      search-data)))
-                                                    (funcall callback search-list))
-                                                (progn
-                                                  (message "Relay returned error response: %s" response-type)
-                                                  (funcall callback nil))))
+                                            (if (and data (stringp data) (not (string-empty-p data)))
+                                                (let* ((response (json-read-from-string data))
+                                                       (response-type (cdr (assoc 'type response)))
+                                                       (search-data (cdr (assoc 'data response))))
+                                                  (if (string= response-type "Success")
+                                                      (let ((search-list (if (vectorp search-data)
+                                                                            (append search-data nil)
+                                                                          search-data)))
+                                                        (funcall callback search-list))
+                                                    (progn
+                                                      (message "Relay returned error response: %s" response-type)
+                                                      (funcall callback nil))))
+                                              (progn
+                                                (message "Received empty, nil, or non-string response from relay: %S" data)
+                                                (funcall callback nil)))
                                           (error
-                                           (message "Failed to parse relay search response: %s" (error-message-string err))
+                                           (message "Failed to parse relay search response: %s (data: %S)" (error-message-string err) data)
                                            (funcall callback nil)))))
                             :error (cl-function
                                     (lambda (&key error-thrown &allow-other-keys)
@@ -317,19 +334,23 @@ Call CALLBACK with the list of groups."
                           :success (cl-function
                                     (lambda (&key data &allow-other-keys)
                                       (condition-case err
-                                          (let* ((response (json-read-from-string data))
-                                                 (response-type (cdr (assoc 'type response)))
-                                                 (groups-data (cdr (assoc 'data response))))
-                                            (if (string= response-type "Success")
-                                                (let ((groups-list (if (vectorp groups-data)
-                                                                      (append groups-data nil)
-                                                                    groups-data)))
-                                                  (funcall callback groups-list))
-                                              (progn
-                                                (message "Relay returned error response: %s" response-type)
-                                                (funcall callback nil))))
+                                          (if (and data (stringp data) (not (string-empty-p data)))
+                                              (let* ((response (json-read-from-string data))
+                                                     (response-type (cdr (assoc 'type response)))
+                                                     (groups-data (cdr (assoc 'data response))))
+                                                (if (string= response-type "Success")
+                                                    (let ((groups-list (if (vectorp groups-data)
+                                                                          (append groups-data nil)
+                                                                        groups-data)))
+                                                      (funcall callback groups-list))
+                                                  (progn
+                                                    (message "Relay returned error response: %s" response-type)
+                                                    (funcall callback nil))))
+                                            (progn
+                                              (message "Received empty, nil, or non-string response from relay: %S" data)
+                                              (funcall callback nil)))
                                         (error
-                                         (message "Failed to parse relay groups response: %s" (error-message-string err))
+                                         (message "Failed to parse relay groups response: %s (data: %S)" (error-message-string err) data)
                                          (funcall callback nil)))))
                           :error (cl-function
                                   (lambda (&key error-thrown &allow-other-keys)
@@ -367,19 +388,23 @@ Call CALLBACK with the list of group posts."
                             :success (cl-function
                                       (lambda (&key data &allow-other-keys)
                                         (condition-case err
-                                            (let* ((response (json-read-from-string data))
-                                                   (response-type (cdr (assoc 'type response)))
-                                                   (posts-data (cdr (assoc 'data response))))
-                                              (if (string= response-type "Success")
-                                                  (let ((posts-list (if (vectorp posts-data)
-                                                                       (append posts-data nil)
-                                                                     posts-data)))
-                                                    (funcall callback posts-list))
-                                                (progn
-                                                  (message "Relay returned error response: %s" response-type)
-                                                  (funcall callback nil))))
+                                            (if (and data (stringp data) (not (string-empty-p data)))
+                                                (let* ((response (json-read-from-string data))
+                                                       (response-type (cdr (assoc 'type response)))
+                                                       (posts-data (cdr (assoc 'data response))))
+                                                  (if (string= response-type "Success")
+                                                      (let ((posts-list (if (vectorp posts-data)
+                                                                           (append posts-data nil)
+                                                                         posts-data)))
+                                                        (funcall callback posts-list))
+                                                    (progn
+                                                      (message "Relay returned error response: %s" response-type)
+                                                      (funcall callback nil))))
+                                              (progn
+                                                (message "Received empty, nil, or non-string response from relay: %S" data)
+                                                (funcall callback nil)))
                                           (error
-                                           (message "Failed to parse relay group posts response: %s" (error-message-string err))
+                                           (message "Failed to parse relay group posts response: %s (data: %S)" (error-message-string err) data)
                                            (funcall callback nil)))))
                             :error (cl-function
                                     (lambda (&key error-thrown &allow-other-keys)
@@ -410,19 +435,23 @@ Call CALLBACK with the list of poll URLs."
                           :success (cl-function
                                     (lambda (&key data &allow-other-keys)
                                       (condition-case err
-                                          (let* ((response (json-read-from-string data))
-                                                 (response-type (cdr (assoc 'type response)))
-                                                 (polls-data (cdr (assoc 'data response))))
-                                            (if (string= response-type "Success")
-                                                (let ((polls-list (if (vectorp polls-data)
-                                                                     (append polls-data nil)
-                                                                   polls-data)))
-                                                  (funcall callback polls-list))
-                                              (progn
-                                                (message "Relay returned error response: %s" response-type)
-                                                (funcall callback nil))))
+                                          (if (and data (stringp data) (not (string-empty-p data)))
+                                              (let* ((response (json-read-from-string data))
+                                                     (response-type (cdr (assoc 'type response)))
+                                                     (polls-data (cdr (assoc 'data response))))
+                                                (if (string= response-type "Success")
+                                                    (let ((polls-list (if (vectorp polls-data)
+                                                                         (append polls-data nil)
+                                                                       polls-data)))
+                                                      (funcall callback polls-list))
+                                                  (progn
+                                                    (message "Relay returned error response: %s" response-type)
+                                                    (funcall callback nil))))
+                                            (progn
+                                              (message "Received empty, nil, or non-string response from relay: %S" data)
+                                              (funcall callback nil)))
                                         (error
-                                         (message "Failed to parse relay polls response: %s" (error-message-string err))
+                                         (message "Failed to parse relay polls response: %s (data: %S)" (error-message-string err) data)
                                          (funcall callback nil)))))
                           :error (cl-function
                                   (lambda (&key error-thrown &allow-other-keys)
@@ -458,19 +487,23 @@ Call CALLBACK with the poll votes data."
                             :success (cl-function
                                       (lambda (&key data &allow-other-keys)
                                         (condition-case err
-                                            (let* ((response (json-read-from-string data))
-                                                   (response-type (cdr (assoc 'type response)))
-                                                   (votes-data (cdr (assoc 'data response))))
-                                              (if (string= response-type "Success")
-                                                  (let ((votes-list (if (vectorp votes-data)
-                                                                       (append votes-data nil)
-                                                                     votes-data)))
-                                                    (funcall callback votes-list))
-                                                (progn
-                                                  (message "Relay returned error response: %s" response-type)
-                                                  (funcall callback nil))))
+                                            (if (and data (stringp data) (not (string-empty-p data)))
+                                                (let* ((response (json-read-from-string data))
+                                                       (response-type (cdr (assoc 'type response)))
+                                                       (votes-data (cdr (assoc 'data response))))
+                                                  (if (string= response-type "Success")
+                                                      (let ((votes-list (if (vectorp votes-data)
+                                                                           (append votes-data nil)
+                                                                         votes-data)))
+                                                        (funcall callback votes-list))
+                                                    (progn
+                                                      (message "Relay returned error response: %s" response-type)
+                                                      (funcall callback nil))))
+                                              (progn
+                                                (message "Received empty, nil, or non-string response from relay: %S" data)
+                                                (funcall callback nil)))
                                           (error
-                                           (message "Failed to parse relay poll votes response: %s" (error-message-string err))
+                                           (message "Failed to parse relay poll votes response: %s (data: %S)" (error-message-string err) data)
                                            (funcall callback nil)))))
                             :error (cl-function
                                     (lambda (&key error-thrown &allow-other-keys)
@@ -543,15 +576,21 @@ Designed for small batches of posts (e.g., current page)."
                               :success (cl-function
                                         (lambda (&key data &allow-other-keys)
                                           (condition-case _err
-                                              (let* ((response (json-read-from-string data))
-                                                     (response-type (cdr (assoc 'type response)))
-                                                     (replies-data (cdr (assoc 'data response))))
-                                                (let ((has-replies
-                                                       (and (string= response-type "Success")
-                                                            replies-data
-                                                            (or (and (listp replies-data) (> (length replies-data) 0))
-                                                                (and (vectorp replies-data) (> (length replies-data) 0))))))
-                                                  (push (cons post-url has-replies) results)
+                                              (if (and data (stringp data) (not (string-empty-p data)))
+                                                  (let* ((response (json-read-from-string data))
+                                                         (response-type (cdr (assoc 'type response)))
+                                                         (replies-data (cdr (assoc 'data response))))
+                                                    (let ((has-replies
+                                                           (and (string= response-type "Success")
+                                                                replies-data
+                                                                (or (and (listp replies-data) (> (length replies-data) 0))
+                                                                    (and (vectorp replies-data) (> (length replies-data) 0))))))
+                                                      (push (cons post-url has-replies) results)
+                                                      (setq completed (1+ completed))
+                                                      (when (= completed total)
+                                                        (funcall callback results))))
+                                                (progn
+                                                  (push (cons post-url nil) results)
                                                   (setq completed (1+ completed))
                                                   (when (= completed total)
                                                     (funcall callback results))))

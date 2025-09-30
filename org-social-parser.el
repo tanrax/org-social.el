@@ -196,9 +196,9 @@ Validates format according to specification - ignores invalid values."
   "Validate PROP-NAME VALUE according to Org Social specification.
 Returns t if valid, nil if invalid (should be ignored)."
   (cond
-   ;; REPLY_TO must be URL#timestamp format
+   ;; REPLY_TO must be URL#timestamp format (accepts both +0200 and +02:00 timezone formats)
    ((string= prop-name "REPLY_TO")
-    (string-match-p "^https?://[^#]+#[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}" value))
+    (string-match-p "^https?://[^#]+#[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}[+-][0-9]" value))
    ;; POLL_END must be RFC 3339 format
    ((string= prop-name "POLL_END")
     (string-match-p "^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}" value))

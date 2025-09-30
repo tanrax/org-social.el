@@ -646,21 +646,30 @@ TIMESTAMP is the timestamp of the post being reacted to."
                          " 😊 React ")
           (setq first-button nil))
 
-        ;; Thread button - show directly if post has replies
+        ;; Calculate post URL for various buttons
         (let ((post-url (if (string-empty-p author-url)
                            (format "%s#%s"
                                   (alist-get 'url org-social-variables--my-profile)
                                   timestamp)
                          (format "%s#%s" author-url timestamp))))
-          ;; Check if this post has replies from pre-loaded data
-          (let ((has-replies (alist-get post-url org-social-variables--posts-with-replies nil nil 'string=)))
-            (when has-replies
+
+          ;; Go to parent button (only if post is a reply)
+          (let ((reply-to (alist-get 'reply_to post)))
+            (when (and reply-to (not (string-empty-p reply-to)))
               (unless first-button (org-social-ui--insert-formatted-text " "))
               (widget-create 'push-button
                              :notify `(lambda (&rest _)
-                                       (org-social-ui-thread ,post-url))
-                             " 🧵 Open thread ")
-              (setq first-button nil))))
+                                       (org-social-ui-thread ,reply-to))
+                             " ⬆ Go to parent ")
+              (setq first-button nil)))
+
+          ;; Thread button - always visible, opens thread view
+          (unless first-button (org-social-ui--insert-formatted-text " "))
+          (widget-create 'push-button
+                         :notify `(lambda (&rest _)
+                                   (org-social-ui-thread ,post-url))
+                         " 🧵 Thread ")
+          (setq first-button nil))
 
         ;; Profile button (only for others' posts)
         (when (not is-my-post)
@@ -1476,7 +1485,7 @@ Only checks posts that will be visible on the current page."
 ;;; Thread Screen
 
 (defun org-social-ui--insert-thread-header (_post-url)
-  "Insert thread header with navigation and back button for POST-URL."
+  "Insert thread header with Back and Up Level buttons for POST-URL."
   (org-social-ui--insert-logo)
 
   ;; Back button to previous thread level or timeline
@@ -1487,25 +1496,12 @@ Only checks posts that will be visible on the current page."
 
   (org-social-ui--insert-formatted-text " ")
 
-  ;; Navigation buttons
-  (widget-create 'push-button
-                 :notify (lambda (&rest _) (org-social-ui-timeline))
-                 :help-echo "View timeline"
-                 " 📰 Timeline ")
-
-  (org-social-ui--insert-formatted-text " ")
-
-  (widget-create 'push-button
-                 :notify (lambda (&rest _) (org-social-ui-notifications))
-                 :help-echo "View notifications"
-                 " 🔔 Notifications ")
-
-  (org-social-ui--insert-formatted-text " ")
-
-  (widget-create 'push-button
-                 :notify (lambda (&rest _) (org-social-ui-groups))
-                 :help-echo "View groups"
-                 " 👥 Groups ")
+  ;; Up Level button - only show if not at first level
+  (when (> org-social-ui--thread-level 1)
+    (widget-create 'push-button
+                   :notify (lambda (&rest _) (org-social-ui--thread-go-up))
+                   :help-echo "Go up one level to parent post"
+                   " ⬆ Up Level "))
 
   (org-social-ui--insert-formatted-text "\n\n")
 
@@ -1536,72 +1532,88 @@ Only checks posts that will be visible on the current page."
     (setq org-social-ui--thread-level 0)
     (org-social-ui-timeline)))
 
-(defun org-social-ui--fetch-and-display-parent-post (post-url)
-  "Display the parent post for POST-URL."
-  ;; Just display the post URL and link for now, avoid HTTP requests that cause 404s
-  (org-social-ui--insert-formatted-text "📝 Original Post:\n\n" 1.1 "#3498db")
-  (org-social-ui--insert-formatted-text
-   (format "%s\n\n" post-url) nil "#4a90e2")
-  (org-social-ui--insert-separator))
+(defvar org-social-ui--current-thread-parent-url nil
+  "Stores the parent URL of the current thread post.")
+
+(defun org-social-ui--thread-go-up ()
+  "Go up one level to the parent post."
+  (interactive)
+  (when org-social-ui--current-thread-parent-url
+    (org-social-ui-thread org-social-ui--current-thread-parent-url)))
+
+(defun org-social-ui--fetch-and-display-main-post (post-url)
+  "Fetch and display the main post for POST-URL using org-social-feed--get-post."
+  (require 'org-social-feed)
+  (org-social-feed--get-post
+   post-url
+   (lambda (post-data)
+     (let ((buffer-name (format "*Org Social Thread Level %d*" org-social-ui--thread-level)))
+       (when (buffer-live-p (get-buffer buffer-name))
+         (with-current-buffer buffer-name
+           (let ((inhibit-read-only t))
+             (goto-char (point-min))
+             ;; Remove loading message
+             (when (re-search-forward "Loading thread.*\n" nil t)
+               (replace-match ""))
+             (goto-char (point-max))
+
+             (if post-data
+                 (progn
+                   ;; Store parent URL if this post has REPLY_TO
+                   (let ((reply-to (alist-get 'reply_to post-data)))
+                     (setq org-social-ui--current-thread-parent-url reply-to))
+
+                   ;; Display the main post
+                   (org-social-ui--insert-formatted-text "📝 Post:\n\n" 1.1 "#3498db")
+                   (org-social-ui--post-component post-data nil)
+                   (org-social-ui--insert-separator)
+
+                   ;; Now fetch replies from relay
+                   (org-social-ui--fetch-thread-replies post-url))
+               ;; Failed to fetch post
+               (org-social-ui--insert-formatted-text
+                "❌ Could not load post content.\n\n" nil "#ff6b6b")
+               (org-social-ui--insert-formatted-text
+                (format "Post URL: %s\n\n" post-url) nil "#666666"))
+
+             (goto-char (point-min))
+             (setq buffer-read-only t))))))))
+
+(defun org-social-ui--fetch-thread-replies (post-url)
+  "Fetch replies for POST-URL from relay."
+  (require 'org-social-relay)
+  (org-social-relay--fetch-replies
+   post-url
+   (lambda (replies)
+     (org-social-ui--display-thread-replies post-url replies))))
 
 
 (defun org-social-ui--fetch-and-display-thread (post-url)
-  "Fetch and display thread replies for POST-URL."
+  "Fetch and display thread for POST-URL."
   (require 'request nil t)
   (if (not (featurep 'request))
       (progn
         (org-social-ui--insert-formatted-text "Error: request library not available.\n" nil "#ff6b6b")
         (org-social-ui--insert-formatted-text "Thread viewing requires the 'request' package to be installed.\n" nil "#666666"))
-    (org-social-relay--fetch-replies
-     post-url
-     (lambda (replies)
-       (org-social-ui--display-thread-replies post-url replies)))))
+    ;; Start by fetching and displaying the main post
+    (org-social-ui--fetch-and-display-main-post post-url)))
 
-(defun org-social-ui--display-thread-replies (post-url replies)
-  "Display REPLIES for POST-URL in the current thread buffer."
+(defun org-social-ui--display-thread-replies (_post-url replies)
+  "Display REPLIES in the current thread buffer."
   (let ((buffer-name (format "*Org Social Thread Level %d*" org-social-ui--thread-level)))
     (with-current-buffer buffer-name
-      (setq buffer-read-only nil)
       (let ((inhibit-read-only t))
-        ;; Remove loading message
-        (goto-char (point-min))
-        (when (re-search-forward "Loading thread.*\n" nil t)
-          (replace-match ""))
-
-        ;; Insert thread content
         (goto-char (point-max))
-
-        ;; First try to fetch and display the actual parent post content
-        (org-social-ui--fetch-and-display-parent-post post-url)
 
         (if (and replies (> (length replies) 0))
             (progn
-              ;; Filter out the original post from replies to avoid duplication
-              (let ((filtered-replies
-                     (cl-remove-if (lambda (reply)
-                                    (let ((reply-url (alist-get 'url reply))
-                                          (reply-id (or (alist-get 'timestamp reply)
-                                                       (alist-get 'id reply))))
-                                      ;; Remove if this reply matches the original post URL
-                                      (and reply-url reply-id
-                                           (string= (format "%s#%s" reply-url reply-id) post-url))))
-                                  replies)))
-                (if (> (length filtered-replies) 0)
-                    (progn
-                      ;; Display replies header without count
-                      (org-social-ui--insert-formatted-text
-                       "💬 Replies:\n\n" 1.1 "#27ae60")
+              ;; Display replies header
+              (org-social-ui--insert-formatted-text
+               "💬 Replies:\n\n" 1.1 "#27ae60")
 
-                      ;; Display each filtered reply as a timeline-style post
-                      (dolist (reply filtered-replies)
-                        (org-social-ui--post-component reply nil)))
-                  ;; No actual replies after filtering
-                  (progn
-                    (org-social-ui--insert-formatted-text
-                     "📭 No replies found for this post.\n\n" nil "#e67e22")
-                    (org-social-ui--insert-formatted-text
-                     "This might be the end of the thread, or replies may not be available through the relay.\n"
-                     nil "#666666")))))
+              ;; Fetch and display each reply using org-social-feed--get-post
+              (dolist (reply-url replies)
+                (org-social-ui--fetch-and-display-reply reply-url)))
 
           ;; No replies found
           (org-social-ui--insert-formatted-text
@@ -1613,6 +1625,19 @@ Only checks posts that will be visible on the current page."
         ;; Setup buffer
         (goto-char (point-min))
         (setq buffer-read-only t)))))
+
+(defun org-social-ui--fetch-and-display-reply (reply-url)
+  "Fetch and display a single reply from REPLY-URL."
+  (require 'org-social-feed)
+  (org-social-feed--get-post
+   reply-url
+   (lambda (reply-data)
+     (let ((buffer-name (format "*Org Social Thread Level %d*" org-social-ui--thread-level)))
+       (when (and reply-data (buffer-live-p (get-buffer buffer-name)))
+         (with-current-buffer buffer-name
+           (let ((inhibit-read-only t))
+             (goto-char (point-max))
+             (org-social-ui--post-component reply-data nil))))))))
 
 ;;; Groups Screen
 

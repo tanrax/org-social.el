@@ -189,5 +189,59 @@ Argument NEW-RESPONSE"
                                      (alist-get 'date b))))))
     timeline-sorted))
 
+(defun org-social-feed--get-post (post-url callback)
+  "Fetch complete post data from POST-URL and call CALLBACK with the result.
+CALLBACK is called with a dictionary containing all post data, or nil if failed."
+  (when (and post-url (stringp post-url))
+    ;; Extract feed URL and post ID from the post URL
+    (if (string-match "\\(.*\\)#\\(.+\\)$" post-url)
+        (let ((feed-url (match-string 1 post-url))
+              (post-id (match-string 2 post-url)))
+          ;; Fetch the feed and extract the specific post
+          (require 'request nil t)
+          (if (featurep 'request)
+              (request feed-url
+                :timeout 15
+                :success (cl-function
+                          (lambda (&key data &allow-other-keys)
+                            (condition-case err
+                                (if (and data (not (string-empty-p data)))
+                                    (let* ((posts (org-social-parser--get-posts-from-feed data))
+                                           (target-post (cl-find-if
+                                                         (lambda (post)
+                                                           (let ((timestamp (or (alist-get 'timestamp post)
+                                                                               (alist-get 'id post))))
+                                                             (and timestamp (string= timestamp post-id))))
+                                                         posts)))
+                                      (if target-post
+                                          (let ((post-dict (append target-post
+                                                                  `((author-url . ,feed-url)
+                                                                    (author-nick . ,(or (org-social-parser--get-value data "NICK") "Unknown"))
+                                                                    (feed-title . ,(org-social-parser--get-value data "TITLE"))
+                                                                    (feed-description . ,(org-social-parser--get-value data "DESCRIPTION"))
+                                                                    (feed-avatar . ,(org-social-parser--get-value data "AVATAR"))))))
+                                            (funcall callback post-dict))
+                                        ;; Post not found in feed
+                                        (message "Post %s not found in feed %s" post-id feed-url)
+                                        (funcall callback nil)))
+                                  ;; Empty or invalid response
+                                  (message "Empty or invalid response from feed %s" feed-url)
+                                  (funcall callback nil))
+                              (error
+                               (message "Error parsing feed %s: %s" feed-url (error-message-string err))
+                               (funcall callback nil)))))
+                :error (cl-function
+                        (lambda (&key error-thrown &allow-other-keys)
+                          (message "Failed to fetch feed %s: %s"
+                                   feed-url
+                                   (if error-thrown (error-message-string error-thrown) "Unknown error"))
+                          (funcall callback nil))))
+            ;; request library not available
+            (message "request library not available for fetching post data")
+            (funcall callback nil)))
+      ;; Invalid URL format
+      (message "Invalid post URL format: %s" post-url)
+      (funcall callback nil))))
+
 (provide 'org-social-feed)
 ;;; org-social-feed.el ends here
