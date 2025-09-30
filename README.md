@@ -26,14 +26,14 @@ After setting `org-social-file`, you can create new posts with `M-x org-social-n
 
 ### 🌐 Complete: You interact with the entire community
 
-Set Relay configuration variables to register your feed with the Relay server and discover mentions, replies, and other social interactions.
+**Note:** The Relay server is required for org-social.el to work. Configure both your relay server and public URL:
 
 ```elisp
-(setq org-social-relay "https://relay.example.com") ;; Relay server URL
-(setq org-social-my-public-url "https://example.com/social.org") ;; My public URL
+(setq org-social-relay "https://org-social-relay.andros.dev/") ;; Public Relay server
+(setq org-social-my-public-url "https://example.com/social.org") ;; Your public URL
 ```
 
-Check the [public Relay list](https://github.com/tanrax/org-social/blob/main/org-social-relay-list.txt) to find a Relay server.
+You can use the [public Relay server](https://org-social-relay.andros.dev/) or check the [public Relay list](https://github.com/tanrax/org-social/blob/main/org-social-relay-list.txt) for other options.
 
 ## 📦 Installation
 
@@ -91,21 +91,30 @@ To use the old version 1, you need to use the `v1` branch:
 
 ## ⚙️ Configuration
 
+### Required Configuration
+
 ```elisp
-;; Set the path to your social feed file
+;; Required: Set the path to your social feed file
 (setq org-social-file "~/my-social-feed.org")
 
+;; Required: Configure Org Social Relay server
+(setq org-social-relay "https://org-social-relay.andros.dev/")
+
+;; Required: Set your public social.org URL (where others can access your feed)
+(setq org-social-my-public-url "https://example.com/social.org")
+```
+
+### Optional Configuration
+
+```elisp
 ;; Hide Reply, Vote, and Profile buttons for a cleaner timeline view. Change to 't' to hide them. Keyboard shortcuts 'r', 'v', and 'P' still work
 (setq org-social-hide-post-buttons nil)
 
-;; Optional: Set base URL for post previews. When configured, a Share button will appear in timeline
+;; Set base URL for post previews. When configured, a Share button will appear in timeline
 ;; Example: (setq org-social-preview-base-url "https://example.com/preview/")
 (setq org-social-preview-base-url nil)
 
-;; Optional: Configure Org Social Relay for enhanced social features
-;; Set the relay server URL
-(setq org-social-relay "https://relay.example.com")
-(setq org-social-my-public-url "https://example.com/social.org")
+;; Use only relay followers instead of local follow list
 (setq org-social-only-relay-followers-p nil)
 
 ;; Optionally, configure global keybindings
@@ -118,14 +127,14 @@ To use the old version 1, you need to use the `v1` branch:
 
 ## Customization Variables
 
-| Variable | Description | Default | Type |
-|----------|-------------|---------|------|
-| `org-social-file` | Path to your Org-social feed file | `"~/social.org"` | `file` |
-| `org-social-hide-post-buttons` | Hide Reply, Vote, and Profile buttons from timeline posts for a cleaner view. Keyboard shortcuts still work. | `nil` | `boolean` |
-| `org-social-preview-base-url` | Base URL for post previews. When set, a Share button appears in timeline to copy preview URLs to clipboard. | `nil` | `string` |
-| `org-social-relay` | URL of the Org Social Relay server. When set, the relay will be used to register your feed and discover mentions, replies, and other social interactions. | `nil` | `string` |
-| `org-social-my-public-url` | Public URL of your social.org file. This is the URL where others can access your social.org file. | `nil` | `string` |
-| `org-social-only-relay-followers-p` | When non-nil, use only feeds from the relay server. Requires relay configuration. | `nil` | `boolean` |
+| Variable | Description | Default | Required | Type |
+|----------|-------------|---------|----------|------|
+| `org-social-file` | Path to your Org-social feed file | `"~/social.org"` | ✅ | `file` |
+| `org-social-relay` | URL of the Org Social Relay server for registering your feed and discovering mentions, replies, and social interactions. | `"https://org-social-relay.andros.dev"` | ✅ | `string` |
+| `org-social-my-public-url` | Public URL of your social.org file where others can access your feed. | `nil` | ✅ | `string` |
+| `org-social-hide-post-buttons` | Hide Reply, Vote, and Profile buttons from timeline posts for a cleaner view. Keyboard shortcuts still work. | `nil` | ❌ | `boolean` |
+| `org-social-preview-base-url` | Base URL for post previews. When set, a Share button appears in timeline to copy preview URLs to clipboard. | `nil` | ❌ | `string` |
+| `org-social-only-relay-followers-p` | When non-nil, use only feeds from the relay server. Requires relay configuration. | `nil` | ❌ | `boolean` |
 
 You can customize these variables through Emacs' customization interface:
 
@@ -201,16 +210,18 @@ Save the current Org-social file and run associated hooks.
 
 | Keybinding | Function | Description |
 |------------|----------|-------------|
-| `c`        | `org-social-new-post` | Create a new post |
-| `l`        | `org-social-new-poll` | Create a new poll |
-| `r`        | `org-social-reply-to-post` | Reply to the post at point |
-| `v`        | `org-social-polls--vote-on-poll` | Vote on the poll at point |
-| `n`        | `org-social-next-post` | Navigate to the next post |
-| `p`        | `org-social-previous-post` | Navigate to the previous post |
-| `t`        | `org-social-goto-parent-post` | Navigate to parent post (if current post is a reply) |
-| `P`        | `org-social-view-profile` | View the profile of the post author |
-| `g`        | `org-social-timeline-refresh` | Refresh the timeline |
-| `q`        | `kill-buffer` | Close the timeline buffer |
+| `c`        | New post | Create a new post |
+| `l`        | New poll | Create a new poll |
+| `n`        | Next post | Navigate to the next post |
+| `p`        | Previous post | Navigate to the previous post |
+| `t`        | View thread | View thread for current post |
+| `P`        | View profile | View the profile of the post author |
+| `N`        | Notifications | View notifications and mentions |
+| `G`        | Groups | View groups |
+| `T`        | Timeline | Go back to timeline |
+| `g`        | Refresh | Refresh the current view |
+| `b`        | Kill buffer | Close the current buffer |
+| `q`        | Quit | Quit Org Social UI |
 
 ## 🪝 Hooks
 
@@ -252,32 +263,56 @@ For example, to automatically upload your social file to a remote server after s
 | Relay: Self-register | ✅ |
 | Relay: List all feeds | ✅ |
 | Relay: Mentions | ✅ |
-| Relay: Replies/threads | ❌ |
-| Relay: Search | ❌ |
+| Relay: Replies/threads | ✅ |
 | Relay: Groups | ❌ |
+| Relay: Search | ❌ |
 
 ## 📄 License
 
 GPL-3.0 - See LICENSE file for details.
 
-# 📋 TODO
-
-## 1.6 (In progress, branch `develop`)
-
-- Added Share button functionality for post previews.
-  - New configuration variable `org-social-preview-base-url` for preview URL base.
-  - Share button appears in timeline when base URL is configured.
-  - Copies full preview URL to clipboard when clicked.
-- Added  `org-social-only-relay-followers` variable to restrict follows to feeds registered in the Relay.
-- Added `org-social-my-public-url` variable to specify the public URL of your social.org file.
-- Added `org-social-relay` variable to specify the Relay server URL.
-- Added relay mentions support via `/mentions/` endpoint.
-  - Automatically fetches mentions from relay when `org-social-relay` and `org-social-my-public-url` are configured.
-  - Falls back to local mention detection when relay is not available.
-  - Smart notification handling for mentions from unfollowed feeds.
-  - Maintains backwards compatibility with existing configurations.
-
 # 📝 Changelog
+
+## 2.0
+
+- New Modern UI. Complete UI rewrite with modern widget-based interface
+  - Completely rewritten UI using Emacs widgets for better interactivity
+  - Beautiful centered layout with visual-fill-column support
+  - Interactive buttons for all actions (Reply, Thread, Profile, React, Vote)
+  - Real-time navigation between timeline, threads, notifications, and groups
+  - Removed old org-mode based timeline (available in v1 branch)
+- Avatar Support:
+  - Display user avatars in timeline and thread views
+  - Automatic avatar caching and downloading
+  - Fallback to emoji when avatar not available
+  - Images centered vertically with text
+- Enhanced Thread Navigation:
+  - Thread button shows parent post thread
+  - Smart thread button visibility (only shows when post has replies or is a reply)
+  - Hierarchical thread navigation with "Go to parent" button
+  - Thread stack for multi-level navigation
+  - Back button kills buffer when exiting threads
+- Relay Integration (now required):
+  - `org-social-relay` is now required (default: `https://org-social-relay.andros.dev/`)
+  - `org-social-my-public-url` is now required
+  - Full support for relay mentions and notifications
+  - Group support via relay
+  - Thread/replies detection via relay
+  - Automatic caching of relay queries
+- Improved Post Display:
+  - Tags and mood displayed on same line
+  - Better button ordering (Reply → Thread → Profile → React → Vote)
+  - Enhanced formatting with colors and spacing
+  - Support for post reactions and voting
+- Configuration Changes:
+  - Three required variables: `org-social-file`, `org-social-relay`, `org-social-my-public-url`
+  - Clear error messages when required configuration is missing
+  - Updated keybindings for modern UI (n/p for navigation, t for thread, etc.)
+- Code Quality:
+  - Removed org-social-timeline.el (legacy code)
+  - All code passes linter without warnings
+  - Better module organization
+  - Forward declarations for all external functions
 
 ## 1.5
 

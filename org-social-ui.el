@@ -964,6 +964,23 @@ Uses cache to avoid redundant queries."
 (defun org-social-ui-timeline ()
   "Display timeline screen."
   (interactive)
+
+  ;; Validate required configuration
+  (unless (and (boundp 'org-social-file)
+               org-social-file
+               (not (string-empty-p org-social-file)))
+    (error "org-social-file is not configured.  Please set it in your configuration"))
+
+  (unless (and (boundp 'org-social-relay)
+               org-social-relay
+               (not (string-empty-p org-social-relay)))
+    (error "org-social-relay is not configured.  Please set it to a relay server URL (e.g., \"https://org-social-relay.andros.dev/\")"))
+
+  (unless (and (boundp 'org-social-my-public-url)
+               org-social-my-public-url
+               (not (string-empty-p org-social-my-public-url)))
+    (error "org-social-my-public-url is not configured.  Please set it to your public social.org URL"))
+
   (setq org-social-ui--current-screen 'timeline)
   (setq org-social-ui--current-page 1)
 
