@@ -68,6 +68,9 @@
 (defvar org-social-ui--thread-level 0
   "Current thread nesting level.")
 
+(defvar org-social-ui--current-thread-parent-url nil
+  "Stores the parent URL of the current thread post.")
+
 ;; UI Variables
 (defvar org-social-ui--current-screen nil
   "Current screen being displayed.")
@@ -646,29 +649,34 @@ TIMESTAMP is the timestamp of the post being reacted to."
                          " 😊 React ")
           (setq first-button nil))
 
-        ;; Calculate post URL for various buttons
+        ;; Calculate post URL and reply-to for various buttons
         (let ((post-url (if (string-empty-p author-url)
                            (format "%s#%s"
                                   (alist-get 'url org-social-variables--my-profile)
                                   timestamp)
-                         (format "%s#%s" author-url timestamp))))
+                         (format "%s#%s" author-url timestamp)))
+              (reply-to (alist-get 'reply_to post)))
 
           ;; Go to parent button (only if post is a reply)
-          (let ((reply-to (alist-get 'reply_to post)))
-            (when (and reply-to (not (string-empty-p reply-to)))
-              (unless first-button (org-social-ui--insert-formatted-text " "))
-              (widget-create 'push-button
-                             :notify `(lambda (&rest _)
-                                       (org-social-ui-thread ,reply-to))
-                             " ⬆ Go to parent ")
-              (setq first-button nil)))
+          (when (and reply-to (not (string-empty-p reply-to)))
+            (unless first-button (org-social-ui--insert-formatted-text " "))
+            (widget-create 'push-button
+                           :notify `(lambda (&rest _)
+                                     (org-social-ui-thread ,reply-to))
+                           " ⬆ Go to parent ")
+            (setq first-button nil))
 
           ;; Thread button - always visible, opens thread view
+          ;; If post has reply_to, open parent's thread (previous level)
+          ;; Otherwise open this post's thread
           (unless first-button (org-social-ui--insert-formatted-text " "))
-          (widget-create 'push-button
-                         :notify `(lambda (&rest _)
-                                   (org-social-ui-thread ,post-url))
-                         " 🧵 Thread ")
+          (let ((thread-url (if (and reply-to (not (string-empty-p reply-to)))
+                               reply-to
+                             post-url)))
+            (widget-create 'push-button
+                           :notify `(lambda (&rest _)
+                                     (org-social-ui-thread ,thread-url))
+                           " 🧵 Thread "))
           (setq first-button nil))
 
         ;; Profile button (only for others' posts)
@@ -1485,7 +1493,7 @@ Only checks posts that will be visible on the current page."
 ;;; Thread Screen
 
 (defun org-social-ui--insert-thread-header (_post-url)
-  "Insert thread header with Back and Up Level buttons for POST-URL."
+  "Insert thread header with Back button for POST-URL."
   (org-social-ui--insert-logo)
 
   ;; Back button to previous thread level or timeline
@@ -1494,27 +1502,25 @@ Only checks posts that will be visible on the current page."
                  :help-echo "Go back to previous thread level"
                  " ← Back ")
 
-  (org-social-ui--insert-formatted-text " ")
+  ;; Mark where to insert the Go to parent button later
+  (insert " ") ;; Space placeholder for parent button
 
-  ;; Up Level button - only show if not at first level
-  (when (> org-social-ui--thread-level 1)
-    (widget-create 'push-button
-                   :notify (lambda (&rest _) (org-social-ui--thread-go-up))
-                   :help-echo "Go up one level to parent post"
-                   " ⬆ Up Level "))
-
-  (org-social-ui--insert-formatted-text "\n\n")
-
-  ;; Thread level indicator
-  (org-social-ui--insert-formatted-text
-   (format "🧵 Thread Level %d " org-social-ui--thread-level) 1.2 "#3498db")
-  (org-social-ui--insert-formatted-text
-   (format "(%d level%s deep)\n\n"
-           org-social-ui--thread-level
-           (if (= org-social-ui--thread-level 1) "" "s"))
-   nil "#666666")
-
+  (org-social-ui--insert-formatted-text "\n")
   (org-social-ui--insert-separator))
+
+(defun org-social-ui--update-thread-header-with-parent-button ()
+  "Add Go to parent button to thread header if parent URL exists."
+  (when org-social-ui--current-thread-parent-url
+    (let ((inhibit-read-only t))
+      (save-excursion
+        (goto-char (point-min))
+        ;; Find the Back button and add parent button after it
+        (when (search-forward "← Back " nil t)
+          (widget-create 'push-button
+                         :notify (lambda (&rest _) (org-social-ui--thread-go-up))
+                         :help-echo "Go to parent post"
+                         " ⬆ Go to parent ")
+          (widget-setup))))))
 
 (defun org-social-ui--thread-go-back ()
   "Go back to previous thread level or timeline."
@@ -1531,9 +1537,6 @@ Only checks posts that will be visible on the current page."
     (setq org-social-ui--thread-stack nil)
     (setq org-social-ui--thread-level 0)
     (org-social-ui-timeline)))
-
-(defvar org-social-ui--current-thread-parent-url nil
-  "Stores the parent URL of the current thread post.")
 
 (defun org-social-ui--thread-go-up ()
   "Go up one level to the parent post."
@@ -1563,10 +1566,11 @@ Only checks posts that will be visible on the current page."
                    (let ((reply-to (alist-get 'reply_to post-data)))
                      (setq org-social-ui--current-thread-parent-url reply-to))
 
+                   ;; Update header to show parent button if post has parent
+                   (org-social-ui--update-thread-header-with-parent-button)
+
                    ;; Display the main post
-                   (org-social-ui--insert-formatted-text "📝 Post:\n\n" 1.1 "#3498db")
                    (org-social-ui--post-component post-data nil)
-                   (org-social-ui--insert-separator)
 
                    ;; Now fetch replies from relay
                    (org-social-ui--fetch-thread-replies post-url))
