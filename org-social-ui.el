@@ -694,15 +694,6 @@ Uses cache to avoid redundant queries."
                          " ↳ Reply ")
           (setq first-button nil))
 
-        ;; Reaction button (only for others' posts)
-        (when (not is-my-post)
-          (unless first-button (org-social-ui--insert-formatted-text " "))
-          (widget-create 'push-button
-                         :notify `(lambda (&rest _)
-                                   (org-social-ui--add-reaction ,author-url ,timestamp))
-                         " 😊 React ")
-          (setq first-button nil))
-
         ;; Thread button - show if post has reply_to OR has replies
         (let* ((reply-to (alist-get 'reply_to post))
                (post-url (if (string-empty-p author-url)
@@ -727,7 +718,17 @@ Uses cache to avoid redundant queries."
           (widget-create 'push-button
                          :notify `(lambda (&rest _)
                                    (org-social-ui-profile ,author-url))
-                         " 👤 Profile "))
+                         " 👤 Profile ")
+          (setq first-button nil))
+
+        ;; Reaction button (only for others' posts)
+        (when (not is-my-post)
+          (unless first-button (org-social-ui--insert-formatted-text " "))
+          (widget-create 'push-button
+                         :notify `(lambda (&rest _)
+                                   (org-social-ui--add-reaction ,author-url ,timestamp))
+                         " 😊 React ")
+          (setq first-button nil))
 
         ;; Poll vote button
         (when poll-end
