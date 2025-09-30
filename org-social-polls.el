@@ -33,7 +33,6 @@
 (require 'org)
 
 ;; Forward declarations to avoid circular dependencies
-(declare-function org-social-timeline--get-post-at-point "org-social-timeline" ())
 (declare-function org-link-set-parameters "org" (type parameters))
 (declare-function org-fold-show-entry "org-fold" ())
 (declare-function org-social-feed--get-timeline "org-social-feed" ())
@@ -141,17 +140,10 @@ Returns a list of closed poll posts with their results."
         (error
          (message "Warning: Could not set up org-social-poll links"))))))
 
-(defun org-social-polls--goto-poll (_author-url timestamp)
-  "Navigate to poll post identified by AUTHOR-URL and TIMESTAMP."
-  (let ((timeline-buffer (get-buffer org-social-variables--timeline-buffer-name)))
-    (when timeline-buffer
-      (switch-to-buffer timeline-buffer)
-      (goto-char (point-min))
-      ;; Search for the poll post by timestamp
-      (when (re-search-forward (format ":CUSTOM_ID: %s" (regexp-quote timestamp)) nil t)
-	(beginning-of-line)
-	(re-search-backward "^\\*\\* " nil t)
-	(org-fold-show-entry)))))
+(defun org-social-polls--goto-poll (_author-url _timestamp)
+  "Navigate to poll post identified by AUTHOR-URL and TIMESTAMP.
+This function is deprecated and no longer used with the modern UI."
+  (message "Poll navigation not available in modern UI"))
 
 (defun org-social-polls--get-post-at-point ()
   "Get post information at current point in timeline for polls."

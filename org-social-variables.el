@@ -30,13 +30,7 @@
 ;;; Code:
 
 ;; Forward declarations to avoid compiler warnings
-(declare-function org-social-reply-to-post "org-social-timeline" ())
 (declare-function org-social-polls--vote-on-poll "org-social-polls" ())
-(declare-function org-social-next-post "org-social-timeline" ())
-(declare-function org-social-previous-post "org-social-timeline" ())
-(declare-function org-social-view-profile "org-social-timeline" ())
-(declare-function org-social-timeline-refresh "org-social-timeline" ())
-;; Functions referenced in timeline keymap
 (declare-function org-social-new-post "org-social" (&optional reply-url reply-id))
 (declare-function org-social-new-poll "org-social" ())
 
@@ -133,24 +127,6 @@ Each entry is (post-url . t) for posts with replies.")
   (make-sparse-keymap)
   "Keymap for `org-social-mode'.")
 
-;; Keymap for timeline buffer
-
-(defvar org-social-variables--timeline-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "c") #'org-social-new-post)
-    (define-key map (kbd "l") #'org-social-new-poll)
-    (define-key map (kbd "r") #'org-social-reply-to-post)
-    (define-key map (kbd "v") #'org-social-polls--vote-on-poll)
-    (define-key map (kbd "n") #'org-social-next-post)
-    (define-key map (kbd "p") #'org-social-previous-post)
-    (define-key map (kbd "P") #'org-social-view-profile)
-    (define-key map (kbd "q") #'kill-buffer)
-    (define-key map (kbd "g") #'org-social-timeline-refresh)
-    map)
-  "Keymap for `org-social-timeline-mode'.")
-
-;; Buffer names
-(defconst org-social-variables--timeline-buffer-name "*Org Social Timeline*")
 
 (provide 'org-social-variables)
 ;;; org-social-variables.el ends here

@@ -69,6 +69,17 @@ Add the following to your Emacs config:
         :rev "develop"))
 ```
 
+#### Old version (v1)
+
+To use the old version 1, you need to use the `v1` branch:
+
+```elisp
+(use-package request)
+(use-package org-social
+  :vc ( :url "https://github.com/tanrax/org-social.el"
+        :rev "v1"))
+```
+
 ### Git
 
 1. Clone the repository:

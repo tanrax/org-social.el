@@ -37,6 +37,7 @@
 (declare-function org-social-file--new-poll "org-social-file" ())
 (declare-function org-social-file--new-reaction "org-social-file" (reply-url reply-id emoji))
 (declare-function org-social-feed--process-queue "org-social-feed" ())
+(declare-function org-social-feed--get-post "org-social-feed" (post-url callback))
 (declare-function org-social--format-date "org-social" (timestamp))
 (declare-function org-social-parser--get-value "org-social-parser" (feed key))
 (declare-function org-social-parser--get-posts-from-feed "org-social-parser" (feed))

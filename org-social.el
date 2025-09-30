@@ -51,7 +51,7 @@
 (declare-function org-social-file--open "org-social-file" ())
 (declare-function org-social-file--new-post "org-social-file" (reply-url reply-id))
 (declare-function org-social-file--new-poll "org-social-file" ())
-(declare-function org-social-timeline--display "org-social-timeline" ())
+(declare-function org-social-ui-timeline "org-social-ui" ())
 (declare-function org-social-file--validate "org-social-file" ())
 (declare-function org-social-notifications--is-feed-followed-p "org-social-notifications" (url))
 (declare-function org-social-parser--get-my-profile "org-social-parser" ())
@@ -120,23 +120,11 @@ TIMESTAMP should be in RFC 3339 format or a time value."
       (error
        (message "Warning: Could not load org-social-polls module")))
     
-    (condition-case nil
-        (require 'org-social-timeline)
-      (error
-       (message "Warning: Could not load org-social-timeline module")))
-
     ;; Load new UI system
     (condition-case nil
         (require 'org-social-ui)
       (error
-       (message "Warning: Could not load org-social-ui module")))
-
-    ;; Always try to ensure timeline function is loaded
-    (unless (fboundp 'org-social-timeline--display)
-      (condition-case nil
-          (require 'org-social-timeline)
-        (error
-         (message "Timeline functionality unavailable - install 'request' package for full functionality"))))))
+       (message "Warning: Could not load org-social-ui module")))))
 
 ;;;###autoload
 (defun org-social-open-file ()
@@ -155,22 +143,12 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
 
 ;;;###autoload
 (defun org-social-timeline ()
-  "View timeline with posts from all followers using the new UI."
+  "View timeline with posts from all followers."
   (interactive)
   (org-social--ensure-loaded)
-  ;; Try to load the new UI module
-  (condition-case nil
-      (require 'org-social-ui)
-    (error
-     (message "New UI system not available, falling back to classic timeline")))
-
-  (if (fboundp 'org-social-ui-timeline)
-      (org-social-ui-timeline)
-    ;; Fallback to old timeline
-    (progn
-      (unless (fboundp 'org-social-timeline--display)
-        (error "Timeline functionality not available.  Check if org-social-timeline module loaded correctly"))
-      (org-social-timeline--display))))
+  (unless (fboundp 'org-social-ui-timeline)
+    (error "Timeline functionality not available.  Check if org-social-ui module loaded correctly"))
+  (org-social-ui-timeline))
 
 ;;;###autoload
 (defun org-social-timeline-raw ()
