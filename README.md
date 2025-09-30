@@ -98,6 +98,7 @@ To use the old version 1, you need to use the `v1` branch:
 (setq org-social-file "~/my-social-feed.org")
 
 ;; Required: Configure Org Social Relay server
+;; See public relay list: https://github.com/tanrax/org-social/blob/main/org-social-relay-list.txt
 (setq org-social-relay "https://org-social-relay.andros.dev/")
 
 ;; Required: Set your public social.org URL (where others can access your feed)
