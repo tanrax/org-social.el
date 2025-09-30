@@ -245,7 +245,8 @@ Optional CALLBACK is called with success status when download completes."
                          (base64-encode-string url :no-line-break)
                          org-social-image-cache-directory)))
         (condition-case err
-            (let ((image-props (if width (list :width width) nil)))
+            (let ((image-props (append (when width (list :width width))
+                                      (list :ascent 'center))))
               (insert-image (apply #'create-image image-file nil nil image-props) " "))
           (error
            (message "Error displaying image: %S" err)
@@ -749,7 +750,7 @@ Uses cache to avoid redundant queries."
     (if (and avatar (not (string-empty-p avatar)))
         (progn
           (org-social-ui--insert-formatted-text " ")
-          (org-social-ui--put-image-from-cache avatar (line-number-at-pos) 30)
+          (org-social-ui--put-image-from-cache avatar (line-number-at-pos) 50)
           (org-social-ui--insert-formatted-text " "))
       ;; No avatar - show anonymous emoji
       (org-social-ui--insert-formatted-text "👤 " nil "#4a90e2"))
