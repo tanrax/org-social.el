@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 1.6
+;; Version: 2.0
 ;; Package-Requires: ((emacs "30.1") (request "0.3.0") (json "1.4"))
 
 ;;; Commentary:
