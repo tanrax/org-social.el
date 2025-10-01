@@ -2,7 +2,10 @@
 
 An Emacs client for [Org Social](https://github.com/tanrax/org-social), a decentralized social network that works with Org Mode files over HTTP.
 
-![Screenshot Timeline](screenshot.png)
+![Screenshot timeline](screenshots/screenshot-1.png)
+![Screenshot profile](screenshots/screenshot-2.png)
+![Screenshot notifications](screenshots/screenshot-3.png)
+![Screenshot groups](screenshots/screenshot-4.png)
 
 ## 🎯 You decide how much you want to interact with the community
 
