@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 1.5
+;; Version: 2.0
 ;; URL: https://github.com/tanrax/org-social.el
 ;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5"))
 
@@ -31,6 +31,28 @@
 
 (require 'org-social-variables)
 (require 'org-social-polls)
+(require 'org-social-relay)
+(require 'org-social-parser)
+
+(defun org-social-notifications--is-feed-followed-p (feed-url)
+  "Check if FEED-URL is in the user's following list."
+  ;; Always load fresh profile to avoid cache issues
+  (let ((my-profile (org-social-parser--get-my-profile)))
+    (when my-profile
+      (let ((follow-list (alist-get 'follow my-profile)))
+        (seq-some (lambda (follow)
+                    ;; More robust URL comparison - handle trailing slashes and protocol differences
+                    (let ((followed-url (alist-get 'url follow))
+                          (normalized-feed-url (string-trim-right feed-url "/")))
+                      (when followed-url
+                        (let ((normalized-followed-url (string-trim-right followed-url "/")))
+                          (or (string= normalized-followed-url normalized-feed-url)
+                              ;; Also check with protocol normalization (http vs https)
+                              (string= (replace-regexp-in-string "^https://" "http://" normalized-followed-url)
+                                      (replace-regexp-in-string "^https://" "http://" normalized-feed-url))
+                              (string= (replace-regexp-in-string "^http://" "https://" normalized-followed-url)
+                                      (replace-regexp-in-string "^http://" "https://" normalized-feed-url)))))))
+                  follow-list)))))
 
 (defun org-social-notifications--find-mentions (timeline)
   "Find all posts that mention the current user.
@@ -43,15 +65,19 @@ Argument TIMELINE is the list posts."
 	      (author (alist-get 'author-nick post))
 	      (author-url (alist-get 'author-url post))
 	      (timestamp (alist-get 'timestamp post)))
-	  (when (and text
-		     (not (string= author my-nick)) ; Don't include own posts
-		     (string-match (format "\\[\\[org-social:[^]]+\\]\\[%s\\]\\]" (regexp-quote my-nick)) text))
-	    (push (list
-		   (cons 'type 'mention)
-		   (cons 'author author)
-		   (cons 'author-url author-url)
-		   (cons 'timestamp timestamp)
-		   (cons 'text text)) mentions)))))
+          (when (and text
+                     (not (string= author my-nick)) ; Don't include own posts
+                     (string-match (format "\\[\\[org-social:[^]]+\\]\\[%s\\]\\]" (regexp-quote my-nick)) text))
+            (let ((is-followed (if author-url
+                                   (org-social-notifications--is-feed-followed-p author-url)
+                                 t))) ; If no author-url, assume it's followed (local post)
+              (push (list
+                     (cons 'type 'mention)
+                     (cons 'author author)
+                     (cons 'author-url author-url)
+                     (cons 'timestamp timestamp)
+                     (cons 'followed is-followed)
+                     (cons 'text text)) mentions))))))
     (reverse mentions)))
 
 (defun org-social-notifications--find-replies (timeline)
@@ -88,7 +114,14 @@ Argument TIMELINE is the list posts."
 	      (type (alist-get 'type notification)))
 	  (cond
 	   ((eq type 'mention)
-	    (insert (format "- [[#%s][%s mentioned you]]\n" timestamp author)))
+	    (let ((followed (alist-get 'followed notification))
+	          (author-url (alist-get 'author-url notification)))
+	      (if followed
+	          ;; For followed feeds, use normal link format
+	          (insert (format "- [[#%s][%s mentioned you]]\n" timestamp author))
+	        ;; For unfollowed feeds, show warning and feed URL
+	        (insert (format "- %s mentioned you (not following - cannot view post)\n" author))
+	        (insert (format "  Feed URL: %s\n" author-url)))))
 	   ((eq type 'reply)
 	    (insert (format "- [[#%s][%s replied to your post]]\n" timestamp author)))
 	   ((eq type 'active-poll)
@@ -124,28 +157,79 @@ Argument TIMELINE is the list posts."
 (defun org-social-notifications--render-section (timeline)
   "Render the complete notifications section.
 Argument TIMELINE is the list posts."
+  ;; Always use local mentions for now to maintain synchronous behavior
+  ;; TODO: Implement async relay mentions in a future version
   (let* ((mentions (org-social-notifications--find-mentions timeline))
-	 (replies (org-social-notifications--find-replies timeline))
-	 (active-polls (org-social-polls--get-active-poll-notifications timeline))
-	 (poll-results (org-social-polls--get-poll-result-notifications timeline))
-	 (all-notifications (append mentions replies active-polls poll-results))
-	 ;; Sort by date (most recent first)
-	 (sorted-notifications (sort all-notifications
-				     (lambda (a b)
-				       (let ((date-a (alist-get 'date a))
-					     (date-b (alist-get 'date b)))
-					 ;; If dates are not available, use timestamp parsing
-					 (unless date-a
-					   (setq date-a (date-to-time (alist-get 'timestamp a))))
-					 (unless date-b
-					   (setq date-b (date-to-time (alist-get 'timestamp b))))
-					 (time-less-p date-b date-a))))) ; b < a for descending order
-	 (total-count (length all-notifications)))
+         (replies (org-social-notifications--find-replies timeline))
+         (active-polls (org-social-polls--get-active-poll-notifications timeline))
+         (poll-results (org-social-polls--get-poll-result-notifications timeline))
+         (all-notifications (append mentions replies active-polls poll-results))
+         ;; Sort by date (most recent first)
+         (sorted-notifications (sort all-notifications
+                                    (lambda (a b)
+                                      (let ((date-a (alist-get 'date a))
+                                            (date-b (alist-get 'date b)))
+                                        ;; If dates are not available, use timestamp parsing
+                                        (unless date-a
+                                          (setq date-a (date-to-time (alist-get 'timestamp a))))
+                                        (unless date-b
+                                          (setq date-b (date-to-time (alist-get 'timestamp b))))
+                                        (time-less-p date-b date-a))))) ; b < a for descending order
+         (total-count (length all-notifications)))
     (insert (format "* (%d) Notifications\n" total-count))
     (insert ":PROPERTIES:\n")
     (insert ":END:\n\n")
     (org-social-notifications--render-all-notifications sorted-notifications)
     (insert "\n")))
+
+;;;###autoload
+(defun org-social-check-relay-mentions ()
+  "Check and display mentions from the relay server."
+  (interactive)
+  (if (and org-social-relay
+           org-social-my-public-url
+           (not (string-empty-p org-social-relay))
+           (not (string-empty-p org-social-my-public-url)))
+      (progn
+        (message "Checking relay mentions...")
+        (org-social-relay--fetch-mentions
+         (lambda (relay-mentions)
+           (if relay-mentions
+               (let ((buffer-name "*Relay Mentions*")
+                     (mentions '()))
+                 ;; Convert relay mentions to notification format
+                 (dolist (url relay-mentions)
+                   (when (string-match "\\([^#]+\\)#\\(.+\\)" url)
+                     (let ((feed-url (match-string 1 url))
+                           (timestamp (match-string 2 url)))
+                       ;; Extract author info from feed URL - use domain name instead of filename
+                       (let ((author (if (string-match "https?://\\([^/]+\\)" feed-url)
+                                        (match-string 1 feed-url)
+                                      "Unknown"))
+                             (is-followed (org-social-notifications--is-feed-followed-p feed-url)))
+                         (push (list
+                                (cons 'type 'mention)
+                                (cons 'author author)
+                                (cons 'author-url feed-url)
+                                (cons 'timestamp timestamp)
+                                (cons 'post-url url)
+                                (cons 'followed is-followed)
+                                (cons 'text (format "Mentioned you in a post%s"
+                                                   (if is-followed
+                                                       ""
+                                                     " (not following - cannot view post)"))))
+                               mentions)))))
+                 ;; Display the mentions
+                 (with-current-buffer (get-buffer-create buffer-name)
+                   (let ((inhibit-read-only t))
+                     (erase-buffer)
+                     (insert (format "* (%d) Relay Mentions\n\n" (length mentions)))
+                     (org-social-notifications--render-all-notifications (reverse mentions))
+                     (org-mode)
+                     (goto-char (point-min))
+                     (display-buffer (current-buffer)))))
+             (message "No mentions found in relay")))))
+    (message "Relay not configured. Set org-social-relay and org-social-my-public-url")))
 
 (provide 'org-social-notifications)
 ;;; org-social-notifications.el ends here

@@ -2,13 +2,43 @@
 
 An Emacs client for [Org Social](https://github.com/tanrax/org-social), a decentralized social network that works with Org Mode files over HTTP.
 
-![Screenshot Timeline](screenshot.png)
+![Screenshot timeline](screenshots/screenshot-1.png)
+![Screenshot profile](screenshots/screenshot-2.png)
+![Screenshot notifications](screenshots/screenshot-3.png)
+![Screenshot groups](screenshots/screenshot-4.png)
 
-## Installation
+## 🎯 You decide how much you want to interact with the community
 
-### MELPA
+### 👀 Basic: read-only
 
-In progress.
+Create your [social.org](https://github.com/tanrax/org-social) file and add the followers you want to read to your list.
+
+After, set `org-social-file` to point to your file.
+
+```elisp
+(setq org-social-file "~/social.org")
+```
+
+And run `M-x org-social-timeline` to see the timeline.
+
+### ✍️ Advanced: You write, reply and read
+
+Upload your social.org file to a web server and share the URL with others.
+
+After setting `org-social-file`, you can create new posts with `M-x org-social-new-post` and reply to posts in the timeline with `r`.
+
+### 🌐 Complete: You interact with the entire community
+
+**Note:** The Relay server is required for org-social.el to work. Configure both your relay server and public URL:
+
+```elisp
+(setq org-social-relay "https://org-social-relay.andros.dev/") ;; Public Relay server
+(setq org-social-my-public-url "https://example.com/social.org") ;; Your public URL
+```
+
+You can use the [public Relay server](https://org-social-relay.andros.dev/) or check the [public Relay list](https://github.com/tanrax/org-social/blob/main/org-social-relay-list.txt) for other options.
+
+## 📦 Installation
 
 ### use-package
 
@@ -42,23 +72,63 @@ Add the following to your Emacs config:
         :rev "develop"))
 ```
 
-### Git
+#### Old version (v1)
 
-1. Clone the repository:
-2. Place it in your Emacs `load-path`
+To use the old version 1, you need to use the `v1` branch:
 
 ```elisp
-(add-to-list 'load-path "/path/to/org-social.el")
+(use-package request)
+(use-package org-social
+  :vc ( :url "https://github.com/tanrax/org-social.el"
+        :rev "v1"))
 ```
 
-## Configuration
+### Git
+
+1. Clone the repository
+2. Install dependencies manually:
 
 ```elisp
-;; Set the path to your social feed file
+;; Install required dependencies
+(use-package request :ensure t)
+(use-package visual-fill-column :ensure t)  ; Optional but recommended
+(use-package emojify :ensure t)  ; Optional but recommended
+
+;; Load org-social from local directory
+(add-to-list 'load-path "/path/to/org-social.el")
+(require 'org-social)
+```
+
+**Note:** When using local installation (`:load-path`), dependencies listed in `Package-Requires` are NOT automatically installed. You must install them manually as shown above.
+
+## ⚙️ Configuration
+
+### Required Configuration
+
+```elisp
+;; Required: Set the path to your social feed file
 (setq org-social-file "~/my-social-feed.org")
 
+;; Required: Configure Org Social Relay server
+;; See public relay list: https://github.com/tanrax/org-social/blob/main/org-social-relay-list.txt
+(setq org-social-relay "https://org-social-relay.andros.dev/")
+
+;; Required: Set your public social.org URL (where others can access your feed)
+(setq org-social-my-public-url "https://example.com/social.org")
+```
+
+### Optional Configuration
+
+```elisp
 ;; Hide Reply, Vote, and Profile buttons for a cleaner timeline view. Change to 't' to hide them. Keyboard shortcuts 'r', 'v', and 'P' still work
 (setq org-social-hide-post-buttons nil)
+
+;; Set base URL for post previews. When configured, a Share button will appear in timeline
+;; Example: (setq org-social-preview-base-url "https://example.com/preview/")
+(setq org-social-preview-base-url nil)
+
+;; Use only relay followers instead of local follow list
+(setq org-social-only-relay-followers-p nil)
 
 ;; Optionally, configure global keybindings
 (keymap-global-set "C-c s t" #'org-social-timeline)
@@ -70,10 +140,14 @@ Add the following to your Emacs config:
 
 ## Customization Variables
 
-| Variable | Description | Default | Type |
-|----------|-------------|---------|------|
-| `org-social-file` | Path to your Org-social feed file | `"~/social.org"` | `file` |
-| `org-social-hide-post-buttons` | Hide Reply, Vote, and Profile buttons from timeline posts for a cleaner view. Keyboard shortcuts still work. | `nil` | `boolean` |
+| Variable | Description | Default | Required | Type |
+|----------|-------------|---------|----------|------|
+| `org-social-file` | Path to your Org-social feed file | `"~/social.org"` | ✅ | `file` |
+| `org-social-relay` | URL of the Org Social Relay server for registering your feed and discovering mentions, replies, and social interactions. | `"https://org-social-relay.andros.dev"` | ✅ | `string` |
+| `org-social-my-public-url` | Public URL of your social.org file where others can access your feed. | `nil` | ✅ | `string` |
+| `org-social-hide-post-buttons` | Hide Reply, Vote, and Profile buttons from timeline posts for a cleaner view. Keyboard shortcuts still work. | `nil` | ❌ | `boolean` |
+| `org-social-preview-base-url` | Base URL for post previews. When set, a Share button appears in timeline to copy preview URLs to clipboard. | `nil` | ❌ | `string` |
+| `org-social-only-relay-followers-p` | When non-nil, use only feeds from the relay server. Requires relay configuration. | `nil` | ❌ | `boolean` |
 
 You can customize these variables through Emacs' customization interface:
 
@@ -81,11 +155,27 @@ You can customize these variables through Emacs' customization interface:
 M-x customize-group RET org-social RET
 ```
 
-## Functions
+## 🔧 Functions
 
 ### `org-social-timeline`
 
 Downloads feeds from people you follow and displays a unified timeline with enhanced navigation and reply functionality.
+
+### `org-social-timeline-raw`
+
+Display timeline in raw Org mode format following the Org Social specification. This function creates a buffer showing all timeline posts formatted according to the official Org Social specification with proper metadata, properties, and structure. Useful for:
+
+- **Exporting timeline data**: Copy and paste posts in standard format
+- **Understanding the format**: See exactly how Org Social posts are structured
+- **Debugging**: Inspect post metadata and properties
+- **Learning**: Understand the Org Social specification by example
+
+The generated buffer follows the complete specification including:
+- Proper `* Posts` section
+- Level 2 headers (`**`) for each post
+- `:PROPERTIES:` drawers with metadata (ID, LANG, TAGS, CLIENT, MOOD, etc.)
+- Author information as comments
+- Original content preservation with multiline support
 
 ### `org-social-new-post`
 
@@ -98,6 +188,10 @@ Create a new poll in your Org-social feed.
 ### `org-social-mention-user`
 
 Insert a mention of a user in your post.
+
+### `org-social-check-relay-mentions`
+
+Check and display mentions from the relay server in a separate buffer. Only works when relay is configured.
 
 ### `org-social-validate-file`
 
@@ -123,24 +217,28 @@ View the profile of the post author at current position (available when viewing 
 
 Save the current Org-social file and run associated hooks.
 
-## Keybindings
+## ⌨️ Keybindings
 
 ### In the timeline buffer
 
 | Keybinding | Function | Description |
 |------------|----------|-------------|
-| `c`        | `org-social-new-post` | Create a new post |
-| `l`        | `org-social-new-poll` | Create a new poll |
-| `r`        | `org-social-reply-to-post` | Reply to the post at point |
-| `v`        | `org-social-polls--vote-on-poll` | Vote on the poll at point |
-| `n`        | `org-social-next-post` | Navigate to the next post |
-| `p`        | `org-social-previous-post` | Navigate to the previous post |
-| `t`        | `org-social-goto-parent-post` | Navigate to parent post (if current post is a reply) |
-| `P`        | `org-social-view-profile` | View the profile of the post author |
-| `g`        | `org-social-timeline-refresh` | Refresh the timeline |
-| `q`        | `kill-buffer` | Close the timeline buffer |
+| `c`        | New post | Create a new post |
+| `l`        | New poll | Create a new poll |
+| `r`        | Reply | Reply to the post at point |
+| `R`        | React | Add a reaction to the post at point |
+| `n`        | Next post | Navigate to the next post |
+| `p`        | Previous post | Navigate to the previous post |
+| `t`        | View thread | View thread for current post |
+| `P`        | View profile | View the profile of the post author |
+| `N`        | Notifications | View notifications and mentions |
+| `G`        | Groups | View groups |
+| `T`        | Timeline | Go back to timeline |
+| `g`        | Refresh | Refresh the current view |
+| `b`        | Kill buffer | Close the current buffer |
+| `q`        | Quit | Quit Org Social UI |
 
-## Hooks
+## 🪝 Hooks
 
 You can use the following hooks to perform additional actions automatically:
 
@@ -161,7 +259,7 @@ For example, to automatically upload your social file to a remote server after s
              nil 0)))
 ```
 
-## Workflow
+## 🔄 Workflow
 
 1. **Setup**: Configure `org-social-file` and create your social.org file
 2. **View timeline**: Use `M-x org-social-timeline` or `C-c C-t`
@@ -172,21 +270,64 @@ For example, to automatically upload your social file to a remote server after s
 7. **Create polls**: Use `M-x org-social-new-poll` or `C-c C-p`
 8. **Save and sync**: Use `C-x C-s` to save with hooks
 
-## License
+## 🔌 Compatibility with extensions
+
+| Name | Status |
+|------|--------|
+| Org Social Preview Generator | ✅ |
+| Relay: Self-register | ✅ |
+| Relay: List all feeds | ✅ |
+| Relay: Mentions | ✅ |
+| Relay: Replies/threads | ✅ |
+| Relay: Groups | ❌ |
+| Relay: Search | ❌ |
+
+## 📄 License
 
 GPL-3.0 - See LICENSE file for details.
 
-# TODO
+# 📝 Changelog
 
-## 1.6 (In progress, branch `develop`)
+## 2.0
 
-- Integrate Register API.
-  - Add my feed.
-  - View thread replies.
-  - View notifications.
-  - Group integration.
-
-# Changelog
+- New Modern UI. Complete UI rewrite with modern widget-based interface
+  - Completely rewritten UI using Emacs widgets for better interactivity
+  - Beautiful centered layout with visual-fill-column support
+  - Interactive buttons for all actions (Reply, Thread, Profile, React, Vote)
+  - Real-time navigation between timeline, threads, notifications, and groups
+  - Removed old org-mode based timeline (available in v1 branch)
+- Avatar Support:
+  - Display user avatars in timeline and thread views
+  - Automatic avatar caching and downloading
+  - Fallback to emoji when avatar not available
+  - Images centered vertically with text
+- Enhanced Thread Navigation:
+  - Thread button shows parent post thread
+  - Smart thread button visibility (only shows when post has replies or is a reply)
+  - Hierarchical thread navigation with "Go to parent" button
+  - Thread stack for multi-level navigation
+  - Back button kills buffer when exiting threads
+- Relay Integration (now required):
+  - `org-social-relay` is now required (default: `https://org-social-relay.andros.dev/`)
+  - `org-social-my-public-url` is now required
+  - Full support for relay mentions and notifications
+  - Group support via relay
+  - Thread/replies detection via relay
+  - Automatic caching of relay queries
+- Improved Post Display:
+  - Tags and mood displayed on same line
+  - Better button ordering (Reply → Thread → Profile → React → Vote)
+  - Enhanced formatting with colors and spacing
+  - Support for post reactions and voting
+- Configuration Changes:
+  - Three required variables: `org-social-file`, `org-social-relay`, `org-social-my-public-url`
+  - Clear error messages when required configuration is missing
+  - Updated keybindings for modern UI (n/p for navigation, t for thread, etc.)
+- Code Quality:
+  - Removed org-social-timeline.el (legacy code)
+  - All code passes linter without warnings
+  - Better module organization
+  - Forward declarations for all external functions
 
 ## 1.5
 
@@ -235,6 +376,6 @@ Initial release with basic functionality:
 - Validating file structure
 - Basic keybindings
 
-## Contributing
+## 🤝 Contributing
 
 Feel free to fork the repository and submit pull requests to the *develop* branch.

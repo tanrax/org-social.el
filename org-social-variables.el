@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 1.5
+;; Version: 2.0
 ;; URL: https://github.com/tanrax/org-social.el
 ;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5"))
 
@@ -30,13 +30,7 @@
 ;;; Code:
 
 ;; Forward declarations to avoid compiler warnings
-(declare-function org-social-reply-to-post "org-social-timeline" ())
 (declare-function org-social-polls--vote-on-poll "org-social-polls" ())
-(declare-function org-social-next-post "org-social-timeline" ())
-(declare-function org-social-previous-post "org-social-timeline" ())
-(declare-function org-social-view-profile "org-social-timeline" ())
-(declare-function org-social-timeline-refresh "org-social-timeline" ())
-;; Functions referenced in timeline keymap
 (declare-function org-social-new-post "org-social" (&optional reply-url reply-id))
 (declare-function org-social-new-poll "org-social" ())
 
@@ -55,6 +49,55 @@ and view profiles (P)."
   :type 'boolean
   :group 'org-social)
 
+(defcustom org-social-preview-base-url nil
+  "Base URL for post previews.
+When set, a Share button will appear in the timeline to copy the full
+preview URL for posts.  The URL is constructed by appending the post ID
+\(with '+' replacing '+' and ':' being removed) and '.html' to this base URL.
+Example: \"https://andros.dev/static/preview/\" would generate URLs like
+\"https://andros.dev/static/preview/2025-09-15T09-22-05plus0200.html\""
+  :type '(choice (const :tag "No preview URL" nil)
+                 (string :tag "Preview base URL"))
+  :group 'org-social)
+
+(defcustom org-social-relay "https://org-social-relay.andros.dev"
+  "URL of the Org Social Relay server.
+When set, the relay will be used to register your feed and discover mentions,
+replies, and other social interactions.
+Default is set to the public relay server."
+  :type '(choice (const :tag "No relay server" nil)
+                 (string :tag "Relay server URL"))
+  :group 'org-social)
+
+(defcustom org-social-my-public-url nil
+  "Public URL of your social.org file.
+This is the URL where others can access your social.org file.
+Example: \"https://example.com/social.org\""
+  :type '(choice (const :tag "No public URL" nil)
+                 (string :tag "Public URL"))
+  :group 'org-social)
+
+(defcustom org-social-only-relay-followers-p nil
+  "When non-nil, use only feeds from the relay server for timeline.
+If t, the timeline will be built exclusively from feeds listed in the relay,
+ignoring local followers list.  This requires both `org-social-relay' and
+`org-social-my-public-url' to be configured."
+  :type 'boolean
+  :group 'org-social)
+
+(defcustom org-social-hashtag-color "#ffaa00"
+  "Color for hashtag highlighting in posts.
+This color is used when displaying hashtags (#tag) in the user interface.
+Should be a hex color code like \"#ffaa00\" for yellow."
+  :type 'string
+  :group 'org-social)
+
+(defcustom org-social-image-cache-directory "~/.org-social-cache/"
+  "Directory for caching downloaded profile images.
+Images are downloaded and cached to avoid repeated network requests."
+  :type 'directory
+  :group 'org-social)
+
 ;; Variables for state management
 
 (defvar org-social-variables--feeds nil
@@ -65,6 +108,10 @@ and view profiles (P)."
 
 (defvar org-social-variables--queue nil
   "Queue for downloading feeds asynchronously.")
+
+(defvar org-social-variables--posts-with-replies nil
+  "Alist of posts that have replies.
+Each entry is (post-url . t) for posts with replies.")
 
 ;; Hooks
 
@@ -80,24 +127,6 @@ and view profiles (P)."
   (make-sparse-keymap)
   "Keymap for `org-social-mode'.")
 
-;; Keymap for timeline buffer
-
-(defvar org-social-variables--timeline-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "c") #'org-social-new-post)
-    (define-key map (kbd "l") #'org-social-new-poll)
-    (define-key map (kbd "r") #'org-social-reply-to-post)
-    (define-key map (kbd "v") #'org-social-polls--vote-on-poll)
-    (define-key map (kbd "n") #'org-social-next-post)
-    (define-key map (kbd "p") #'org-social-previous-post)
-    (define-key map (kbd "P") #'org-social-view-profile)
-    (define-key map (kbd "q") #'kill-buffer)
-    (define-key map (kbd "g") #'org-social-timeline-refresh)
-    map)
-  "Keymap for `org-social-timeline-mode'.")
-
-;; Buffer names
-(defconst org-social-variables--timeline-buffer-name "*Org Social Timeline*")
 
 (provide 'org-social-variables)
 ;;; org-social-variables.el ends here

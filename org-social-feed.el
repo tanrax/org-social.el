@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 1.5
+;; Version: 2.0
 ;; URL: https://github.com/tanrax/org-social.el
 ;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5"))
 
@@ -31,9 +31,20 @@
 
 (require 'org-social-variables)
 (require 'org-social-parser)
-(require 'request)
 (require 'seq)
 (require 'cl-lib)
+
+;; Optional require with error handling
+(condition-case nil
+    (require 'request)
+  (error
+   (message "Warning: 'request' package not available. Some feed features may not work.")))
+
+;; Declare request function to avoid compilation warnings
+(declare-function request "request" (url &rest args))
+
+;; Declare functions from org-social-relay
+(declare-function org-social-relay--fetch-feeds "org-social-relay" (callback))
 
 (defun org-social-feed--initialize-queue ()
   "Initialize the download queue with follower feeds."
@@ -43,6 +54,26 @@
 		    (:status . :pending)
 		    (:response . nil)))
 		(alist-get 'follow org-social-variables--my-profile))))
+
+(defun org-social-feed--initialize-queue-from-relay ()
+  "Initialize the download queue with feeds from relay server."
+  (message "Fetching feed list from relay...")
+  (when (fboundp 'org-social-relay--fetch-feeds)
+    (org-social-relay--fetch-feeds
+     (lambda (feeds-list)
+       (if feeds-list
+           (progn
+             (message "Retrieved %d feeds from relay" (length feeds-list))
+             (setq org-social-variables--queue
+                   (mapcar (lambda (feed-url)
+                             `((:url . ,feed-url)
+                               (:status . :pending)
+                               (:response . nil)))
+                           feeds-list))
+             (org-social-feed--process-queue))
+         (message "No feeds retrieved from relay, falling back to local followers")
+         (org-social-feed--initialize-queue)
+         (org-social-feed--process-queue))))))
 
 (defun org-social-feed--queue-update-status-by-url (queue url status)
   "Update the status of a QUEUE item by URL to STATUS."
@@ -70,24 +101,28 @@ Argument NEW-RESPONSE"
   (dolist (item org-social-variables--queue)
     (let ((url (alist-get :url item)))
       (request url
-	:timeout 10
-	:success (cl-function
-		  (lambda (&key data &allow-other-keys)
-		    (setq org-social-variables--queue
-			  (org-social-feed--queue-update-status-by-url org-social-variables--queue url :done))
-		    (setq org-social-variables--queue
-			  (org-social-feed--queue-update-response-by-url org-social-variables--queue url data))
-		    (org-social-feed--check-queue)))
-	:error (lambda (&rest _)
-		 (setq org-social-variables--queue
-		       (org-social-feed--queue-update-status-by-url org-social-variables--queue url :error))
-		 (org-social-feed--check-queue))))))
+	       :timeout 10
+	       :success (cl-function
+			 (lambda (&key data &allow-other-keys)
+			   (setq org-social-variables--queue
+				 (org-social-feed--queue-update-status-by-url org-social-variables--queue url :done))
+			   (setq org-social-variables--queue
+				 (org-social-feed--queue-update-response-by-url org-social-variables--queue url data))
+			   (org-social-feed--check-queue)))
+	       :error (lambda (&rest _)
+			(setq org-social-variables--queue
+			      (org-social-feed--queue-update-status-by-url org-social-variables--queue url :error))
+			(org-social-feed--check-queue))))))
 
 (defun org-social-feed--fetch-all-feeds-async ()
   "Fetch all follower feeds asynchronously."
   (setq org-social-variables--my-profile (org-social-parser--get-my-profile))
-  (org-social-feed--initialize-queue)
-  (org-social-feed--process-queue))
+  (if (and org-social-only-relay-followers-p
+           org-social-relay
+           (not (string-empty-p org-social-relay)))
+      (org-social-feed--initialize-queue-from-relay)
+    (org-social-feed--initialize-queue)
+    (org-social-feed--process-queue)))
 
 (defun org-social-feed--check-queue ()
   "Check if the download queue is complete."
@@ -111,11 +146,13 @@ Argument NEW-RESPONSE"
 			     (url (alist-get :url item))
 			     (nick (or (org-social-parser--get-value feed "NICK") "Unknown"))
 			     (title (org-social-parser--get-value feed "TITLE"))
+			     (avatar (org-social-parser--get-value feed "AVATAR"))
 			     (posts (org-social-parser--get-posts-from-feed feed)))
 			(list
 			 (cons 'id (gensym))
 			 (cons 'nick nick)
 			 (cons 'title title)
+			 (cons 'avatar avatar)
 			 (cons 'url url)
 			 (cons 'posts posts))))
 		    org-social-variables--queue))
@@ -131,21 +168,84 @@ Argument NEW-RESPONSE"
                              (let ((author-id (alist-get 'id feed))
                                    (author-nick (alist-get 'nick feed))
                                    (author-url (alist-get 'url feed))
+                                   (author-avatar (alist-get 'avatar feed))
                                    (posts (alist-get 'posts feed)))
                                (mapcar (lambda (post)
                                          ;; Create a new list with author properties AND all post properties
                                          (append (list
                                                   (cons 'author-id author-id)
                                                   (cons 'author-nick author-nick)
-                                                  (cons 'author-url author-url))
+                                                  (cons 'author-url author-url)
+                                                  (cons 'author-avatar author-avatar))
                                                  post)) ; Incluir TODAS las propiedades del post original
                                        posts)))
                            org-social-variables--feeds))
-         (timeline-sorted (sort timeline
+         (timeline-filtered (seq-filter (lambda (post)
+                                          ;; Filter out posts with empty or nil text content
+                                          (let ((text (alist-get 'text post)))
+                                            (and text
+                                                 (stringp text)
+                                                 (not (string-empty-p (string-trim text))))))
+                                        timeline))
+         (timeline-sorted (sort timeline-filtered
                                 (lambda (a b)
                                   (> (alist-get 'date a)
                                      (alist-get 'date b))))))
     timeline-sorted))
+
+(defun org-social-feed--get-post (post-url callback)
+  "Fetch complete post data from POST-URL and call CALLBACK with the result.
+CALLBACK is called with a dictionary containing all post data, or nil if failed."
+  (when (and post-url (stringp post-url))
+    ;; Extract feed URL and post ID from the post URL
+    (if (string-match "\\(.*\\)#\\(.+\\)$" post-url)
+        (let ((feed-url (match-string 1 post-url))
+              (post-id (match-string 2 post-url)))
+          ;; Fetch the feed and extract the specific post
+          (require 'request nil t)
+          (if (featurep 'request)
+              (request feed-url
+                :timeout 15
+                :success (cl-function
+                          (lambda (&key data &allow-other-keys)
+                            (condition-case err
+                                (if (and data (not (string-empty-p data)))
+                                    (let* ((posts (org-social-parser--get-posts-from-feed data))
+                                           (target-post (cl-find-if
+                                                         (lambda (post)
+                                                           (let ((timestamp (or (alist-get 'timestamp post)
+                                                                               (alist-get 'id post))))
+                                                             (and timestamp (string= timestamp post-id))))
+                                                         posts)))
+                                      (if target-post
+                                          (let ((post-dict (append target-post
+                                                                  `((author-url . ,feed-url)
+                                                                    (author-nick . ,(or (org-social-parser--get-value data "NICK") "Unknown"))
+                                                                    (feed-title . ,(org-social-parser--get-value data "TITLE"))
+                                                                    (feed-description . ,(org-social-parser--get-value data "DESCRIPTION"))
+                                                                    (feed-avatar . ,(org-social-parser--get-value data "AVATAR"))))))
+                                            (funcall callback post-dict))
+                                        ;; Post not found in feed
+                                        (message "Post %s not found in feed %s" post-id feed-url)
+                                        (funcall callback nil)))
+                                  ;; Empty or invalid response
+                                  (message "Empty or invalid response from feed %s" feed-url)
+                                  (funcall callback nil))
+                              (error
+                               (message "Error parsing feed %s: %s" feed-url (error-message-string err))
+                               (funcall callback nil)))))
+                :error (cl-function
+                        (lambda (&key error-thrown &allow-other-keys)
+                          (message "Failed to fetch feed %s: %s"
+                                   feed-url
+                                   (if error-thrown (error-message-string error-thrown) "Unknown error"))
+                          (funcall callback nil))))
+            ;; request library not available
+            (message "request library not available for fetching post data")
+            (funcall callback nil)))
+      ;; Invalid URL format
+      (message "Invalid post URL format: %s" post-url)
+      (funcall callback nil))))
 
 (provide 'org-social-feed)
 ;;; org-social-feed.el ends here
