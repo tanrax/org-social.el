@@ -225,6 +225,8 @@ Save the current Org-social file and run associated hooks.
 |------------|----------|-------------|
 | `c`        | New post | Create a new post |
 | `l`        | New poll | Create a new poll |
+| `r`        | Reply | Reply to the post at point |
+| `R`        | React | Add a reaction to the post at point |
 | `n`        | Next post | Navigate to the next post |
 | `p`        | Previous post | Navigate to the previous post |
 | `t`        | View thread | View thread for current post |

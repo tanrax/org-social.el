@@ -32,6 +32,7 @@
 (declare-function org-social-relay--fetch-group-posts "org-social-relay" (group-name callback))
 (declare-function org-social-relay--check-post-has-replies "org-social-relay" (post-url callback))
 (declare-function org-social-relay--check-posts-for-replies "org-social-relay" (post-urls callback))
+(declare-function json-read-from-string "json" (string))
 (declare-function org-social-relay--fetch-replies "org-social-relay" (post-url callback))
 (declare-function org-social-file--new-post "org-social-file" (&optional reply-url reply-id))
 (declare-function org-social-file--new-poll "org-social-file" ())
@@ -103,6 +104,7 @@
     (define-key map (kbd "c") 'org-social-ui--new-post)
     (define-key map (kbd "l") 'org-social-ui--new-poll)
     (define-key map (kbd "r") 'org-social-ui--reply-to-post)
+    (define-key map (kbd "R") 'org-social-ui--add-reaction-at-point)
     (define-key map (kbd "t") 'org-social-ui--view-thread)
     (define-key map (kbd "P") 'org-social-ui--view-profile)
     (define-key map (kbd "N") 'org-social-ui--view-notifications)
@@ -477,13 +479,16 @@ Optional CALLBACK is called with success status when download completes."
   (org-social-file--new-poll))
 
 (defun org-social-ui--reply-to-post ()
-  "Reply to the post at point."
+  "Reply to the post by pressing the Reply button."
   (interactive)
-  (let ((post-data (org-social-ui--get-post-at-point)))
-    (when post-data
-      (let ((author-url (alist-get 'author-url post-data))
-            (timestamp (alist-get 'timestamp post-data)))
-        (org-social-file--new-post author-url timestamp)))))
+  (unless (org-social-ui--find-and-press-button "↳ Reply")
+    (message "No reply button found near point")))
+
+(defun org-social-ui--add-reaction-at-point ()
+  "Add a reaction to the post by pressing the React button."
+  (interactive)
+  (unless (org-social-ui--find-and-press-button "😊 React")
+    (message "No react button found near point")))
 
 (defun org-social-ui--add-reaction (author-url timestamp)
   "Add a reaction to a post using emojify selector.
@@ -526,13 +531,33 @@ Returns the post data alist stored in the widget, or nil if not found."
   (interactive)
   (org-social-ui-timeline))
 
+(defun org-social-ui--find-and-press-button (button-text)
+  "Search forward for a widget button containing BUTTON-TEXT.
+Returns t if button was found and pressed, nil otherwise."
+  (save-excursion
+    (let ((found nil)
+          (search-limit (min (point-max) (+ (point) 10000))))
+      ;; Search forward character by character looking for widgets
+      (while (and (not found) (< (point) search-limit))
+        (forward-char 1)
+        (let ((widget (widget-at (point))))
+          (when (and widget
+                     (eq (widget-type widget) 'push-button))
+            ;; Check if the button text contains our search text
+            (let* ((widget-start (widget-get widget :from))
+                   (widget-end (widget-get widget :to))
+                   (widget-text (when (and widget-start widget-end)
+                                 (buffer-substring-no-properties widget-start widget-end))))
+              (when (and widget-text (string-match-p (regexp-quote button-text) widget-text))
+                (widget-button-press (point))
+                (setq found t))))))
+      found)))
+
 (defun org-social-ui--view-thread ()
-  "View thread for current post."
+  "View thread for current post by pressing the Thread button."
   (interactive)
-  (let ((post-data (org-social-ui--get-post-at-point)))
-    (when post-data
-      (let ((post-url (alist-get 'url post-data)))
-        (org-social-ui-thread post-url)))))
+  (unless (org-social-ui--find-and-press-button "🧵 Thread")
+    (message "No thread button found near point")))
 
 (defun org-social-ui--view-notifications ()
   "Switch to notifications view."
@@ -540,12 +565,10 @@ Returns the post data alist stored in the widget, or nil if not found."
   (org-social-ui-notifications))
 
 (defun org-social-ui--view-profile ()
-  "View profile for current post author."
+  "View profile for current post by pressing the Profile button."
   (interactive)
-  (let ((post-data (org-social-ui--get-post-at-point)))
-    (when post-data
-      (let ((author-url (alist-get 'author-url post-data)))
-        (org-social-ui-profile author-url)))))
+  (unless (org-social-ui--find-and-press-button "👤 Profile")
+    (message "No profile button found near point")))
 
 (defun org-social-ui--view-groups ()
   "Switch to groups view."
@@ -836,10 +859,9 @@ Uses cache to avoid redundant queries."
   (org-social-ui--insert-formatted-text "\n\n")
 
   ;; Help text
-  (org-social-ui--insert-formatted-text "Navigation:\n" nil "#666666")
-  (org-social-ui--insert-formatted-text "(n) Next | (p) Previous | (t) Thread | (P) Profile\n" nil "#666666")
-  (org-social-ui--insert-formatted-text "Actions:\n" nil "#666666")
-  (org-social-ui--insert-formatted-text "(c) New Post | (l) New Poll | (r) Reply | (N) Notifications | (G) Groups\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Navigation: (n) Next | (p) Previous | (t) Thread | (P) Profile\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Post: (c) New Post | (l) New Poll | (r) Reply | (R) React\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Actions: (N) Notifications | (G) Groups\n" nil "#666666")
   (org-social-ui--insert-formatted-text "Other: (g) Refresh | (q) Quit\n" nil "#666666")
 
   (org-social-ui--insert-separator))
@@ -983,17 +1005,17 @@ Uses cache to avoid redundant queries."
   (unless (and (boundp 'org-social-file)
                org-social-file
                (not (string-empty-p org-social-file)))
-    (error "org-social-file is not configured.  Please set it in your configuration"))
+    (error "Org-social-file is not configured.  Please set it in your configuration"))
 
   (unless (and (boundp 'org-social-relay)
                org-social-relay
                (not (string-empty-p org-social-relay)))
-    (error "org-social-relay is not configured.  Please set it to a relay server URL (e.g., \"https://org-social-relay.andros.dev/\")"))
+    (error "Org-social-relay is not configured.  Please set it to a relay server URL (e.g., \"https://org-social-relay.andros.dev/\")"))
 
   (unless (and (boundp 'org-social-my-public-url)
                org-social-my-public-url
                (not (string-empty-p org-social-my-public-url)))
-    (error "org-social-my-public-url is not configured.  Please set it to your public social.org URL"))
+    (error "Org-social-my-public-url is not configured.  Please set it to your public social.org URL"))
 
   (setq org-social-ui--current-screen 'timeline)
   (setq org-social-ui--current-page 1)
