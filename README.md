@@ -82,12 +82,21 @@ To use the old version 1, you need to use the `v1` branch:
 
 ### Git
 
-1. Clone the repository:
-2. Place it in your Emacs `load-path`
+1. Clone the repository
+2. Install dependencies manually:
 
 ```elisp
+;; Install required dependencies
+(use-package request :ensure t)
+(use-package visual-fill-column :ensure t)  ; Optional but recommended
+(use-package emojify :ensure t)  ; Optional but recommended
+
+;; Load org-social from local directory
 (add-to-list 'load-path "/path/to/org-social.el")
+(require 'org-social)
 ```
+
+**Note:** When using local installation (`:load-path`), dependencies listed in `Package-Requires` are NOT automatically installed. You must install them manually as shown above.
 
 ## ⚙️ Configuration
 
