@@ -497,10 +497,19 @@ TIMESTAMP is the timestamp of the post being reacted to."
     (message "Emojify not available. Please install the emojify package.")))
 
 (defun org-social-ui--get-post-at-point ()
-  "Get post data at current point."
-  ;; This should be implemented to extract post data from the current position
-  ;; For now, return nil to avoid errors
-  nil)
+  "Get post data at current point.
+Returns the post data alist stored in the widget, or nil if not found."
+  (save-excursion
+    ;; Search backward from current position to find the nearest item widget
+    (let ((found-widget nil)
+          (search-limit (max (point-min) (- (point) 5000)))) ; Limit search to 5000 chars back
+      (while (and (not found-widget) (> (point) search-limit))
+        (let ((widget (widget-at (point))))
+          (if (and widget (eq (widget-type widget) 'item))
+              (setq found-widget widget)
+            (backward-char 1))))
+      (when found-widget
+        (widget-value found-widget)))))
 
 ;;; Screen Navigation Functions
 
@@ -660,38 +669,48 @@ Uses cache to avoid redundant queries."
     ;; 1. Add line break after separator before content
     (org-social-ui--insert-formatted-text "\n")
 
-    ;; Start of org-mode content region for post content
-    (let ((org-content-start (point)))
+    ;; Calculate post URL
+    (let* ((post-url (if (string-empty-p author-url)
+                        (format "%s#%s"
+                               (alist-get 'url org-social-variables--my-profile)
+                               timestamp)
+                      (format "%s#%s" author-url timestamp)))
+           (post-data-with-url (append post `((url . ,post-url)))))
+
+      ;; Create invisible widget to store post data
+      (widget-create 'item
+                     :format ""  ; Invisible widget
+                     :value post-data-with-url)
 
       ;; 2. Post content
       (when (and text (not (string-empty-p text)))
-        (insert text)
-        (insert "\n"))
+        (let ((org-content-start (point)))
+          (insert text)
+          (insert "\n")
+          ;; Apply org-mode syntax highlighting to this region only
+          (org-social-ui--apply-org-mode-to-region org-content-start (point))))
 
-      ;; Apply org-mode syntax highlighting to this region only
-      (org-social-ui--apply-org-mode-to-region org-content-start (point)))
+      ;; 3. Add line break between content and hashtags
+      (org-social-ui--insert-formatted-text "\n")
 
-    ;; 3. Add line break between content and hashtags
-    (org-social-ui--insert-formatted-text "\n")
+      ;; 4. Tags and mood in same line
+      (when (or (and tags (not (string-empty-p tags)))
+                (and mood (not (string-empty-p mood))))
+        (when (and tags (not (string-empty-p tags)))
+          (let ((tag-list (split-string tags "\\s-+" t)))
+            (dolist (tag tag-list)
+              (org-social-ui--insert-formatted-text (format "#%s" tag) nil org-social-hashtag-color)
+              (org-social-ui--insert-formatted-text " "))))
+        ;; Mood at the end of tags line
+        (when (and mood (not (string-empty-p mood)))
+          (org-social-ui--insert-formatted-text (format "%s" mood)))
+        (org-social-ui--insert-formatted-text "\n"))
 
-    ;; 4. Tags and mood in same line
-    (when (or (and tags (not (string-empty-p tags)))
-              (and mood (not (string-empty-p mood))))
-      (when (and tags (not (string-empty-p tags)))
-        (let ((tag-list (split-string tags "\\s-+" t)))
-          (dolist (tag tag-list)
-            (org-social-ui--insert-formatted-text (format "#%s" tag) nil org-social-hashtag-color)
-            (org-social-ui--insert-formatted-text " "))))
-      ;; Mood at the end of tags line
-      (when (and mood (not (string-empty-p mood)))
-        (org-social-ui--insert-formatted-text (format "%s" mood)))
-      (org-social-ui--insert-formatted-text "\n"))
+      ;; Add line break before action buttons
+      (insert "\n")
 
-    ;; Add line break before action buttons
-    (insert "\n")
-
-    ;; 3. Action buttons
-    (let ((first-button t))
+      ;; 3. Action buttons
+      (let ((first-button t))
         ;; Reply button (only for others' posts)
         (when (not is-my-post)
           (widget-create 'push-button
@@ -702,11 +721,6 @@ Uses cache to avoid redundant queries."
 
         ;; Thread button - show if post has reply_to OR has replies
         (let* ((reply-to (alist-get 'reply_to post))
-               (post-url (if (string-empty-p author-url)
-                            (format "%s#%s"
-                                   (alist-get 'url org-social-variables--my-profile)
-                                   timestamp)
-                          (format "%s#%s" author-url timestamp)))
                (has-reply-to (and reply-to (not (string-empty-p reply-to))))
                (has-replies (org-social-ui--post-has-replies-p post-url))
                (thread-url (if has-reply-to reply-to post-url)))
@@ -744,32 +758,32 @@ Uses cache to avoid redundant queries."
                                    (message "Poll voting - to be implemented"))
                          " 🗳 Vote ")))
 
-    ;; 5. Add line break between buttons and user info
-    (org-social-ui--insert-formatted-text "\n\n")
+      ;; 5. Add line break between buttons and user info
+      (org-social-ui--insert-formatted-text "\n\n")
 
-    ;; 6. Post header with avatar, author name, timestamp, and client
-    ;; Avatar image
-    (if (and avatar (not (string-empty-p avatar)))
-        (progn
-          (org-social-ui--insert-formatted-text " ")
-          (org-social-ui--put-image-from-cache avatar (line-number-at-pos) 50)
-          (org-social-ui--insert-formatted-text " "))
-      ;; No avatar - show anonymous emoji
-      (org-social-ui--insert-formatted-text "👤 " nil "#4a90e2"))
+      ;; 6. Post header with avatar, author name, timestamp, and client
+      ;; Avatar image
+      (if (and avatar (not (string-empty-p avatar)))
+          (progn
+            (org-social-ui--insert-formatted-text " ")
+            (org-social-ui--put-image-from-cache avatar (line-number-at-pos) 50)
+            (org-social-ui--insert-formatted-text " "))
+        ;; No avatar - show anonymous emoji
+        (org-social-ui--insert-formatted-text "👤 " nil "#4a90e2"))
 
-    ;; Author name
-    (org-social-ui--insert-formatted-text (format "@%s" author) 1.1 "#4a90e2")
-    (org-social-ui--insert-formatted-text " • ")
-    (org-social-ui--insert-formatted-text (org-social--format-date timestamp) nil "#666666")
-    (when (and client (not (string-empty-p client)))
+      ;; Author name
+      (org-social-ui--insert-formatted-text (format "@%s" author) 1.1 "#4a90e2")
       (org-social-ui--insert-formatted-text " • ")
-      (org-social-ui--insert-formatted-text client nil "#ffaa00"))
+      (org-social-ui--insert-formatted-text (org-social--format-date timestamp) nil "#666666")
+      (when (and client (not (string-empty-p client)))
+        (org-social-ui--insert-formatted-text " • ")
+        (org-social-ui--insert-formatted-text client nil "#ffaa00"))
 
-    ;; 7. Add line break between user info and separator
-    (org-social-ui--insert-formatted-text "\n")
+      ;; 7. Add line break between user info and separator
+      (org-social-ui--insert-formatted-text "\n")
 
-    ;; 8. Final separator
-    (org-social-ui--insert-separator)))
+      ;; 8. Final separator
+      (org-social-ui--insert-separator))))
 
 ;;; Timeline Screen
 
@@ -1287,7 +1301,7 @@ Only checks posts that will be visible on the current page."
           (setq buffer-read-only t))))))
 
 (defun org-social-ui-thread (post-url)
-  "Display thread screen for POST-URL."
+  "Display thread screen for POST-URL synchronously."
   (interactive "sPost URL: ")
   (setq org-social-ui--current-screen 'thread)
 
@@ -1299,26 +1313,55 @@ Only checks posts that will be visible on the current page."
     (switch-to-buffer buffer-name)
     (kill-all-local-variables)
 
-    ;; Disable read-only mode before modifying buffer
-    (setq buffer-read-only nil)
-
     (let ((inhibit-read-only t))
       (erase-buffer))
     (remove-overlays)
 
-    ;; Insert header
-    (org-social-ui--insert-thread-header post-url)
+    ;; Fetch post data synchronously
+    (let* ((post-data (org-social-ui--fetch-post-sync post-url))
+           (parent-url (when post-data (alist-get 'reply_to post-data))))
 
-    ;; Show loading message
-    (org-social-ui--insert-formatted-text
-     (format "Loading thread for level %d...\n" org-social-ui--thread-level) nil "#4a90e2")
+      ;; Store parent URL for navigation
+      (setq org-social-ui--current-thread-parent-url parent-url)
 
-    ;; Set up the buffer with centering
+      ;; Insert header with parent button if needed
+      (org-social-ui--insert-logo)
+
+      ;; Back button
+      (widget-create 'push-button
+                     :notify (lambda (&rest _) (org-social-ui--thread-go-back))
+                     :help-echo "Go back to previous thread level"
+                     " ← Back ")
+
+      ;; Go to parent button (only if parent exists)
+      (when parent-url
+        (org-social-ui--insert-formatted-text " ")
+        (widget-create 'push-button
+                       :notify `(lambda (&rest _) (org-social-ui-thread ,parent-url))
+                       :help-echo "Go to parent post"
+                       " ⬆ Go to parent "))
+
+      (org-social-ui--insert-formatted-text "\n\n")
+
+      (if post-data
+          (progn
+            ;; Display the main post (parent)
+            (org-social-ui--insert-formatted-text "━━━ Main Post ━━━\n\n" 1.2 "#4a90e2")
+            (org-social-ui--post-component post-data nil)
+
+            ;; Fetch and display replies synchronously
+            (let ((replies-data (org-social-ui--fetch-replies-sync post-url)))
+              (if (and replies-data (> (length replies-data) 0))
+                  (progn
+                    (org-social-ui--insert-formatted-text "\n━━━ Replies ━━━\n\n" 1.2 "#27ae60")
+                    ;; Process reply structure from relay
+                    (org-social-ui--display-thread-tree replies-data))
+                (org-social-ui--insert-formatted-text "\n📭 No replies found.\n" nil "#e67e22"))))
+        (org-social-ui--insert-formatted-text "❌ Could not load post.\n" nil "#ff6b6b")))
+
+    ;; Set up the buffer
     (org-social-ui--setup-centered-buffer)
-    (goto-char (point-min))
-
-    ;; Fetch and display thread
-    (org-social-ui--fetch-and-display-thread post-url)))
+    (goto-char (point-min))))
 
 (defun org-social-ui-profile (user-url)
   "Display profile screen for USER-URL."
@@ -1571,44 +1614,91 @@ Only checks posts that will be visible on the current page."
 
 ;;; Thread Screen
 
-(defun org-social-ui--insert-thread-header (_post-url)
-  "Insert thread header with Back button for POST-URL."
-  (org-social-ui--insert-logo)
+(defun org-social-ui--fetch-post-sync (post-url)
+  "Fetch post data for POST-URL synchronously.
+Returns post data alist or nil if failed."
+  (require 'org-social-feed)
+  (when (and post-url (stringp post-url))
+    (if (string-match "\\(.*\\)#\\(.+\\)$" post-url)
+        (let* ((feed-url (match-string 1 post-url))
+               (post-id (match-string 2 post-url))
+               (buffer (condition-case nil
+                          (url-retrieve-synchronously feed-url t nil 10)
+                        (error nil))))
+          (when buffer
+            (with-current-buffer buffer
+              (set-buffer-multibyte t)
+              (goto-char (point-min))
+              (when (re-search-forward "\n\n" nil t)
+                (let* ((feed-data (decode-coding-string
+                                   (buffer-substring-no-properties (point) (point-max))
+                                   'utf-8))
+                       (posts (org-social-parser--get-posts-from-feed feed-data))
+                       (target-post (cl-find-if
+                                    (lambda (post)
+                                      (let ((timestamp (or (alist-get 'timestamp post)
+                                                          (alist-get 'id post))))
+                                        (and timestamp (string= timestamp post-id))))
+                                    posts)))
+                  (kill-buffer buffer)
+                  (when target-post
+                    (append target-post
+                           `((author-url . ,feed-url)
+                             (author-nick . ,(or (org-social-parser--get-value feed-data "NICK") "Unknown"))
+                             (feed-avatar . ,(org-social-parser--get-value feed-data "AVATAR"))))))))))
+      nil)))
 
-  ;; Back button to previous thread level or timeline
-  (widget-create 'push-button
-                 :notify (lambda (&rest _) (org-social-ui--thread-go-back))
-                 :help-echo "Go back to previous thread level"
-                 " ← Back ")
+(defun org-social-ui--fetch-replies-sync (post-url)
+  "Fetch replies for POST-URL from relay synchronously.
+Returns list of reply structures from relay data, or nil if failed."
+  (require 'org-social-relay)
+  (require 'json)
+  (when (and org-social-relay
+             (not (string-empty-p org-social-relay)))
+    (let* ((relay-url (string-trim-right org-social-relay "/"))
+           (encoded-url (url-hexify-string post-url))
+           (url (format "%s/replies/?post=%s" relay-url encoded-url))
+           (buffer (condition-case nil
+                      (url-retrieve-synchronously url t nil 10)
+                    (error nil))))
+      (when buffer
+        (with-current-buffer buffer
+          (set-buffer-multibyte t)
+          (goto-char (point-min))
+          (when (re-search-forward "\n\n" nil t)
+            (let* ((json-data (decode-coding-string
+                              (buffer-substring-no-properties (point) (point-max))
+                              'utf-8))
+                   (response (condition-case nil
+                                (json-read-from-string json-data)
+                              (error nil)))
+                   (response-type (when response (cdr (assoc 'type response))))
+                   (replies-data (when response (cdr (assoc 'data response)))))
+              (kill-buffer buffer)
+              (when (and response-type (string= response-type "Success") replies-data)
+                (if (vectorp replies-data)
+                    (append replies-data nil)
+                  replies-data)))))))))
 
-  ;; Mark where to insert the Go to parent button later
-  (insert " ") ;; Space placeholder for parent button
-
-  (org-social-ui--insert-formatted-text "\n")
-  (org-social-ui--insert-separator))
-
-(defun org-social-ui--update-thread-header-with-parent-button ()
-  "Add Go to parent button to thread header if parent URL exists."
-  (when org-social-ui--current-thread-parent-url
-    (let ((inhibit-read-only t))
-      (save-excursion
-        (goto-char (point-min))
-        ;; Find the Back button and add parent button after it
-        (when (search-forward "← Back " nil t)
-          ;; Delete the placeholder space and newline
-          (delete-region (point) (progn (forward-line 1) (point)))
-          ;; Insert the parent button
-          (widget-create 'push-button
-                         :notify (lambda (&rest _) (org-social-ui--thread-go-up))
-                         :help-echo "Go to parent post"
-                         " ⬆ Go to parent ")
-          (insert "\n")
-          (widget-setup)
-          ;; Re-insert separator
-          (org-social-ui--insert-separator))))))
+(defun org-social-ui--display-thread-tree (replies-tree)
+  "Display REPLIES-TREE structure from relay.
+Each element in REPLIES-TREE is an alist with \\='post and \\='children keys."
+  (dolist (reply-node replies-tree)
+    (let ((post-url (cdr (assoc 'post reply-node)))
+          (children (cdr (assoc 'children reply-node))))
+      ;; Fetch and display the reply post
+      (when post-url
+        (let ((post-data (org-social-ui--fetch-post-sync post-url)))
+          (when post-data
+            (org-social-ui--post-component post-data nil))))
+      ;; Recursively display children (if any)
+      (when (and children (> (length children) 0))
+        (org-social-ui--display-thread-tree (if (vectorp children)
+                                                (append children nil)
+                                              children))))))
 
 (defun org-social-ui--thread-go-back ()
-  "Go back to previous thread level or timeline."
+  "Go back to previous thread level or timeline and kill current buffer."
   (interactive)
   (let ((current-buffer (current-buffer)))
     (if (> (length org-social-ui--thread-stack) 1)
@@ -1616,124 +1706,20 @@ Only checks posts that will be visible on the current page."
           ;; Remove current level from stack
           (pop org-social-ui--thread-stack)
           (setq org-social-ui--thread-level (length org-social-ui--thread-stack))
-          ;; Go to previous thread level
+          ;; Navigate to previous thread level (which is already in the stack)
           (let ((parent-post-url (car org-social-ui--thread-stack)))
-            (org-social-ui-thread parent-post-url))
-          ;; Kill the current thread buffer
-          (when (buffer-live-p current-buffer)
-            (kill-buffer current-buffer)))
+            ;; Remove it temporarily to avoid duplicating when org-social-ui-thread pushes
+            (pop org-social-ui--thread-stack)
+            (setq org-social-ui--thread-level (length org-social-ui--thread-stack))
+            ;; Now navigate (this will push it back)
+            (org-social-ui-thread parent-post-url)))
       ;; If at top level, go back to timeline and clear stack
       (setq org-social-ui--thread-stack nil)
       (setq org-social-ui--thread-level 0)
-      (org-social-ui-timeline)
-      ;; Kill the current thread buffer
-      (when (buffer-live-p current-buffer)
-        (kill-buffer current-buffer)))))
-
-(defun org-social-ui--thread-go-up ()
-  "Go up one level to the parent post."
-  (interactive)
-  (when org-social-ui--current-thread-parent-url
-    (org-social-ui-thread org-social-ui--current-thread-parent-url)))
-
-(defun org-social-ui--fetch-and-display-main-post (post-url)
-  "Fetch and display the main post for POST-URL using org-social-feed--get-post."
-  (require 'org-social-feed)
-  (org-social-feed--get-post
-   post-url
-   (lambda (post-data)
-     (let ((buffer-name (format "*Org Social Thread Level %d*" org-social-ui--thread-level)))
-       (when (buffer-live-p (get-buffer buffer-name))
-         (with-current-buffer buffer-name
-           (let ((inhibit-read-only t))
-             (goto-char (point-min))
-             ;; Remove loading message
-             (when (re-search-forward "Loading thread.*\n" nil t)
-               (replace-match ""))
-             (goto-char (point-max))
-
-             (if post-data
-                 (progn
-                   ;; Store parent URL if this post has REPLY_TO
-                   (let ((reply-to (alist-get 'reply_to post-data)))
-                     (setq org-social-ui--current-thread-parent-url reply-to))
-
-                   ;; Update header to show parent button if post has parent
-                   (org-social-ui--update-thread-header-with-parent-button)
-
-                   ;; Display the main post
-                   (org-social-ui--post-component post-data nil)
-
-                   ;; Now fetch replies from relay
-                   (org-social-ui--fetch-thread-replies post-url))
-               ;; Failed to fetch post
-               (org-social-ui--insert-formatted-text
-                "❌ Could not load post content.\n\n" nil "#ff6b6b")
-               (org-social-ui--insert-formatted-text
-                (format "Post URL: %s\n\n" post-url) nil "#666666"))
-
-             (goto-char (point-min))
-             (setq buffer-read-only t))))))))
-
-(defun org-social-ui--fetch-thread-replies (post-url)
-  "Fetch replies for POST-URL from relay."
-  (require 'org-social-relay)
-  (org-social-relay--fetch-replies
-   post-url
-   (lambda (replies)
-     (org-social-ui--display-thread-replies post-url replies))))
-
-
-(defun org-social-ui--fetch-and-display-thread (post-url)
-  "Fetch and display thread for POST-URL."
-  (require 'request nil t)
-  (if (not (featurep 'request))
-      (progn
-        (org-social-ui--insert-formatted-text "Error: request library not available.\n" nil "#ff6b6b")
-        (org-social-ui--insert-formatted-text "Thread viewing requires the 'request' package to be installed.\n" nil "#666666"))
-    ;; Start by fetching and displaying the main post
-    (org-social-ui--fetch-and-display-main-post post-url)))
-
-(defun org-social-ui--display-thread-replies (_post-url replies)
-  "Display REPLIES in the current thread buffer."
-  (let ((buffer-name (format "*Org Social Thread Level %d*" org-social-ui--thread-level)))
-    (with-current-buffer buffer-name
-      (let ((inhibit-read-only t))
-        (goto-char (point-max))
-
-        (if (and replies (> (length replies) 0))
-            (progn
-              ;; Display replies header
-              (org-social-ui--insert-formatted-text
-               "💬 Replies:\n\n" 1.1 "#27ae60")
-
-              ;; Fetch and display each reply using org-social-feed--get-post
-              (dolist (reply-url replies)
-                (org-social-ui--fetch-and-display-reply reply-url)))
-
-          ;; No replies found
-          (org-social-ui--insert-formatted-text
-           "📭 No replies found for this post.\n\n" nil "#e67e22")
-          (org-social-ui--insert-formatted-text
-           "This might be the end of the thread, or replies may not be available through the relay.\n"
-           nil "#666666"))
-
-        ;; Setup buffer
-        (goto-char (point-min))
-        (setq buffer-read-only t)))))
-
-(defun org-social-ui--fetch-and-display-reply (reply-url)
-  "Fetch and display a single reply from REPLY-URL."
-  (require 'org-social-feed)
-  (org-social-feed--get-post
-   reply-url
-   (lambda (reply-data)
-     (let ((buffer-name (format "*Org Social Thread Level %d*" org-social-ui--thread-level)))
-       (when (and reply-data (buffer-live-p (get-buffer buffer-name)))
-         (with-current-buffer buffer-name
-           (let ((inhibit-read-only t))
-             (goto-char (point-max))
-             (org-social-ui--post-component reply-data nil))))))))
+      (org-social-ui-timeline))
+    ;; Always kill the buffer we came from
+    (when (buffer-live-p current-buffer)
+      (kill-buffer current-buffer))))
 
 ;;; Groups Screen
 
