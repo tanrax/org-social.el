@@ -7,36 +7,30 @@ An Emacs client for [Org Social](https://github.com/tanrax/org-social), a decent
 ![Screenshot notifications](screenshots/screenshot-3.png)
 ![Screenshot groups](screenshots/screenshot-4.png)
 
-## 🎯 You decide how much you want to interact with the community
+## 🎯 Getting Started
 
-### 👀 Basic: read-only
+**Note:** The Relay server is required for org-social.el to work.
 
-Create your [social.org](https://github.com/tanrax/org-social) file and add the followers you want to read to your list.
+### Required Configuration
 
-After, set `org-social-file` to point to your file.
-
-```elisp
-(setq org-social-file "~/social.org")
-```
-
-And run `M-x org-social-timeline` to see the timeline.
-
-### ✍️ Advanced: You write, reply and read
-
-Upload your social.org file to a web server and share the URL with others.
-
-After setting `org-social-file`, you can create new posts with `M-x org-social-new-post` and reply to posts in the timeline with `r`.
-
-### 🌐 Complete: You interact with the entire community
-
-**Note:** The Relay server is required for org-social.el to work. Configure both your relay server and public URL:
+1. Create your [social.org](https://github.com/tanrax/org-social) file
+2. Upload it to a web server so others can access it
+3. Configure org-social.el with the required settings:
 
 ```elisp
-(setq org-social-relay "https://org-social-relay.andros.dev/") ;; Public Relay server
-(setq org-social-my-public-url "https://example.com/social.org") ;; Your public URL
+(setq org-social-file "~/social.org")  ;; Path to your local file
+(setq org-social-relay "https://org-social-relay.andros.dev/")  ;; Relay server
+(setq org-social-my-public-url "https://example.com/social.org")  ;; Your public URL
 ```
 
 You can use the [public Relay server](https://org-social-relay.andros.dev/) or check the [public Relay list](https://github.com/tanrax/org-social/blob/main/org-social-relay-list.txt) for other options.
+
+### Basic Usage
+
+- View timeline: `M-x org-social-timeline`
+- Create new post: `M-x org-social-new-post`
+- Reply to posts in timeline: Press `r` on a post
+- Interact with the entire community through the relay server
 
 ## 📦 Installation
 
