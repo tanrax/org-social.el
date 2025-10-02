@@ -129,12 +129,13 @@ Validates format according to specification - ignores invalid values."
       (insert feed)
       (goto-char (point-min))
       (when (re-search-forward "^\\* Posts" nil t)
-	(while (re-search-forward "^\\*\\*" nil t)
+	(while (re-search-forward "^\\*\\*[^*]" nil t)
 	  (let ((post-start (point))
 		post-end id text date properties-text)
 	    ;; Find the end of this post (next ** or end of buffer)
-	    (if (re-search-forward "^\\*\\*" nil t)
+	    (if (re-search-forward "^\\*\\*[^*]" nil t)
 		(progn
+		  (backward-char)  ; Move back to the line with **
 		  (beginning-of-line)
 		  (setq post-end (point))
 		  (goto-char post-start))
