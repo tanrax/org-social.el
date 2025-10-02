@@ -135,6 +135,7 @@ Validates format according to specification - ignores invalid values."
 	    ;; Find the end of this post (next ** or end of buffer)
 	    (if (re-search-forward "^\\*\\*[^*]" nil t)
 		(progn
+		  (backward-char)  ; Move back to the line with **
 		  (beginning-of-line)
 		  (setq post-end (point))
 		  (goto-char post-start))

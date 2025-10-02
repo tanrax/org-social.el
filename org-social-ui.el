@@ -143,6 +143,30 @@
       (setq visual-fill-column-width 75))
     (visual-fill-column-mode 1)))
 
+(defun org-social-ui--format-org-headings (text)
+  "Format org-mode headings in TEXT to be more visually appealing.
+Replaces *** and deeper headings with visual markers."
+  (let ((lines (split-string text "\n")))
+    (mapconcat
+     (lambda (line)
+       (cond
+        ;; Level 6 heading: ****** → ▸▸▸▸▸▸
+        ((string-match "^\\(\\*\\{6,\\}\\) \\(.+\\)$" line)
+         (concat "▸▸▸▸▸▸ " (match-string 2 line)))
+        ;; Level 5 heading: ***** → ▸▸▸▸▸
+        ((string-match "^\\(\\*\\{5\\}\\) \\(.+\\)$" line)
+         (concat "▸▸▸▸▸ " (match-string 2 line)))
+        ;; Level 4 heading: **** → ▸▸▸▸
+        ((string-match "^\\(\\*\\{4\\}\\) \\(.+\\)$" line)
+         (concat "▸▸▸▸ " (match-string 2 line)))
+        ;; Level 3 heading: *** → ▸▸▸
+        ((string-match "^\\(\\*\\{3\\}\\) \\(.+\\)$" line)
+         (concat "▸▸▸ " (match-string 2 line)))
+        ;; Default: return line as is
+        (t line)))
+     lines
+     "\n")))
+
 (defun org-social-ui--insert-formatted-text (text &optional size font-color background-color)
   "Insert TEXT with optional formatting SIZE, FONT-COLOR, and BACKGROUND-COLOR."
   (let ((start (point)))
@@ -333,6 +357,20 @@ Optional CALLBACK is called with success status when download completes."
 
       ;; Hashtags: No longer needed - now handled by org-social-ui--insert-formatted-text
       ;; (Hashtag coloring moved to use same technique as name/date/client)
+
+      ;; Formatted headings: ▸▸▸ Title (from org-mode headings)
+      (goto-char start)
+      (while (re-search-forward "^\\(▸+\\) \\(.+\\)$" end t)
+        (let ((marker-overlay (make-overlay (match-beginning 1) (match-end 1)))
+              (title-overlay (make-overlay (match-beginning 2) (match-end 2))))
+          ;; Style the marker (▸▸▸)
+          (overlay-put marker-overlay 'face '(:foreground "#4a90e2" :weight bold))
+          (overlay-put marker-overlay 'priority 100)
+          (overlay-put marker-overlay 'org-social-overlay t)
+          ;; Style the title text
+          (overlay-put title-overlay 'face '(:foreground "#4a90e2" :weight bold :height 1.1))
+          (overlay-put title-overlay 'priority 100)
+          (overlay-put title-overlay 'org-social-overlay t)))
 
       ;; List items: - item or + item or * item
       (goto-char start)
@@ -707,8 +745,9 @@ Uses cache to avoid redundant queries."
 
       ;; 2. Post content
       (when (and text (not (string-empty-p text)))
-        (let ((org-content-start (point)))
-          (insert text)
+        (let ((org-content-start (point))
+              (formatted-text (org-social-ui--format-org-headings text)))
+          (insert formatted-text)
           (insert "\n")
           ;; Apply org-mode syntax highlighting to this region only
           (org-social-ui--apply-org-mode-to-region org-content-start (point))))
