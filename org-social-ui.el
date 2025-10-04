@@ -1046,11 +1046,6 @@ Uses cache to avoid redundant queries."
                (not (string-empty-p org-social-file)))
     (error "Org-social-file is not configured.  Please set it in your configuration"))
 
-  (unless (and (boundp 'org-social-relay)
-               org-social-relay
-               (not (string-empty-p org-social-relay)))
-    (error "Org-social-relay is not configured.  Please set it to a relay server URL (e.g., \"https://org-social-relay.andros.dev/\")"))
-
   (unless (and (boundp 'org-social-my-public-url)
                org-social-my-public-url
                (not (string-empty-p org-social-my-public-url)))

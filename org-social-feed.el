@@ -48,6 +48,7 @@
 
 (defun org-social-feed--initialize-queue ()
   "Initialize the download queue with follower feeds."
+  (setq org-social-variables--my-profile (org-social-parser--get-my-profile))
   (setq org-social-variables--queue
 	(mapcar (lambda (follow)
 		  `((:url . ,(alist-get 'url follow))
