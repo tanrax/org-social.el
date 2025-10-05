@@ -124,9 +124,11 @@ Validates format according to specification - ignores invalid values."
 
 (defun org-social-parser--get-posts-from-feed (feed)
   "Extract posts from an Org-social FEED."
-  (let ((posts nil))
-    (with-temp-buffer
-      (insert feed)
+  (if (not (stringp feed))
+      nil  ; Return empty list if feed is nil or not a string
+    (let ((posts nil))
+      (with-temp-buffer
+        (insert feed)
       (goto-char (point-min))
       (when (re-search-forward "^\\* Posts" nil t)
 	(while (re-search-forward "^\\*\\*[^*]" nil t)
@@ -191,7 +193,7 @@ Validates format according to specification - ignores invalid values."
             ;; Move to the post we found (if any)
             (when (< (point) post-end)
               (goto-char post-end))))))
-    (reverse posts)))
+      (reverse posts))))
 
 (defun org-social-parser--validate-property (prop-name value)
   "Validate PROP-NAME VALUE according to Org Social specification.
