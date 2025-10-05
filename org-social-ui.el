@@ -347,12 +347,21 @@ Optional CALLBACK is called with success status when download completes."
           (delete-region link-start link-end)
           (goto-char link-start)
           (insert display-text)
-          ;; Create overlay for the display text
-          (let ((overlay (make-overlay link-start (+ link-start (length display-text)))))
+          ;; Create overlay for the display text with click functionality
+          (let ((overlay (make-overlay link-start (+ link-start (length display-text))))
+                (keymap (make-sparse-keymap)))
+            ;; Setup keymap for clicking
+            (define-key keymap (kbd "RET") `(lambda () (interactive) (browse-url ,url)))
+            (define-key keymap (kbd "<mouse-1>") `(lambda () (interactive) (browse-url ,url)))
+            (define-key keymap (kbd "<mouse-2>") `(lambda () (interactive) (browse-url ,url)))
+            ;; Apply properties to overlay
             (overlay-put overlay 'face 'org-link)
+            (overlay-put overlay 'mouse-face 'highlight)
             (overlay-put overlay 'priority 100)
             (overlay-put overlay 'org-social-overlay t)
-            ;; Store URL for potential click handling
+            (overlay-put overlay 'keymap keymap)
+            (overlay-put overlay 'help-echo (format "Visit: %s" url))
+            ;; Store URL for reference
             (overlay-put overlay 'org-social-url url))))
 
       ;; Hashtags: No longer needed - now handled by org-social-ui--insert-formatted-text
@@ -371,6 +380,38 @@ Optional CALLBACK is called with success status when download completes."
           (overlay-put title-overlay 'face '(:foreground "#4a90e2" :weight bold :height 1.1))
           (overlay-put title-overlay 'priority 100)
           (overlay-put title-overlay 'org-social-overlay t)))
+
+      ;; Plain URLs: https://... or http://...
+      ;; Process from end to start to avoid issues with changing positions
+      (goto-char start)
+      (let ((url-positions '()))
+        ;; First, collect all URL positions
+        (while (re-search-forward "\\(https?://[^ \t\n<>\"]+\\)" end t)
+          (push (cons (match-beginning 1) (cons (match-end 1) (match-string 1))) url-positions))
+        ;; Then create overlays (avoiding duplicates)
+        (dolist (url-info url-positions)
+          (let* ((url-start (car url-info))
+                 (url-end (cadr url-info))
+                 (url (cddr url-info))
+                 ;; Check if there's already an overlay here
+                 (existing-overlays (overlays-at url-start))
+                 (has-link-overlay (cl-some (lambda (ov) (overlay-get ov 'org-social-url)) existing-overlays)))
+            ;; Only create overlay if there isn't one already
+            (unless has-link-overlay
+              (let ((overlay (make-overlay url-start url-end))
+                    (keymap (make-sparse-keymap)))
+                ;; Setup keymap for clicking
+                (define-key keymap (kbd "RET") `(lambda () (interactive) (browse-url ,url)))
+                (define-key keymap (kbd "<mouse-1>") `(lambda () (interactive) (browse-url ,url)))
+                (define-key keymap (kbd "<mouse-2>") `(lambda () (interactive) (browse-url ,url)))
+                ;; Apply properties to overlay
+                (overlay-put overlay 'face 'org-link)
+                (overlay-put overlay 'mouse-face 'highlight)
+                (overlay-put overlay 'priority 100)
+                (overlay-put overlay 'org-social-overlay t)
+                (overlay-put overlay 'keymap keymap)
+                (overlay-put overlay 'help-echo (format "Visit: %s" url))
+                (overlay-put overlay 'org-social-url url))))))
 
       ;; List items: - item or + item or * item
       (goto-char start)
