@@ -1257,7 +1257,9 @@ Only checks posts that will be visible on the current page."
       (goto-char (point-min))
       (when (search-forward "Loading timeline..." nil t)
         (beginning-of-line)
-        (kill-line 1))
+        (let ((line-start (point)))
+          (forward-line 1)
+          (delete-region line-start (point))))
       ;; Insert posts
       (goto-char (point-max))
       (if (and timeline (> (length timeline) 0))
@@ -1338,7 +1340,9 @@ Only checks posts that will be visible on the current page."
                  (goto-char (point-min))
                  (when (search-forward "Loading mentions..." nil t)
                    (beginning-of-line)
-                   (kill-line 1))
+                   (let ((line-start (point)))
+                     (forward-line 1)
+                     (delete-region line-start (point))))
                  ;; Insert mentions
                  (goto-char (point-max))
                  (org-social-ui--insert-notifications-content mentions)
@@ -1352,7 +1356,9 @@ Only checks posts that will be visible on the current page."
           (goto-char (point-min))
           (when (search-forward "Loading mentions..." nil t)
             (beginning-of-line)
-            (kill-line 1))
+            (let ((line-start (point)))
+              (forward-line 1)
+              (delete-region line-start (point))))
           ;; Show configuration message
           (goto-char (point-max))
           (org-social-ui--insert-formatted-text "Relay not configured.\n" nil "#ff6600")
@@ -1944,7 +1950,9 @@ Each element in REPLIES-TREE is an alist with \\='post and \\='children keys."
                (goto-char (point-min))
                (when (search-forward "Loading group posts..." nil t)
                  (beginning-of-line)
-                 (kill-line 1))
+                 (let ((line-start (point)))
+                   (forward-line 1)
+                   (delete-region line-start (point))))
                ;; Insert posts
                (goto-char (point-max))
                (if posts
@@ -2013,7 +2021,9 @@ Each element in REPLIES-TREE is an alist with \\='post and \\='children keys."
                  (goto-char (point-min))
                  (when (search-forward "Loading groups..." nil t)
                    (beginning-of-line)
-                   (kill-line 1))
+                   (let ((line-start (point)))
+                     (forward-line 1)
+                     (delete-region line-start (point))))
                  ;; Insert groups
                  (goto-char (point-max))
                  (org-social-ui--insert-groups-content groups)
@@ -2027,7 +2037,9 @@ Each element in REPLIES-TREE is an alist with \\='post and \\='children keys."
           (goto-char (point-min))
           (when (search-forward "Loading groups..." nil t)
             (beginning-of-line)
-            (kill-line 1))
+            (let ((line-start (point)))
+              (forward-line 1)
+              (delete-region line-start (point))))
           ;; Show configuration message
           (goto-char (point-max))
           (org-social-ui--insert-formatted-text "Relay not configured.\n" nil "#ff6600")
