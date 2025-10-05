@@ -5,7 +5,6 @@
 ;; Author: Andros Fenollosa <hi@andros.dev>
 ;; Version: 2.0
 ;; URL: https://github.com/tanrax/org-social.el
-;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5"))
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -37,7 +36,7 @@
 (defun org-social-parser--generate-timestamp ()
   "Generate a timestamp in RFC 3339 format for use as post ID.
 Follows Org Social specification format."
-  (let ((timestamp (format-time-string "%Y-%m-%dT%H:%M:%S%z")))
+  (let ((timestamp (format-time-string "%FT%T%z")))
     ;; Ensure proper timezone format (+##:## instead of +####)
     (if (string-match "\\(.*[+-][0-9]\{2\}\\)\\([0-9]\{2\}\\)$" timestamp)
         (format "%s:%s" (match-string 1 timestamp) (match-string 2 timestamp))

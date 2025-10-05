@@ -5,7 +5,6 @@
 ;; Author: Andros Fenollosa <hi@andros.dev>
 ;; Version: 2.0
 ;; URL: https://github.com/tanrax/org-social.el
-;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5") (emojify "1.2"))
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -178,7 +177,7 @@ Interactively prompts for the poll question, options, and duration."
 
       ;; Prompt for poll duration
       (let* ((duration-hours (read-number "Poll duration in hours (default: 24): " 24))
-             (poll-end (format-time-string "%Y-%m-%dT%H:%M:%S%z"
+             (poll-end (format-time-string "%FT%T%z"
                                            (time-add (current-time)
                                                      (seconds-to-time (* duration-hours 3600))))))
 
@@ -306,7 +305,8 @@ NICK is the user's nickname and URL is their social.org URL."
 
 ;; Wrapper functions to ensure org-social.el is loaded
 (defun org-social-file-new-post (&optional reply-url reply-id)
-  "Create a new post - wrapper that ensures org-social.el is loaded."
+  "Create a new post - wrapper that ensures org-social.el is loaded.
+Optional REPLY-URL and REPLY-ID are passed to create a reply post."
   (interactive)
   (unless (fboundp 'org-social-new-post)
     (require 'org-social))
@@ -327,8 +327,8 @@ NICK is the user's nickname and URL is their social.org URL."
   (org-social-new-poll))
 
 ;; Interactive functions with proper naming
-(defalias 'org-social-save-file 'org-social-file--save)
-(defalias 'org-social-mention-user 'org-social-file--mention-user)
+(defalias 'org-social-save-file #'org-social-file--save)
+(defalias 'org-social-mention-user #'org-social-file--mention-user)
 
 (provide 'org-social-file)
 ;;; org-social-file.el ends here

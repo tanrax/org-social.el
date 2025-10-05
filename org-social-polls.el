@@ -5,7 +5,6 @@
 ;; Author: Andros Fenollosa <hi@andros.dev>
 ;; Version: 2.0
 ;; URL: https://github.com/tanrax/org-social.el
-;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (cl-lib "0.5"))
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -268,7 +267,7 @@ Argument TIMELINE is the list of posts."
 	       (author (alist-get 'author-nick poll-post))
 	       (timestamp (alist-get 'timestamp poll-post))
 	       (text (alist-get 'text poll-post))
-	       (total-votes (apply '+ (mapcar 'cdr results))))
+	       (total-votes (apply #'+ (mapcar #'cdr results))))
 	  ;; Extract first line as poll question
 	  (let ((first-line (car (split-string text "\n" t))))
 	    (when first-line
@@ -287,10 +286,6 @@ Argument TIMELINE is the list of posts."
 		  (insert (format "  - %s: %d votes (%.1f%%)\n"
 				  option result-votes percentage))))))))
       (insert "\n"))))
-
-;; Initialize poll links when module loads
-(eval-after-load 'org
-  '(org-social-polls--setup-poll-links))
 
 (defun org-social-polls--get-active-poll-notifications (timeline)
   "Get notification data for active polls in TIMELINE.
@@ -330,7 +325,7 @@ Returns a list of notification objects for poll results."
              (timestamp (alist-get 'timestamp poll-post))
              (text (alist-get 'text poll-post))
              (date (alist-get 'date poll-post))
-             (total-votes (apply '+ (mapcar 'cdr results))))
+             (total-votes (apply #'+ (mapcar #'cdr results))))
         ;; Extract first line as poll question
         (let ((first-line (car (split-string text "\n" t))))
           (when first-line

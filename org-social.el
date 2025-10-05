@@ -5,7 +5,7 @@
 ;; Author: Andros Fenollosa <hi@andros.dev>
 ;; Version: 2.0
 ;; URL: https://github.com/tanrax/org-social.el
-;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20"))
+;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (emojify "1.2"))
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -53,6 +53,7 @@
 (declare-function org-social-file--new-poll "org-social-file" ())
 (declare-function org-social-ui-timeline "org-social-ui" ())
 (declare-function org-social-file--validate "org-social-file" ())
+(declare-function org-social-polls--setup-poll-links "org-social-polls" ())
 (declare-function org-social-notifications--is-feed-followed-p "org-social-notifications" (url))
 (declare-function org-social-parser--get-my-profile "org-social-parser" ())
 (declare-function org-social-parser--format-timestamp "org-social-parser" (timestamp))
@@ -80,7 +81,7 @@ TIMESTAMP should be in RFC 3339 format or a time value."
              (seconds-to-time timestamp))
             (t nil))))
       (when time-value
-        (format-time-string "%d %b %Y, %H:%M" time-value)))))
+        (format-time-string "%d %b %Y, %R" time-value)))))
 
 (defun org-social--ensure-loaded ()
   "Ensure all org-social modules are loaded."
@@ -116,10 +117,14 @@ TIMESTAMP should be in RFC 3339 format or a time value."
        (message "Warning: Could not load org-social-notifications module")))
     
     (condition-case nil
-        (require 'org-social-polls)
+        (progn
+          (require 'org-social-polls)
+          ;; Setup poll links if org is loaded
+          (when (featurep 'org)
+            (org-social-polls--setup-poll-links)))
       (error
        (message "Warning: Could not load org-social-polls module")))
-    
+
     ;; Load new UI system
     (condition-case nil
         (require 'org-social-ui)
