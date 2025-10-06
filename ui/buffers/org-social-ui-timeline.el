@@ -294,34 +294,20 @@
         (require 'org-social-feed)
         (require 'org-social-file)
 
-        (message "Debug: Checking existing feeds...")
-        (message "Debug: org-social-variables--feeds bound: %s" (boundp 'org-social-variables--feeds))
-        (when (boundp 'org-social-variables--feeds)
-          (message "Debug: org-social-variables--feeds length: %s"
-                   (if org-social-variables--feeds (length org-social-variables--feeds) 0)))
-
         ;; Check if we already have feeds loaded
         (if (and (boundp 'org-social-variables--feeds)
                  org-social-variables--feeds
                  (> (length org-social-variables--feeds) 0))
             ;; We have feeds, display them
             (progn
-              (message "Debug: Using existing feeds...")
               (let ((timeline (when (fboundp 'org-social-feed--get-timeline)
                                 (org-social-feed--get-timeline))))
-                (message "Debug: Timeline length: %s" (if timeline (length timeline) 0))
                 (org-social-ui--check-replies-and-display-timeline timeline)))
           ;; No feeds loaded yet, start the loading process
           (progn
-            (message "Debug: No feeds loaded, starting initialization...")
             ;; Load my profile first to get followers list
             (when (fboundp 'org-social-file--read-my-profile)
-              (message "Debug: Reading my profile...")
               (org-social-file--read-my-profile))
-
-            ;; Check if we have relay configured
-            (message "Debug: Relay configured: %s"
-                     (and (boundp 'org-social-relay) org-social-relay (not (string-empty-p org-social-relay))))
 
             ;; Initialize feeds from relay if available, otherwise from local followers
             (if (and (boundp 'org-social-relay)
@@ -329,10 +315,8 @@
                      (not (string-empty-p org-social-relay))
                      (fboundp 'org-social-feed--initialize-queue-from-relay))
                 (progn
-                  (message "Debug: Initializing feeds from relay...")
                   (org-social-feed--initialize-queue-from-relay))
               (progn
-                (message "Debug: Initializing feeds from local followers...")
                 ;; Initialize queue from local followers
                 (when (fboundp 'org-social-feed--initialize-queue)
                   (org-social-feed--initialize-queue)

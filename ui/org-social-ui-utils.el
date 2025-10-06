@@ -366,10 +366,14 @@ Optional CALLBACK is called with success status when download completes."
 
     ;; If we're at the last post, try to load more
     (when was-at-last
-      ;; Use the existing button finder function
+      ;; Search for "Show more" button from the end of buffer (where it always is)
       (unless (save-excursion
-                (goto-char (point-min))
-                (org-social-ui--find-and-press-button "Show more"))
+                (goto-char (point-max))
+                (when (search-backward "Show more" nil t)
+                  (let ((widget (widget-at (point))))
+                    (when (and widget (eq (widget-type widget) 'push-button))
+                      (widget-button-press (point))
+                      t))))
         (message "No more posts to load")))
 
     ;; Center the screen on cursor position
