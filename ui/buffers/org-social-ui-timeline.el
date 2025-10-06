@@ -506,14 +506,13 @@ Only checks posts that will be visible on the current page."
                    (when (and (> (point) (point-min))
                               (eq (char-before) ?\n))
                      (backward-char))
-                   ;; Save this position - this is where new posts will start
-                   (setq new-posts-start (point))
                    (let ((start (point)))
                      (search-forward "Show more")
                      (forward-line 1)
                      (delete-region start (point))))
-                 ;; Insert new page of posts
-                 (goto-char (point-max))
+                 ;; Save position where new posts will be inserted (current point after deletion)
+                 (setq new-posts-start (point))
+                 ;; Insert new page of posts at current position
                  (let* ((start-idx (* (- org-social-ui--current-page 1) org-social-ui--posts-per-page))
                         (end-idx (* org-social-ui--current-page org-social-ui--posts-per-page))
                         (posts-to-show (cl-subseq org-social-ui--timeline-current-list
@@ -531,9 +530,16 @@ Only checks posts that will be visible on the current page."
                    (org-social-ui--insert-formatted-text "\n"))
                  (setq buffer-read-only t)
                  (widget-setup)
-                 ;; Move cursor to the first new post
+                 ;; Move cursor to the first new post (after its separator)
                  (when new-posts-start
-                   (goto-char new-posts-start))
+                   (goto-char new-posts-start)
+                   ;; Find the first separator of new posts
+                   (let ((separator-regex (concat "^" (regexp-quote (org-social-ui--string-separator)) "$")))
+                     (when (search-forward-regexp separator-regex nil t)
+                       ;; Move to the line after the separator (start of post content)
+                       (forward-line 1)))
+                   ;; Execute "previous post" to position cursor correctly
+                   (org-social-ui--goto-previous-post))
                  ;; Clear loading flag
                  (setq org-social-ui--timeline-loading-in-progress nil))))))))))
 

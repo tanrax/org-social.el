@@ -370,7 +370,10 @@ Optional CALLBACK is called with success status when download completes."
       (unless (save-excursion
                 (goto-char (point-min))
                 (org-social-ui--find-and-press-button "Show more"))
-        (message "No more posts to load")))))
+        (message "No more posts to load")))
+
+    ;; Center the screen on cursor position
+    (recenter)))
 
 (defun org-social-ui--goto-previous-post ()
   "Go to the previous post."
@@ -387,7 +390,9 @@ Optional CALLBACK is called with success status when download completes."
                 (forward-line 1)))))
       (progn
         (goto-char (point-min))
-        (message "Already at first post")))))
+        (message "Already at first post")))
+    ;; Center the screen on cursor position
+    (recenter)))
 
 (defun org-social-ui--last-separator-p ()
   "Check if we're at the last separator (near bottom of posts)."
