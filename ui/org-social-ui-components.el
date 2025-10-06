@@ -42,7 +42,7 @@ Uses relay to check for replies and caches the result."
       (if cached-result
           (eq cached-result 'yes)
         (let ((result nil))
-          (org-social-relay--check-post-has-replies 
+          (org-social-relay--check-post-has-replies
            post-url
            (lambda (has-replies)
              (puthash post-url (if has-replies 'yes 'no) org-social-ui--replies-cache)
@@ -52,39 +52,39 @@ Uses relay to check for replies and caches the result."
 (defun org-social-ui--post-component (post _timeline-data)
   "Insert a post component for POST with _TIMELINE-DATA context."
   (let* ((author (or (alist-get 'author-nick post)
-                    (alist-get 'nick post)
-                    "Unknown"))
+                     (alist-get 'nick post)
+                     "Unknown"))
          (author-url (or (alist-get 'author-url post)
-                        (alist-get 'url post)
-                        ""))
+                         (alist-get 'url post)
+                         ""))
          (avatar (or (alist-get 'author-avatar post)
-                    (alist-get 'avatar post)
-                    (alist-get 'feed-avatar post)))
+                     (alist-get 'avatar post)
+                     (alist-get 'feed-avatar post)))
          (timestamp (or (alist-get 'timestamp post)
-                       (alist-get 'id post)
-                       (alist-get 'date post)
-                       ""))
+                        (alist-get 'id post)
+                        (alist-get 'date post)
+                        ""))
          (text (or (alist-get 'text post)
-                  (alist-get 'content post)
-                  ""))
+                   (alist-get 'content post)
+                   ""))
          (poll-end (or (alist-get 'poll_end post)
-                      (alist-get 'poll-end post)))
+                       (alist-get 'poll-end post)))
          (tags (or (alist-get 'tags post) ""))
          (mood (or (alist-get 'mood post) ""))
          (client (alist-get 'client post))
          (my-nick (alist-get 'nick org-social-variables--my-profile))
          (is-my-post (or (string= author my-nick)
-                        (string= author-url (alist-get 'url org-social-variables--my-profile)))))
+                         (string= author-url (alist-get 'url org-social-variables--my-profile)))))
 
     ;; 1. Add line break after separator before content
     (org-social-ui--insert-formatted-text "\n")
 
     ;; Calculate post URL
     (let* ((post-url (if (string-empty-p author-url)
-                        (format "%s#%s"
-                               (alist-get 'url org-social-variables--my-profile)
-                               timestamp)
-                      (format "%s#%s" author-url timestamp)))
+                         (format "%s#%s"
+                                 (alist-get 'url org-social-variables--my-profile)
+                                 timestamp)
+                       (format "%s#%s" author-url timestamp)))
            (post-data-with-url (append post `((url . ,post-url)))))
 
       ;; Create invisible widget to store post data
@@ -98,7 +98,7 @@ Uses relay to check for replies and caches the result."
               (formatted-text (org-social-ui--format-org-headings text)))
           (insert formatted-text)
           (insert "\n")
-          ;; Apply org-mode syntax highlighting to this region only
+          ;; Apply 'org-mode' syntax highlighting to this region only
           (org-social-ui--apply-org-mode-to-region org-content-start (point))))
 
       ;; 3. Add line break between content and hashtags
@@ -126,7 +126,7 @@ Uses relay to check for replies and caches the result."
         (when (not is-my-post)
           (widget-create 'push-button
                          :notify `(lambda (&rest _)
-                                   (org-social-file--new-post ,author-url ,timestamp))
+                                    (org-social-file--new-post ,author-url ,timestamp))
                          " ↳ Reply ")
           (setq first-button nil))
 
@@ -139,7 +139,7 @@ Uses relay to check for replies and caches the result."
             (unless first-button (org-social-ui--insert-formatted-text " "))
             (widget-create 'push-button
                            :notify `(lambda (&rest _)
-                                     (org-social-ui-thread ,thread-url))
+                                      (org-social-ui-thread ,thread-url))
                            " 🧵 Thread ")
             (setq first-button nil)))
 
@@ -148,7 +148,7 @@ Uses relay to check for replies and caches the result."
           (unless first-button (org-social-ui--insert-formatted-text " "))
           (widget-create 'push-button
                          :notify `(lambda (&rest _)
-                                   (org-social-ui-profile ,author-url))
+                                    (org-social-ui-profile ,author-url))
                          " 👤 Profile ")
           (setq first-button nil))
 
@@ -157,7 +157,7 @@ Uses relay to check for replies and caches the result."
           (unless first-button (org-social-ui--insert-formatted-text " "))
           (widget-create 'push-button
                          :notify `(lambda (&rest _)
-                                   (org-social-ui--add-reaction ,author-url ,timestamp))
+                                    (org-social-ui--add-reaction ,author-url ,timestamp))
                          " 😊 React ")
           (setq first-button nil))
 
@@ -166,7 +166,7 @@ Uses relay to check for replies and caches the result."
           (unless first-button (org-social-ui--insert-formatted-text " "))
           (widget-create 'push-button
                          :notify `(lambda (&rest _)
-                                   (message "Poll voting - to be implemented"))
+                                    (message "Poll voting - to be implemented"))
                          " 🗳 Vote ")))
 
       ;; 5. Add line break between buttons and user info
@@ -262,9 +262,7 @@ Uses relay to check for replies and caches the result."
         (setq org-social-ui--timeline-current-list posts)
         (setq org-social-ui--current-page 1)
         ;; Insert first page of posts
-        (org-social-ui--insert-timeline-posts-paginated)
-        ;; Insert loading button if there are more posts
-        (org-social-ui--timeline-insert-loading))
+        (org-social-ui--insert-timeline-posts-paginated))
     (org-social-ui--insert-formatted-text "No posts available. Check your relay configuration or followed users.\n" nil "#ff6600")))
 
 (defun org-social-ui--insert-timeline-posts-paginated ()
@@ -273,8 +271,8 @@ Uses relay to check for replies and caches the result."
     (let* ((start-idx (* (- org-social-ui--current-page 1) org-social-ui--posts-per-page))
            (end-idx (* org-social-ui--current-page org-social-ui--posts-per-page))
            (posts-to-show (cl-subseq org-social-ui--timeline-current-list
-                                    start-idx
-                                    (min end-idx (length org-social-ui--timeline-current-list)))))
+                                     start-idx
+                                     (min end-idx (length org-social-ui--timeline-current-list)))))
       (dolist (post posts-to-show)
         (org-social-ui--post-component post org-social-ui--timeline-current-list)))))
 
@@ -329,15 +327,15 @@ Uses relay to check for replies and caches the result."
 
   ;; Extract info from URL (format: https://domain.com/social.org#timestamp)
   (let ((author-url (when (string-match "\\(.*\\)#" mention-url)
-                     (match-string 1 mention-url)))
+                      (match-string 1 mention-url)))
         (timestamp (when (string-match "#\\(.+\\)$" mention-url)
-                    (match-string 1 mention-url))))
+                     (match-string 1 mention-url))))
 
     (when author-url
       ;; Author name button
       (widget-create 'push-button
                      :notify `(lambda (&rest _)
-                               (org-social-ui-profile ,author-url))
+                                (org-social-ui-profile ,author-url))
                      :help-echo (format "View profile: %s" author-url)
                      (format "@%s" (file-name-nondirectory (string-trim-right author-url "/social.org"))))
 
@@ -351,7 +349,7 @@ Uses relay to check for replies and caches the result."
     ;; Action buttons
     (widget-create 'push-button
                    :notify `(lambda (&rest _)
-                             (org-social-ui-thread ,mention-url))
+                              (org-social-ui-thread ,mention-url))
                    :help-echo "View thread"
                    " 🧵 View Thread ")
 
@@ -360,7 +358,7 @@ Uses relay to check for replies and caches the result."
     (when author-url
       (widget-create 'push-button
                      :notify `(lambda (&rest _)
-                               (org-social-file--new-post ,author-url ,timestamp))
+                                (org-social-file--new-post ,author-url ,timestamp))
                      :help-echo "Reply to mention"
                      " ↳ Reply "))
 
@@ -397,45 +395,45 @@ Uses relay to check for replies and caches the result."
                          0
                        (or (alist-get 'posts group) 0))))
 
-      ;; Group header
-      (org-social-ui--insert-formatted-text "👥 " 1.2 "#4a90e2")
-      (org-social-ui--insert-formatted-text group-name 1.1 "#4a90e2")
-      (org-social-ui--insert-formatted-text "\n")
+    ;; Group header
+    (org-social-ui--insert-formatted-text "👥 " 1.2 "#4a90e2")
+    (org-social-ui--insert-formatted-text group-name 1.1 "#4a90e2")
+    (org-social-ui--insert-formatted-text "\n")
 
-      ;; Description
-      (org-social-ui--insert-formatted-text (format "  %s\n" description) nil "#666666")
+    ;; Description
+    (org-social-ui--insert-formatted-text (format "  %s\n" description) nil "#666666")
 
-      ;; Stats
-      (org-social-ui--insert-formatted-text "  ")
-      (org-social-ui--insert-formatted-text (format "%d member%s"
-                                                    member-count
-                                                    (if (= member-count 1) "" "s"))
-                                            nil "#008000")
-      (org-social-ui--insert-formatted-text " • ")
-      (org-social-ui--insert-formatted-text (format "%d post%s"
-                                                    post-count
-                                                    (if (= post-count 1) "" "s"))
-                                            nil "#008000")
-      (org-social-ui--insert-formatted-text "\n\n")
+    ;; Stats
+    (org-social-ui--insert-formatted-text "  ")
+    (org-social-ui--insert-formatted-text (format "%d member%s"
+                                                  member-count
+                                                  (if (= member-count 1) "" "s"))
+                                          nil "#008000")
+    (org-social-ui--insert-formatted-text " • ")
+    (org-social-ui--insert-formatted-text (format "%d post%s"
+                                                  post-count
+                                                  (if (= post-count 1) "" "s"))
+                                          nil "#008000")
+    (org-social-ui--insert-formatted-text "\n\n")
 
-      ;; Action buttons
-      (org-social-ui--insert-formatted-text "  ")
-      (widget-create 'push-button
-                     :notify `(lambda (&rest _)
-                               (org-social-ui-group-posts ,group-name))
-                     :help-echo (format "View posts in %s group" group-name)
-                     " 📄 View Posts ")
+    ;; Action buttons
+    (org-social-ui--insert-formatted-text "  ")
+    (widget-create 'push-button
+                   :notify `(lambda (&rest _)
+                              (org-social-ui-group-posts ,group-name))
+                   :help-echo (format "View posts in %s group" group-name)
+                   " 📄 View Posts ")
 
-      (org-social-ui--insert-formatted-text " ")
+    (org-social-ui--insert-formatted-text " ")
 
-      (widget-create 'push-button
-                     :notify `(lambda (&rest _)
-                               (message "Joining group functionality - to be implemented"))
-                     :help-echo (format "Join %s group" group-name)
-                     " ➕ Join Group ")
+    (widget-create 'push-button
+                   :notify `(lambda (&rest _)
+                              (message "Joining group functionality - to be implemented"))
+                   :help-echo (format "Join %s group" group-name)
+                   " ➕ Join Group ")
 
-      (org-social-ui--insert-formatted-text "\n")
-      (org-social-ui--insert-separator)))
+    (org-social-ui--insert-formatted-text "\n")
+    (org-social-ui--insert-separator)))
 
 (provide 'org-social-ui-components)
 ;;; org-social-ui-components.el ends here

@@ -114,7 +114,7 @@
       (org-social-ui--insert-separator)
       (org-social-ui--insert-formatted-text "📄 Raw Feed Content:\n\n" nil "#666666")
 
-      ;; Display raw content (as plain text, without org-mode formatting)
+      ;; Display raw content (as plain text, without 'org-mode' formatting)
       (insert data)
 
       ;; Setup buffer with special mode and centering
@@ -171,7 +171,7 @@
             (org-social-ui--insert-formatted-text "\n  ")
             (widget-create 'push-button
                            :notify `(lambda (&rest _)
-                                     (eww ,avatar))
+                                      (eww ,avatar))
                            :help-echo "Open image in browser"
                            "🔗 View in browser")
             (org-social-ui--insert-formatted-text "\n\n"))
@@ -180,7 +180,7 @@
           (org-social-ui--insert-formatted-text "🖼️ ")
           (widget-create 'push-button
                          :notify `(lambda (&rest _)
-                                   (eww ,avatar))
+                                    (eww ,avatar))
                          :help-echo "View avatar"
                          avatar)
           (org-social-ui--insert-formatted-text "\n\n"))))
@@ -201,7 +201,7 @@
     (org-social-ui--insert-formatted-text "🔗 ")
     (widget-create 'push-button
                    :notify `(lambda (&rest _)
-                             (eww ,user-url))
+                              (eww ,user-url))
                    :help-echo "Open profile URL"
                    user-url)
     (org-social-ui--insert-formatted-text "\n")
@@ -215,7 +215,7 @@
           (org-social-ui--insert-formatted-text "  • ")
           (widget-create 'push-button
                          :notify `(lambda (&rest _)
-                                   (eww ,link))
+                                    (eww ,link))
                          :help-echo "Open link"
                          link)
           (org-social-ui--insert-formatted-text "\n"))))
@@ -232,7 +232,7 @@
             (org-social-ui--insert-formatted-text "✉️ ")
             (widget-create 'push-button
                            :notify `(lambda (&rest _)
-                                     (eww ,contact))
+                                      (eww ,contact))
                            :help-echo "Send email"
                            (substring contact 7)))
            ((string-prefix-p "xmpp:" contact)
@@ -242,7 +242,7 @@
             (org-social-ui--insert-formatted-text "🌍 ")
             (widget-create 'push-button
                            :notify `(lambda (&rest _)
-                                     (eww ,contact))
+                                      (eww ,contact))
                            :help-echo "Open profile"
                            contact))
            (t
@@ -281,8 +281,8 @@ Returns post data alist or nil if failed."
         (let* ((feed-url (match-string 1 post-url))
                (post-id (match-string 2 post-url))
                (buffer (condition-case nil
-                          (url-retrieve-synchronously feed-url t nil 10)
-                        (error nil))))
+                           (url-retrieve-synchronously feed-url t nil 10)
+                         (error nil))))
           (when buffer
             (with-current-buffer buffer
               (set-buffer-multibyte t)
@@ -293,17 +293,17 @@ Returns post data alist or nil if failed."
                                    'utf-8))
                        (posts (org-social-parser--get-posts-from-feed feed-data))
                        (target-post (cl-find-if
-                                    (lambda (post)
-                                      (let ((timestamp (or (alist-get 'timestamp post)
-                                                          (alist-get 'id post))))
-                                        (and timestamp (string= timestamp post-id))))
-                                    posts)))
+                                     (lambda (post)
+                                       (let ((timestamp (or (alist-get 'timestamp post)
+                                                            (alist-get 'id post))))
+                                         (and timestamp (string= timestamp post-id))))
+                                     posts)))
                   (kill-buffer buffer)
                   (when target-post
                     (append target-post
-                           `((author-url . ,feed-url)
-                             (author-nick . ,(or (org-social-parser--get-value feed-data "NICK") "Unknown"))
-                             (feed-avatar . ,(org-social-parser--get-value feed-data "AVATAR"))))))))))
+                            `((author-url . ,feed-url)
+                              (author-nick . ,(or (org-social-parser--get-value feed-data "NICK") "Unknown"))
+                              (feed-avatar . ,(org-social-parser--get-value feed-data "AVATAR"))))))))))
       nil)))
 
 (defun org-social-ui--fetch-replies-sync (post-url)
@@ -317,19 +317,19 @@ Returns list of reply structures from relay data, or nil if failed."
            (encoded-url (url-hexify-string post-url))
            (url (format "%s/replies/?post=%s" relay-url encoded-url))
            (buffer (condition-case nil
-                      (url-retrieve-synchronously url t nil 10)
-                    (error nil))))
+                       (url-retrieve-synchronously url t nil 10)
+                     (error nil))))
       (when buffer
         (with-current-buffer buffer
           (set-buffer-multibyte t)
           (goto-char (point-min))
           (when (re-search-forward "\n\n" nil t)
             (let* ((json-data (decode-coding-string
-                              (buffer-substring-no-properties (point) (point-max))
-                              'utf-8))
+                               (buffer-substring-no-properties (point) (point-max))
+                               'utf-8))
                    (response (condition-case nil
-                                (json-read-from-string json-data)
-                              (error nil)))
+                                 (json-read-from-string json-data)
+                               (error nil)))
                    (response-type (when response (cdr (assoc 'type response))))
                    (replies-data (when response (cdr (assoc 'data response)))))
               (kill-buffer buffer)

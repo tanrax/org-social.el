@@ -68,15 +68,15 @@
 
   ;; Extract info from URL (format: https://domain.com/social.org#timestamp)
   (let ((author-url (when (string-match "\\(.*\\)#" mention-url)
-                     (match-string 1 mention-url)))
+                      (match-string 1 mention-url)))
         (timestamp (when (string-match "#\\(.+\\)$" mention-url)
-                    (match-string 1 mention-url))))
+                     (match-string 1 mention-url))))
 
     (when author-url
       ;; Author name button
       (widget-create 'push-button
                      :notify `(lambda (&rest _)
-                               (org-social-ui-profile ,author-url))
+                                (org-social-ui-profile ,author-url))
                      :help-echo (format "View profile: %s" author-url)
                      (format "@%s" (file-name-nondirectory (string-trim-right author-url "/social.org"))))
 
@@ -90,7 +90,7 @@
     ;; Action buttons
     (widget-create 'push-button
                    :notify `(lambda (&rest _)
-                             (org-social-ui-thread ,mention-url))
+                              (org-social-ui-thread ,mention-url))
                    :help-echo "View thread"
                    " 🧵 View Thread ")
 
@@ -99,7 +99,7 @@
     (when author-url
       (widget-create 'push-button
                      :notify `(lambda (&rest _)
-                               (org-social-file--new-post ,author-url ,timestamp))
+                                (org-social-file--new-post ,author-url ,timestamp))
                      :help-echo "Reply to mention"
                      " ↳ Reply "))
 

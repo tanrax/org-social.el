@@ -33,34 +33,34 @@ Call CALLBACK with discovered endpoints."
                        (condition-case err
                            (if (and data (stringp data) (not (string-empty-p data)))
                                (let* ((response (json-read-from-string data))
-                                  (links (cdr (assoc '_links response)))
-                                  (endpoints (make-hash-table :test 'equal)))
-                             ;; Parse _links structure - can be either object (new format) or array (old format)
-                             (cond
-                              ;; Check if this is the new object format by looking for 'href key in first element
-                              ((and (listp links)
-                                    (listp (car links))
-                                    (assoc 'href (cdr (car links))))
-                               ;; New format: _links is an alist with endpoint names as keys
-                               (dolist (endpoint-pair links)
-                                 (let* ((endpoint-name (symbol-name (car endpoint-pair)))
-                                        (endpoint-data (cdr endpoint-pair))
-                                        (href (cdr (assoc 'href endpoint-data)))
-                                        (method (cdr (assoc 'method endpoint-data))))
-                                   (when (and href method)
-                                     (puthash endpoint-name (list :href href :method method) endpoints)))))
-                              ;; Old format: _links is an array of objects with rel, href, method
-                              (t
-                               (let ((links-list (if (vectorp links)
-                                                      (append links nil)
-                                                    links)))
-                                 (dolist (link links-list)
-                                   (let ((rel (cdr (assoc 'rel link)))
-                                         (href (cdr (assoc 'href link)))
-                                         (method (cdr (assoc 'method link))))
-                                     (when (and rel href method)
-                                       (puthash rel (list :href href :method method) endpoints)))))))
-                             (funcall callback endpoints))
+                                      (links (cdr (assoc '_links response)))
+                                      (endpoints (make-hash-table :test 'equal)))
+                                 ;; Parse _links structure - can be either object (new format) or array (old format)
+                                 (cond
+                                  ;; Check if this is the new object format by looking for 'href key in first element
+                                  ((and (listp links)
+                                        (listp (car links))
+                                        (assoc 'href (cdr (car links))))
+                                   ;; New format: _links is an alist with endpoint names as keys
+                                   (dolist (endpoint-pair links)
+                                     (let* ((endpoint-name (symbol-name (car endpoint-pair)))
+                                            (endpoint-data (cdr endpoint-pair))
+                                            (href (cdr (assoc 'href endpoint-data)))
+                                            (method (cdr (assoc 'method endpoint-data))))
+                                       (when (and href method)
+                                         (puthash endpoint-name (list :href href :method method) endpoints)))))
+                                  ;; Old format: _links is an array of objects with rel, href, method
+                                  (t
+                                   (let ((links-list (if (vectorp links)
+                                                         (append links nil)
+                                                       links)))
+                                     (dolist (link links-list)
+                                       (let ((rel (cdr (assoc 'rel link)))
+                                             (href (cdr (assoc 'href link)))
+                                             (method (cdr (assoc 'method link))))
+                                         (when (and rel href method)
+                                           (puthash rel (list :href href :method method) endpoints)))))))
+                                 (funcall callback endpoints))
                              (progn
                                (message "Received empty, nil, or non-string response from relay: %S" data)
                                (funcall callback nil)))
@@ -168,10 +168,10 @@ Call CALLBACK with the list of post URLs that mention the user."
                      (method (plist-get mentions-endpoint :method)))
                  ;; Replace {feed_url} or {url feed} placeholder with actual feed URL
                  (let ((url (concat relay-url
-                                   (replace-regexp-in-string
-                                    "{\\(feed_url\\|url feed\\)}"
-                                    (url-hexify-string feed-url)
-                                    href))))
+                                    (replace-regexp-in-string
+                                     "{\\(feed_url\\|url feed\\)}"
+                                     (url-hexify-string feed-url)
+                                     href))))
                    (request url
                             :type method
                             :timeout 10
@@ -187,8 +187,8 @@ Call CALLBACK with the list of post URLs that mention the user."
                                                       (progn
                                                         ;; Handle both vectors and lists
                                                         (let ((mentions-list (if (vectorp mentions-data)
-                                                                                (append mentions-data nil)
-                                                                              mentions-data)))
+                                                                                 (append mentions-data nil)
+                                                                               mentions-data)))
                                                           (funcall callback mentions-list)))
                                                     (progn
                                                       (message "Relay returned error response: %s" response-type)
@@ -223,10 +223,10 @@ Call CALLBACK with the thread structure."
                (let ((href (plist-get replies-endpoint :href))
                      (method (plist-get replies-endpoint :method)))
                  (let ((url (concat relay-url
-                                   (replace-regexp-in-string
-                                    "{\\(post_url\\|url post\\)}"
-                                    (url-hexify-string post-url)
-                                    href))))
+                                    (replace-regexp-in-string
+                                     "{\\(post_url\\|url post\\)}"
+                                     (url-hexify-string post-url)
+                                     href))))
                    (request url
                             :type method
                             :timeout 10
@@ -239,8 +239,8 @@ Call CALLBACK with the thread structure."
                                                        (replies-data (cdr (assoc 'data response))))
                                                   (if (string= response-type "Success")
                                                       (let ((replies-list (if (vectorp replies-data)
-                                                                             (append replies-data nil)
-                                                                           replies-data)))
+                                                                              (append replies-data nil)
+                                                                            replies-data)))
                                                         (funcall callback replies-list))
                                                     (progn
                                                       (message "Relay returned error response: %s" response-type)
@@ -276,10 +276,10 @@ Call CALLBACK with the list of matching post URLs."
                (let ((href (plist-get search-endpoint :href))
                      (method (plist-get search-endpoint :method)))
                  (let ((url (format "%s%s?%s=%s"
-                                   relay-url
-                                   href
-                                   (if (eq search-type 'tag) "tag" "q")
-                                   (url-hexify-string query))))
+                                    relay-url
+                                    href
+                                    (if (eq search-type 'tag) "tag" "q")
+                                    (url-hexify-string query))))
                    (request url
                             :type method
                             :timeout 15
@@ -292,8 +292,8 @@ Call CALLBACK with the list of matching post URLs."
                                                        (search-data (cdr (assoc 'data response))))
                                                   (if (string= response-type "Success")
                                                       (let ((search-list (if (vectorp search-data)
-                                                                            (append search-data nil)
-                                                                          search-data)))
+                                                                             (append search-data nil)
+                                                                           search-data)))
                                                         (funcall callback search-list))
                                                     (progn
                                                       (message "Relay returned error response: %s" response-type)
@@ -339,8 +339,8 @@ Call CALLBACK with the list of groups."
                                                      (groups-data (cdr (assoc 'data response))))
                                                 (if (string= response-type "Success")
                                                     (let ((groups-list (if (vectorp groups-data)
-                                                                          (append groups-data nil)
-                                                                        groups-data)))
+                                                                           (append groups-data nil)
+                                                                         groups-data)))
                                                       (funcall callback groups-list))
                                                   (progn
                                                     (message "Relay returned error response: %s" response-type)
@@ -375,12 +375,12 @@ Call CALLBACK with the list of group posts."
                (let ((href (plist-get group-messages-endpoint :href))
                      (method (plist-get group-messages-endpoint :method)))
                  (let ((url (if (string-match-p "{group id}" href)
-                               (concat relay-url "/groups/" (url-hexify-string group-name) "/")
-                             (concat relay-url
-                                    (replace-regexp-in-string
-                                     "{group_name}"
-                                     (url-hexify-string group-name)
-                                     href)))))
+                                (concat relay-url "/groups/" (url-hexify-string group-name) "/")
+                              (concat relay-url
+                                      (replace-regexp-in-string
+                                       "{group_name}"
+                                       (url-hexify-string group-name)
+                                       href)))))
                    (request url
                             :type method
                             :timeout 15
@@ -393,8 +393,8 @@ Call CALLBACK with the list of group posts."
                                                        (posts-data (cdr (assoc 'data response))))
                                                   (if (string= response-type "Success")
                                                       (let ((posts-list (if (vectorp posts-data)
-                                                                           (append posts-data nil)
-                                                                         posts-data)))
+                                                                            (append posts-data nil)
+                                                                          posts-data)))
                                                         (funcall callback posts-list))
                                                     (progn
                                                       (message "Relay returned error response: %s" response-type)
@@ -440,8 +440,8 @@ Call CALLBACK with the list of poll URLs."
                                                      (polls-data (cdr (assoc 'data response))))
                                                 (if (string= response-type "Success")
                                                     (let ((polls-list (if (vectorp polls-data)
-                                                                         (append polls-data nil)
-                                                                       polls-data)))
+                                                                          (append polls-data nil)
+                                                                        polls-data)))
                                                       (funcall callback polls-list))
                                                   (progn
                                                     (message "Relay returned error response: %s" response-type)
@@ -476,10 +476,10 @@ Call CALLBACK with the poll votes data."
                (let ((href (plist-get poll-votes-endpoint :href))
                      (method (plist-get poll-votes-endpoint :method)))
                  (let ((url (concat relay-url
-                                   (replace-regexp-in-string
-                                    "{\\(post_url\\|url post\\)}"
-                                    (url-hexify-string post-url)
-                                    href))))
+                                    (replace-regexp-in-string
+                                     "{\\(post_url\\|url post\\)}"
+                                     (url-hexify-string post-url)
+                                     href))))
                    (request url
                             :type method
                             :timeout 10
@@ -492,8 +492,8 @@ Call CALLBACK with the poll votes data."
                                                        (votes-data (cdr (assoc 'data response))))
                                                   (if (string= response-type "Success")
                                                       (let ((votes-list (if (vectorp votes-data)
-                                                                           (append votes-data nil)
-                                                                         votes-data)))
+                                                                            (append votes-data nil)
+                                                                          votes-data)))
                                                         (funcall callback votes-list))
                                                     (progn
                                                       (message "Relay returned error response: %s" response-type)
@@ -565,10 +565,10 @@ Designed for small batches of posts (e.g., current page)."
                      (method (plist-get replies-endpoint :method)))
                  (dolist (post-url post-urls)
                    (let ((url (concat relay-url
-                                     (replace-regexp-in-string
-                                      "{\\(post_url\\|url post\\)}"
-                                      (url-hexify-string post-url)
-                                      href))))
+                                      (replace-regexp-in-string
+                                       "{\\(post_url\\|url post\\)}"
+                                       (url-hexify-string post-url)
+                                       href))))
                      (request url
                               :type method
                               :timeout 10

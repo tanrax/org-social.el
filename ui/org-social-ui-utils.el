@@ -6,7 +6,7 @@
 ;; URL: https://github.com/tanrax/org-social.el
 
 ;;; Commentary:
-;; Utility functions for formatting, images, and org-mode syntax.
+;; Utility functions for formatting, images, and 'org-mode' syntax.
 
 ;;; Code:
 
@@ -126,20 +126,20 @@ Optional CALLBACK is called with success status when download completes."
     (require 'request nil t)
     (if (featurep 'request)
         (request url
-          :type "GET"
-          :sync t
-          :parser 'buffer-string
-          :success (cl-function
-                    (lambda (&key data &allow-other-keys)
-                      (let ((filename-image (base64-encode-string url :no-line-break)))
-                        (with-temp-file (expand-file-name filename-image org-social-image-cache-directory)
-                          (set-buffer-file-coding-system 'binary)
-                          (insert data))
-                        (when callback (funcall callback t)))))
-          :error (cl-function
-                  (lambda (&key error-thrown &allow-other-keys)
-                    (message "Error downloading image: %S" error-thrown)
-                    (when callback (funcall callback nil)))))
+                 :type "GET"
+                 :sync t
+                 :parser 'buffer-string
+                 :success (cl-function
+                           (lambda (&key data &allow-other-keys)
+                             (let ((filename-image (base64-encode-string url :no-line-break)))
+                               (with-temp-file (expand-file-name filename-image org-social-image-cache-directory)
+                                 (set-buffer-file-coding-system 'binary)
+                                 (insert data))
+                               (when callback (funcall callback t)))))
+                 :error (cl-function
+                         (lambda (&key error-thrown &allow-other-keys)
+                           (message "Error downloading image: %S" error-thrown)
+                           (when callback (funcall callback nil)))))
       (progn
         (message "Image caching requires the 'request' package")
         (when callback (funcall callback nil))))))
@@ -155,7 +155,7 @@ Optional CALLBACK is called with success status when download completes."
                          org-social-image-cache-directory)))
         (condition-case err
             (let ((image-props (append (when width (list :width width))
-                                      (list :ascent 'center))))
+                                       (list :ascent 'center))))
               (insert-image (apply #'create-image image-file nil nil image-props) " "))
           (error
            (message "Error displaying image: %S" err)
@@ -168,7 +168,7 @@ Optional CALLBACK is called with success status when download completes."
       (narrow-to-region start end)
       (goto-char start)
 
-      ;; Create overlays with higher priority than widgets for org-mode syntax
+      ;; Create overlays with higher priority than widgets for 'org-mode' syntax
       ;; Bold text: **text**
       (goto-char start)
       (while (re-search-forward "\\*\\*\\([^*\n]+\\)\\*\\*" end t)
@@ -249,7 +249,7 @@ Optional CALLBACK is called with success status when download completes."
       ;; Hashtags: No longer needed - now handled by org-social-ui--insert-formatted-text
       ;; (Hashtag coloring moved to use same technique as name/date/client)
 
-      ;; Formatted headings: ▸▸▸ Title (from org-mode headings)
+      ;; Formatted headings: ▸▸▸ Title (from 'org-mode' headings)
       (goto-char start)
       (while (re-search-forward "^\\(▸+\\) \\(.+\\)$" end t)
         (let ((marker-overlay (make-overlay (match-beginning 1) (match-end 1)))
@@ -352,12 +352,10 @@ Optional CALLBACK is called with success status when download completes."
   "Go to the next post."
   (interactive)
   (let ((separator-regex (concat "^" (regexp-quote (org-social-ui--string-separator)) "$"))
-        (found-separator nil)
         (was-at-last nil))
     ;; Try to find next separator
     (if (search-forward-regexp separator-regex nil t)
         (progn
-          (setq found-separator t)
           (forward-line 1)
           ;; Check if we've reached the last post
           (when (org-social-ui--last-separator-p)
@@ -479,7 +477,7 @@ Returns t if button was found and pressed, nil otherwise."
             (let* ((widget-start (widget-get widget :from))
                    (widget-end (widget-get widget :to))
                    (widget-text (when (and widget-start widget-end)
-                                 (buffer-substring-no-properties widget-start widget-end))))
+                                  (buffer-substring-no-properties widget-start widget-end))))
               (when (and widget-text (string-match-p (regexp-quote button-text) widget-text))
                 (widget-button-press (point))
                 (setq found t))))))

@@ -49,10 +49,10 @@ Returns t if current time is before POLL_END time."
   (let ((poll-end (alist-get 'poll_end post)))
     (when poll-end
       (condition-case nil
-	  (let ((end-time (date-to-time poll-end))
-		(current-time (current-time)))
-	    (time-less-p current-time end-time))
-	(error nil)))))
+          (let ((end-time (date-to-time poll-end))
+                (current-time (current-time)))
+            (time-less-p current-time end-time))
+        (error nil)))))
 
 (defun org-social-polls--extract-poll-options (text)
   "Extract poll options from post TEXT.
@@ -62,9 +62,9 @@ Returns a list of option strings in the original order."
       (insert text)
       (goto-char (point-min))
       (while (re-search-forward "^- \\[ \\] \\(.+\\)$" nil t)
-	(let ((option (string-trim (match-string 1))))
-	  (when (not (string-empty-p option))
-	    (setq options (append options (list option)))))))
+        (let ((option (string-trim (match-string 1))))
+          (when (not (string-empty-p option))
+            (setq options (append options (list option)))))))
     options))
 
 (defun org-social-polls--find-active-polls (timeline)
@@ -73,43 +73,43 @@ Returns a list of active poll posts."
   (let ((active-polls '()))
     (dolist (post timeline)
       (when (and (org-social-polls--is-poll-post post)
-		 (org-social-polls--is-poll-active post))
-	(push post active-polls)))
+                 (org-social-polls--is-poll-active post))
+        (push post active-polls)))
     (reverse active-polls)))
 
 (defun org-social-polls--find-poll-votes (timeline poll-post)
   "Find all votes in TIMELINE for POLL-POST.
 Returns a list of vote posts that reply to the poll."
   (let ((poll-id (alist-get 'timestamp poll-post))
-	(poll-author-url (alist-get 'author-url poll-post))
-	(votes '()))
+        (poll-author-url (alist-get 'author-url poll-post))
+        (votes '()))
     (when (and poll-id poll-author-url)
       (let ((expected-reply-to (format "%s#%s" poll-author-url poll-id)))
-	(dolist (post timeline)
-	  (let ((reply-to (alist-get 'reply_to post))
-		(poll-option (alist-get 'poll_option post)))
-	    (when (and reply-to poll-option
-		       (string= reply-to expected-reply-to))
-	      (push post votes))))))
+        (dolist (post timeline)
+          (let ((reply-to (alist-get 'reply_to post))
+                (poll-option (alist-get 'poll_option post)))
+            (when (and reply-to poll-option
+                       (string= reply-to expected-reply-to))
+              (push post votes))))))
     votes))
 
 (defun org-social-polls--calculate-poll-results (timeline poll-post)
   "Calculate results using votes from TIMELINE for POLL-POST.
 Returns an alist of (option . vote-count) pairs."
   (let ((votes (org-social-polls--find-poll-votes timeline poll-post))
-	(options (org-social-polls--extract-poll-options
-		  (alist-get 'text poll-post)))
-	(results '()))
+        (options (org-social-polls--extract-poll-options
+                  (alist-get 'text poll-post)))
+        (results '()))
     ;; Initialize results with all options
     (dolist (option options)
       (push (cons option 0) results))
     ;; Count votes
     (dolist (vote votes)
       (let ((poll-option (alist-get 'poll_option vote)))
-	(when poll-option
-	  (let ((result-entry (assoc poll-option results)))
-	    (when result-entry
-	      (setcdr result-entry (1+ (cdr result-entry))))))))
+        (when poll-option
+          (let ((result-entry (assoc poll-option results)))
+            (when result-entry
+              (setcdr result-entry (1+ (cdr result-entry))))))))
     ;; Reverse to maintain original order of options
     (reverse results)))
 
@@ -119,9 +119,9 @@ Returns a list of closed poll posts with their results."
   (let ((closed-polls '()))
     (dolist (post timeline)
       (when (and (org-social-polls--is-poll-post post)
-		 (not (org-social-polls--is-poll-active post)))
-	(let ((results (org-social-polls--calculate-poll-results timeline post)))
-	  (push (cons post results) closed-polls))))
+                 (not (org-social-polls--is-poll-active post)))
+        (let ((results (org-social-polls--calculate-poll-results timeline post)))
+          (push (cons post results) closed-polls))))
     (reverse closed-polls)))
 
 (defun org-social-polls--setup-poll-links ()
@@ -130,12 +130,12 @@ Returns a list of closed poll posts with their results."
     (with-suppressed-warnings ((callargs org-link-set-parameters))
       (condition-case nil
           (org-link-set-parameters "org-social-poll"
-			           :follow (lambda (path)
-				             (let ((parts (split-string path "|")))
-				               (when (= (length parts) 2)
-					         (org-social-polls--goto-poll (car parts) (cadr parts)))))
-			           :export (lambda (_path desc _backend)
-				             desc))
+                                   :follow (lambda (path)
+                                             (let ((parts (split-string path "|")))
+                                               (when (= (length parts) 2)
+                                                 (org-social-polls--goto-poll (car parts) (cadr parts)))))
+                                   :export (lambda (_path desc _backend)
+                                             desc))
         (error
          (message "Warning: Could not set up org-social-poll links"))))))
 
@@ -148,28 +148,28 @@ This function is deprecated and no longer used with the modern UI."
   "Get post information at current point in timeline for polls."
   (save-excursion
     (let ((post-start nil)
-	  (post-end nil)
-	  (timestamp nil)
-	  (author-url nil))
+          (post-end nil)
+          (timestamp nil)
+          (author-url nil))
       ;; Find the start of current post (look for ** header)
       (if (looking-at "^\\*\\* ")
-	  (setq post-start (point))
-	(when (re-search-backward "^\\*\\* " nil t)
-	  (setq post-start (point))))
+          (setq post-start (point))
+        (when (re-search-backward "^\\*\\* " nil t)
+          (setq post-start (point))))
 
       ;; Find the end of current post
       (when post-start
-	(goto-char post-start)
-	(forward-line 1)
-	(if (re-search-forward "^\\*\\* " nil t)
-	    (progn
-	      (beginning-of-line)
-	      (setq post-end (point)))
-	  (setq post-end (point-max)))
+        (goto-char post-start)
+        (forward-line 1)
+        (if (re-search-forward "^\\*\\* " nil t)
+            (progn
+              (beginning-of-line)
+              (setq post-end (point)))
+          (setq post-end (point-max)))
 
-	;; Extract ID from properties (try multiple formats)
-	(goto-char post-start)
-	(cond
+        ;; Extract ID from properties (try multiple formats)
+        (goto-char post-start)
+        (cond
          ;; First try :CUSTOM_ID:
          ((re-search-forward ":CUSTOM_ID:\\s-*\\(.+\\)" post-end t)
           (setq timestamp (string-trim (match-string 1))))
@@ -178,9 +178,9 @@ This function is deprecated and no longer used with the modern UI."
                  (re-search-forward ":ID:\\s-*\\(.+\\)" post-end t))
           (setq timestamp (string-trim (match-string 1)))))
 
-	;; Get author URL from multiple possible locations
-	(goto-char post-start)
-	(cond
+        ;; Get author URL from multiple possible locations
+        (goto-char post-start)
+        (cond
          ;; First try :URL: property
          ((re-search-forward ":URL:\\s-*\\(.+\\)" post-end t)
           (setq author-url (string-trim (match-string 1))))
@@ -197,10 +197,10 @@ This function is deprecated and no longer used with the modern UI."
           (setq author-url (alist-get 'url org-social-variables--my-profile))))
 
         (message "DEBUG: get-post-at-point - timestamp: %s, author-url: %s" timestamp author-url)
-	;; Return post information
-	(when (and timestamp author-url)
-	  (list (cons 'timestamp timestamp)
-		(cons 'author-url author-url)))))))
+        ;; Return post information
+        (when (and timestamp author-url)
+          (list (cons 'timestamp timestamp)
+                (cons 'author-url author-url)))))))
 
 (defun org-social-polls--vote-on-poll (&optional author-url timestamp)
   "Vote on poll identified by AUTHOR-URL and TIMESTAMP.
@@ -223,8 +223,8 @@ If called without parameters, get the post at point from timeline."
       (message "DEBUG: Looking for poll with URL: %s, Timestamp: %s" author-url timestamp)
       (dolist (post (org-social-feed--get-timeline))
         (when (and (string= (alist-get 'timestamp post) timestamp)
-		   (string= (alist-get 'author-url post) author-url))
-	  (setq poll-post post)
+                   (string= (alist-get 'author-url post) author-url))
+          (setq poll-post post)
           (message "DEBUG: Found matching post in timeline")))
 
       (if poll-post
@@ -262,29 +262,29 @@ Argument TIMELINE is the list of posts."
       (insert ":PROPERTIES:\n")
       (insert ":END:\n\n")
       (dolist (poll-data closed-polls)
-	(let* ((poll-post (car poll-data))
-	       (results (cdr poll-data))
-	       (author (alist-get 'author-nick poll-post))
-	       (timestamp (alist-get 'timestamp poll-post))
-	       (text (alist-get 'text poll-post))
-	       (total-votes (apply #'+ (mapcar #'cdr results))))
-	  ;; Extract first line as poll question
-	  (let ((first-line (car (split-string text "\n" t))))
-	    (when first-line
-	      (insert (format "- [[#%s][%s by %s]] (%d votes)\n"
-			      timestamp
-			      (string-trim first-line)
-			      (or author "Unknown")
-			      total-votes))
-	      ;; Show results
-	      (dolist (result results)
-		(let* ((option (car result))
-		       (result-votes (cdr result))
-		       (percentage (if (> total-votes 0)
-				       (/ (* result-votes 100.0) total-votes)
-				     0)))
-		  (insert (format "  - %s: %d votes (%.1f%%)\n"
-				  option result-votes percentage))))))))
+        (let* ((poll-post (car poll-data))
+               (results (cdr poll-data))
+               (author (alist-get 'author-nick poll-post))
+               (timestamp (alist-get 'timestamp poll-post))
+               (text (alist-get 'text poll-post))
+               (total-votes (apply #'+ (mapcar #'cdr results))))
+          ;; Extract first line as poll question
+          (let ((first-line (car (split-string text "\n" t))))
+            (when first-line
+              (insert (format "- [[#%s][%s by %s]] (%d votes)\n"
+                              timestamp
+                              (string-trim first-line)
+                              (or author "Unknown")
+                              total-votes))
+              ;; Show results
+              (dolist (result results)
+                (let* ((option (car result))
+                       (result-votes (cdr result))
+                       (percentage (if (> total-votes 0)
+                                       (/ (* result-votes 100.0) total-votes)
+                                     0)))
+                  (insert (format "  - %s: %d votes (%.1f%%)\n"
+                                  option result-votes percentage))))))))
       (insert "\n"))))
 
 (defun org-social-polls--get-active-poll-notifications (timeline)

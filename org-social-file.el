@@ -42,14 +42,14 @@
   :group 'org-social
   (if org-social-mode
       (progn
-	(org-mode)
-	(add-hook 'after-save-hook #'org-social-file--auto-save nil t))
+        (org-mode)
+        (add-hook 'after-save-hook #'org-social-file--auto-save nil t))
     (remove-hook 'after-save-hook #'org-social-file--auto-save t)))
 
 (defun org-social-file--auto-save ()
   "Auto-save handler for Org-social files."
   (when (and (buffer-file-name)
-	     (file-equal-p (buffer-file-name) org-social-file))
+             (file-equal-p (buffer-file-name) org-social-file))
     (run-hooks 'org-social-after-save-file-hook)))
 
 (defun org-social-file--save ()
@@ -64,8 +64,8 @@
   (goto-char (point-min))
   (if (re-search-forward "^\\* Posts" nil t)
       (progn
-	(end-of-line)
-	(point))
+        (end-of-line)
+        (point))
     ;; If Posts section doesn't exist, create it at the end
     (goto-char (point-max))
     (unless (bolp) (insert "\n"))
@@ -124,9 +124,9 @@ and POLL-END is the RFC 3339 formatted end time."
   "Open the Org-social feed file and enable `org-social-mode'."
   (if (file-exists-p org-social-file)
       (progn
-	(find-file org-social-file)
-	(org-social-mode 1)
-	(goto-char (point-max)))
+        (find-file org-social-file)
+        (org-social-mode 1)
+        (goto-char (point-max)))
     (when (y-or-n-p (format "File %s doesn't exist.  Create it? " org-social-file))
       (org-social-file--create-new-feed-file))))
 
@@ -134,8 +134,8 @@ and POLL-END is the RFC 3339 formatted end time."
   "Create a new post in your Org-social feed.
 If REPLY-URL and REPLY-ID are provided, create a reply post."
   (unless (and (buffer-file-name)
-	       (string= (expand-file-name (buffer-file-name))
-			(expand-file-name org-social-file)))
+               (string= (expand-file-name (buffer-file-name))
+                        (expand-file-name org-social-file)))
     (org-social-file--open))
   (save-excursion
     (org-social-file--find-posts-section)
@@ -148,8 +148,8 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
 Interactively prompts for the poll question, options, and duration."
   (interactive)
   (unless (and (buffer-file-name)
-	       (string= (expand-file-name (buffer-file-name))
-			(expand-file-name org-social-file)))
+               (string= (expand-file-name (buffer-file-name))
+                        (expand-file-name org-social-file)))
     (org-social-file--open))
 
   ;; Prompt for poll question
@@ -196,8 +196,8 @@ REPLY-URL is the URL of the post being reacted to.
 REPLY-ID is the timestamp ID of the post being reacted to.
 EMOJI is the reaction emoji to add."
   (unless (and (buffer-file-name)
-	       (string= (expand-file-name (buffer-file-name))
-			(expand-file-name org-social-file)))
+               (string= (expand-file-name (buffer-file-name))
+                        (expand-file-name org-social-file)))
     (org-social-file--open))
   (save-excursion
     (org-social-file--find-posts-section)
@@ -225,22 +225,22 @@ EMOJI is the reaction emoji."
   (save-excursion
     (goto-char (point-min))
     (let ((errors '())
-	  (has-title (re-search-forward "^#\\+TITLE:" nil t))
-	  (has-nick (progn (goto-char (point-min))
-			   (re-search-forward "^#\\+NICK:" nil t)))
-	  (has-posts (progn (goto-char (point-min))
-			    (re-search-forward "^\\* Posts" nil t))))
+          (has-title (re-search-forward "^#\\+TITLE:" nil t))
+          (has-nick (progn (goto-char (point-min))
+                           (re-search-forward "^#\\+NICK:" nil t)))
+          (has-posts (progn (goto-char (point-min))
+                            (re-search-forward "^\\* Posts" nil t))))
 
       (unless has-title
-	(push "Missing #+TITLE field" errors))
+        (push "Missing #+TITLE field" errors))
       (unless has-nick
-	(push "Missing #+NICK field" errors))
+        (push "Missing #+NICK field" errors))
       (unless has-posts
-	(push "Missing * Posts section" errors))
+        (push "Missing * Posts section" errors))
 
       (if errors
-	  (message "Validation errors: %s" (string-join errors " "))
-	(message "Org-social file structure is valid!")))))
+          (message "Validation errors: %s" (string-join errors " "))
+        (message "Org-social file structure is valid!")))))
 
 ;; Mention functionality
 
@@ -250,18 +250,18 @@ Returns a list of cons cells (NICK . URL)."
   (let ((my-profile (org-social-parser--get-my-profile)))
     (when my-profile
       (let ((follows (alist-get 'follow my-profile)))
-	(when follows
-	  (mapcar (lambda (follow)
-		    (let ((name (alist-get 'name follow))
-			  (url (alist-get 'url follow)))
-		      ;; Always try to extract nick from the URL's feed first (#+NICK)
-		      (let ((remote-nick (org-social-file--extract-nick-from-url url)))
-			(cons (or remote-nick     ; Use #+NICK from remote file
-				  name            ; Fallback to name from #+FOLLOW
-				  (file-name-base url) ; Fallback to filename
-				  "Unknown")      ; Last resort
-			      url))))
-		  follows))))))
+        (when follows
+          (mapcar (lambda (follow)
+                    (let ((name (alist-get 'name follow))
+                          (url (alist-get 'url follow)))
+                      ;; Always try to extract nick from the URL's feed first (#+NICK)
+                      (let ((remote-nick (org-social-file--extract-nick-from-url url)))
+                        (cons (or remote-nick     ; Use #+NICK from remote file
+                                  name            ; Fallback to name from #+FOLLOW
+                                  (file-name-base url) ; Fallback to filename
+                                  "Unknown")      ; Last resort
+                              url))))
+                  follows))))))
 
 (defun org-social-file--extract-nick-from-url (url)
   "Try to extract nick from a social.org URL by fetching it.
@@ -269,10 +269,10 @@ This is a synchronous operation and might be slow.
 Returns nil if extraction fails."
   (condition-case nil
       (with-temp-buffer
-	(url-insert-file-contents url)
-	(goto-char (point-min))
-	(when (re-search-forward "^#\\+NICK:\\s-*\\(.+\\)$" nil t)
-	  (string-trim (match-string 1))))
+        (url-insert-file-contents url)
+        (goto-char (point-min))
+        (when (re-search-forward "^#\\+NICK:\\s-*\\(.+\\)$" nil t)
+          (string-trim (match-string 1))))
     (error nil)))
 
 (defun org-social-file--insert-mention (nick url)
@@ -285,17 +285,17 @@ NICK is the user's nickname and URL is their social.org URL."
   (interactive)
   (let ((followed-users (org-social-file--get-followed-users)))
     (if followed-users
-	(let* ((user-alist (mapcar (lambda (user)
-				     (cons (car user) user))
-				   followed-users))
-	       (selected-nick (completing-read "Mention user: "
-					       (mapcar #'car user-alist)
-					       nil t))
-	       (selected-user (cdr (assoc selected-nick user-alist))))
-	  (when selected-user
-	    (org-social-file--insert-mention (car selected-user)
-					     (cdr selected-user))
-	    (message "Mentioned user: %s" (car selected-user))))
+        (let* ((user-alist (mapcar (lambda (user)
+                                     (cons (car user) user))
+                                   followed-users))
+               (selected-nick (completing-read "Mention user: "
+                                               (mapcar #'car user-alist)
+                                               nil t))
+               (selected-user (cdr (assoc selected-nick user-alist))))
+          (when selected-user
+            (org-social-file--insert-mention (car selected-user)
+                                             (cdr selected-user))
+            (message "Mentioned user: %s" (car selected-user))))
       (message "No followed users found. Add users to your #+FOLLOW: list first."))))
 
 ;; Forward declarations for wrapper functions

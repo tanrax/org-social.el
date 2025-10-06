@@ -1,24 +1,18 @@
 ;;; org-social.el --- An Org-social client -*- lexical-binding: t -*- -*- coding: utf-8 -*-
-
-;; SPDX-License-Identifier: GPL-3.0
-
 ;; Author: Andros Fenollosa <hi@andros.dev>
 ;; Version: 2.0
 ;; URL: https://github.com/tanrax/org-social.el
 ;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (emojify "1.2"))
-
+;; SPDX-License-Identifier: GPL-3.0
 ;; This file is NOT part of GNU Emacs.
-
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
 ;; published by the Free Software Foundation, either version 3 of the
 ;; License, or (at your option) any later version.
-
 ;; This program is distributed in the hope that it will be useful, but
 ;; WITHOUT ANY WARRANTY; without even the implied warranty of
 ;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 ;; General Public License for more details.
-
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program.  If not, see
 ;; <http://www.gnu.org/licenses/>.
@@ -98,7 +92,7 @@ TIMESTAMP should be in RFC 3339 format or a time value."
           (require 'seq))
       (error
        (error "Failed to load core org-social modules: %s" (error-message-string err))))
-    
+
     ;; Load request library (from package dependencies)
     (condition-case nil
         (require 'request)
@@ -110,12 +104,12 @@ TIMESTAMP should be in RFC 3339 format or a time value."
         (require 'org-social-feed)
       (error
        (message "Warning: Could not load org-social-feed module")))
-    
+
     (condition-case nil
         (require 'org-social-notifications)
       (error
        (message "Warning: Could not load org-social-notifications module")))
-    
+
     (condition-case nil
         (progn
           (require 'org-social-polls)
@@ -248,31 +242,31 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
         (display-buffer (current-buffer)))))
 
 ;;;###autoload
-(defun org-social-ui ()
-  "Launch the Org Social UI interface."
-  (interactive)
-  (org-social--ensure-loaded)
-  (if (fboundp 'org-social-ui-timeline)
-      (org-social-ui-timeline)
-    (error "New UI system not available.  Please check if org-social-ui module is loaded correctly")))
+  (defun org-social-ui ()
+    "Launch the Org Social UI interface."
+    (interactive)
+    (org-social--ensure-loaded)
+    (if (fboundp 'org-social-ui-timeline)
+        (org-social-ui-timeline)
+      (error "New UI system not available.  Please check if org-social-ui module is loaded correctly")))
 
 ;;;###autoload
-(defun org-social-notifications ()
-  "View notifications using the new UI."
-  (interactive)
-  (org-social--ensure-loaded)
-  (if (fboundp 'org-social-ui-notifications)
-      (org-social-ui-notifications)
-    (error "Notifications UI not available.  Please check if org-social-ui module is loaded correctly")))
+  (defun org-social-notifications ()
+    "View notifications using the new UI."
+    (interactive)
+    (org-social--ensure-loaded)
+    (if (fboundp 'org-social-ui-notifications)
+        (org-social-ui-notifications)
+      (error "Notifications UI not available.  Please check if org-social-ui module is loaded correctly")))
 
 ;;;###autoload
-(defun org-social-groups ()
-  "View groups using the new UI."
-  (interactive)
-  (org-social--ensure-loaded)
-  (if (fboundp 'org-social-ui-groups)
-      (org-social-ui-groups)
-    (error "Groups UI not available.  Please check if org-social-ui module is loaded correctly"))))
+  (defun org-social-groups ()
+    "View groups using the new UI."
+    (interactive)
+    (org-social--ensure-loaded)
+    (if (fboundp 'org-social-ui-groups)
+        (org-social-ui-groups)
+      (error "Groups UI not available.  Please check if org-social-ui module is loaded correctly"))))
 
 (defun org-social--timeline-raw ()
   "Display timeline in raw Org mode format following Org Social specification.
@@ -311,7 +305,7 @@ specification with proper metadata and structure."
 
           ;; Get timeline
           (setq timeline-data (when (fboundp 'org-social-feed--get-timeline)
-                               (org-social-feed--get-timeline))))
+                                (org-social-feed--get-timeline))))
       (error
        (message "Error loading timeline data: %s" (error-message-string err))))
 

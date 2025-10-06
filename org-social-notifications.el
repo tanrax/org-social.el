@@ -48,22 +48,22 @@
                           (or (string= normalized-followed-url normalized-feed-url)
                               ;; Also check with protocol normalization (http vs https)
                               (string= (replace-regexp-in-string "^https://" "http://" normalized-followed-url)
-                                      (replace-regexp-in-string "^https://" "http://" normalized-feed-url))
+                                       (replace-regexp-in-string "^https://" "http://" normalized-feed-url))
                               (string= (replace-regexp-in-string "^http://" "https://" normalized-followed-url)
-                                      (replace-regexp-in-string "^http://" "https://" normalized-feed-url)))))))
+                                       (replace-regexp-in-string "^http://" "https://" normalized-feed-url)))))))
                   follow-list)))))
 
 (defun org-social-notifications--find-mentions (timeline)
   "Find all posts that mention the current user.
 Argument TIMELINE is the list posts."
   (let ((my-nick (alist-get 'nick org-social-variables--my-profile))
-	(mentions '()))
+        (mentions '()))
     (when my-nick
       (dolist (post timeline)
-	(let ((text (alist-get 'text post))
-	      (author (alist-get 'author-nick post))
-	      (author-url (alist-get 'author-url post))
-	      (timestamp (alist-get 'timestamp post)))
+        (let ((text (alist-get 'text post))
+              (author (alist-get 'author-nick post))
+              (author-url (alist-get 'author-url post))
+              (timestamp (alist-get 'timestamp post)))
           (when (and text
                      (not (string= author my-nick)) ; Don't include own posts
                      (string-match (format "\\[\\[org-social:[^]]+\\]\\[%s\\]\\]" (regexp-quote my-nick)) text))
@@ -83,74 +83,74 @@ Argument TIMELINE is the list posts."
   "Find all posts that reply to the current user's posts.
 Argument TIMELINE is the list posts."
   (let ((my-url (alist-get 'url org-social-variables--my-profile))
-	(my-nick (alist-get 'nick org-social-variables--my-profile))
-	(replies '()))
+        (my-nick (alist-get 'nick org-social-variables--my-profile))
+        (replies '()))
     (when my-url
       (dolist (post timeline)
-	(let ((reply-to (alist-get 'reply_to post))
-	      (author (alist-get 'author-nick post))
-	      (author-url (alist-get 'author-url post))
-	      (timestamp (alist-get 'timestamp post))
-	      (text (alist-get 'text post)))
-	  (when (and reply-to
-		     (not (string= author my-nick)) ; Don't include own posts
-		     (string-match-p (regexp-quote my-url) reply-to))
-	    (push (list
-		   (cons 'type 'reply)
-		   (cons 'author author)
-		   (cons 'author-url author-url)
-		   (cons 'timestamp timestamp)
-		   (cons 'reply-to reply-to)
-		   (cons 'text text)) replies)))))
+        (let ((reply-to (alist-get 'reply_to post))
+              (author (alist-get 'author-nick post))
+              (author-url (alist-get 'author-url post))
+              (timestamp (alist-get 'timestamp post))
+              (text (alist-get 'text post)))
+          (when (and reply-to
+                     (not (string= author my-nick)) ; Don't include own posts
+                     (string-match-p (regexp-quote my-url) reply-to))
+            (push (list
+                   (cons 'type 'reply)
+                   (cons 'author author)
+                   (cons 'author-url author-url)
+                   (cons 'timestamp timestamp)
+                   (cons 'reply-to reply-to)
+                   (cons 'text text)) replies)))))
     (reverse replies)))
 
 (defun org-social-notifications--render-all-notifications (notifications)
   "Render all NOTIFICATIONS in a single list sorted by date."
   (if notifications
       (dolist (notification notifications)
-	(let ((author (alist-get 'author notification))
-	      (timestamp (alist-get 'timestamp notification))
-	      (type (alist-get 'type notification)))
-	  (cond
-	   ((eq type 'mention)
-	    (let ((followed (alist-get 'followed notification))
-	          (author-url (alist-get 'author-url notification)))
-	      (if followed
-	          ;; For followed feeds, use normal link format
-	          (insert (format "- [[#%s][%s mentioned you]]\n" timestamp author))
-	        ;; For unfollowed feeds, show warning and feed URL
-	        (insert (format "- %s mentioned you (not following - cannot view post)\n" author))
-	        (insert (format "  Feed URL: %s\n" author-url)))))
-	   ((eq type 'reply)
-	    (insert (format "- [[#%s][%s replied to your post]]\n" timestamp author)))
-	   ((eq type 'active-poll)
-	    (let ((poll-end (alist-get 'poll-end notification))
-		  (author-url (alist-get 'author-url notification))
-		  (question (alist-get 'question notification)))
-	      (insert (format "- [[org-social-poll:%s|%s][Active poll: %s by %s]] (ends: %s)\n"
-			      author-url timestamp question
-			      (or author "Unknown")
-			      (or poll-end "Unknown")))))
-	   ((eq type 'poll-result)
-	    (let ((total-votes (alist-get 'total-votes notification))
-		  (results (alist-get 'results notification))
-		  (question (alist-get 'question notification)))
-	      (insert (format "- [[#%s][Poll results: %s by %s]] (%d votes)\n"
-			      timestamp question
-			      (or author "Unknown")
-			      total-votes))
-	      ;; Show top result inline
-	      (when results
-		(let* ((sorted-results (sort results (lambda (a b) (> (cdr a) (cdr b)))))
-		       (winner (car sorted-results))
-		       (option (when winner (car winner)))
-		       (vote-count (when winner (cdr winner)))
-		       (percentage (if (and vote-count (> total-votes 0))
-				       (/ (* vote-count 100.0) total-votes)
-				     0)))
-		  (when winner
-		    (insert (format "  Winner: %s (%d votes, %.1f%%)\n"
-				    option vote-count percentage))))))))))
+        (let ((author (alist-get 'author notification))
+              (timestamp (alist-get 'timestamp notification))
+              (type (alist-get 'type notification)))
+          (cond
+           ((eq type 'mention)
+            (let ((followed (alist-get 'followed notification))
+                  (author-url (alist-get 'author-url notification)))
+              (if followed
+                  ;; For followed feeds, use normal link format
+                  (insert (format "- [[#%s][%s mentioned you]]\n" timestamp author))
+                ;; For unfollowed feeds, show warning and feed URL
+                (insert (format "- %s mentioned you (not following - cannot view post)\n" author))
+                (insert (format "  Feed URL: %s\n" author-url)))))
+           ((eq type 'reply)
+            (insert (format "- [[#%s][%s replied to your post]]\n" timestamp author)))
+           ((eq type 'active-poll)
+            (let ((poll-end (alist-get 'poll-end notification))
+                  (author-url (alist-get 'author-url notification))
+                  (question (alist-get 'question notification)))
+              (insert (format "- [[org-social-poll:%s|%s][Active poll: %s by %s]] (ends: %s)\n"
+                              author-url timestamp question
+                              (or author "Unknown")
+                              (or poll-end "Unknown")))))
+           ((eq type 'poll-result)
+            (let ((total-votes (alist-get 'total-votes notification))
+                  (results (alist-get 'results notification))
+                  (question (alist-get 'question notification)))
+              (insert (format "- [[#%s][Poll results: %s by %s]] (%d votes)\n"
+                              timestamp question
+                              (or author "Unknown")
+                              total-votes))
+              ;; Show top result inline
+              (when results
+                (let* ((sorted-results (sort results (lambda (a b) (> (cdr a) (cdr b)))))
+                       (winner (car sorted-results))
+                       (option (when winner (car winner)))
+                       (vote-count (when winner (cdr winner)))
+                       (percentage (if (and vote-count (> total-votes 0))
+                                       (/ (* vote-count 100.0) total-votes)
+                                     0)))
+                  (when winner
+                    (insert (format "  Winner: %s (%d votes, %.1f%%)\n"
+                                    option vote-count percentage))))))))))
     (insert "No new notifications.\n")))
 
 (defun org-social-notifications--render-section (timeline)
@@ -165,15 +165,15 @@ Argument TIMELINE is the list posts."
          (all-notifications (append mentions replies active-polls poll-results))
          ;; Sort by date (most recent first)
          (sorted-notifications (sort all-notifications
-                                    (lambda (a b)
-                                      (let ((date-a (alist-get 'date a))
-                                            (date-b (alist-get 'date b)))
-                                        ;; If dates are not available, use timestamp parsing
-                                        (unless date-a
-                                          (setq date-a (date-to-time (alist-get 'timestamp a))))
-                                        (unless date-b
-                                          (setq date-b (date-to-time (alist-get 'timestamp b))))
-                                        (time-less-p date-b date-a))))) ; b < a for descending order
+                                     (lambda (a b)
+                                       (let ((date-a (alist-get 'date a))
+                                             (date-b (alist-get 'date b)))
+                                         ;; If dates are not available, use timestamp parsing
+                                         (unless date-a
+                                           (setq date-a (date-to-time (alist-get 'timestamp a))))
+                                         (unless date-b
+                                           (setq date-b (date-to-time (alist-get 'timestamp b))))
+                                         (time-less-p date-b date-a))))) ; b < a for descending order
          (total-count (length all-notifications)))
     (insert (format "* (%d) Notifications\n" total-count))
     (insert ":PROPERTIES:\n")
@@ -203,8 +203,8 @@ Argument TIMELINE is the list posts."
                            (timestamp (match-string 2 url)))
                        ;; Extract author info from feed URL - use domain name instead of filename
                        (let ((author (if (string-match "https?://\\([^/]+\\)" feed-url)
-                                        (match-string 1 feed-url)
-                                      "Unknown"))
+                                         (match-string 1 feed-url)
+                                       "Unknown"))
                              (is-followed (org-social-notifications--is-feed-followed-p feed-url)))
                          (push (list
                                 (cons 'type 'mention)
@@ -214,9 +214,9 @@ Argument TIMELINE is the list posts."
                                 (cons 'post-url url)
                                 (cons 'followed is-followed)
                                 (cons 'text (format "Mentioned you in a post%s"
-                                                   (if is-followed
-                                                       ""
-                                                     " (not following - cannot view post)"))))
+                                                    (if is-followed
+                                                        ""
+                                                      " (not following - cannot view post)"))))
                                mentions)))))
                  ;; Display the mentions
                  (with-current-buffer (get-buffer-create buffer-name)

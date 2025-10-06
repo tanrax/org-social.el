@@ -109,8 +109,8 @@
     (let* ((start-idx (* (- org-social-ui--current-page 1) org-social-ui--posts-per-page))
            (end-idx (* org-social-ui--current-page org-social-ui--posts-per-page))
            (posts-to-show (cl-subseq org-social-ui--timeline-current-list
-                                    start-idx
-                                    (min end-idx (length org-social-ui--timeline-current-list)))))
+                                     start-idx
+                                     (min end-idx (length org-social-ui--timeline-current-list)))))
       (dolist (post posts-to-show)
         (org-social-ui--post-component post org-social-ui--timeline-current-list)))))
 
@@ -165,15 +165,15 @@
 
   ;; Extract info from URL (format: https://domain.com/social.org#timestamp)
   (let ((author-url (when (string-match "\\(.*\\)#" mention-url)
-                     (match-string 1 mention-url)))
+                      (match-string 1 mention-url)))
         (timestamp (when (string-match "#\\(.+\\)$" mention-url)
-                    (match-string 1 mention-url))))
+                     (match-string 1 mention-url))))
 
     (when author-url
       ;; Author name button
       (widget-create 'push-button
                      :notify `(lambda (&rest _)
-                               (org-social-ui-profile ,author-url))
+                                (org-social-ui-profile ,author-url))
                      :help-echo (format "View profile: %s" author-url)
                      (format "@%s" (file-name-nondirectory (string-trim-right author-url "/social.org"))))
 
@@ -187,7 +187,7 @@
     ;; Action buttons
     (widget-create 'push-button
                    :notify `(lambda (&rest _)
-                             (org-social-ui-thread ,mention-url))
+                              (org-social-ui-thread ,mention-url))
                    :help-echo "View thread"
                    " 🧵 View Thread ")
 
@@ -196,7 +196,7 @@
     (when author-url
       (widget-create 'push-button
                      :notify `(lambda (&rest _)
-                               (org-social-file--new-post ,author-url ,timestamp))
+                                (org-social-file--new-post ,author-url ,timestamp))
                      :help-echo "Reply to mention"
                      " ↳ Reply "))
 
@@ -308,7 +308,7 @@
             (progn
               (message "Debug: Using existing feeds...")
               (let ((timeline (when (fboundp 'org-social-feed--get-timeline)
-                               (org-social-feed--get-timeline))))
+                                (org-social-feed--get-timeline))))
                 (message "Debug: Timeline length: %s" (if timeline (length timeline) 0))
                 (org-social-ui--check-replies-and-display-timeline timeline)))
           ;; No feeds loaded yet, start the loading process
@@ -361,21 +361,21 @@ Only checks posts that will be visible on the current page."
         (let* ((start-idx (* (- org-social-ui--current-page 1) org-social-ui--posts-per-page))
                (end-idx (* org-social-ui--current-page org-social-ui--posts-per-page))
                (visible-posts (cl-subseq timeline
-                                        start-idx
-                                        (min end-idx (length timeline))))
+                                         start-idx
+                                         (min end-idx (length timeline))))
                (post-urls '()))
           ;; Extract post URLs only from visible posts
           (dolist (post visible-posts)
             (let* ((author-url (or (alist-get 'author-url post)
-                                  (alist-get 'url post)))
+                                   (alist-get 'url post)))
                    (timestamp (or (alist-get 'timestamp post)
-                                 (alist-get 'id post)))
+                                  (alist-get 'id post)))
                    (post-url (when (and author-url timestamp)
-                              (if (string-empty-p author-url)
-                                  (format "%s#%s"
-                                         (alist-get 'url org-social-variables--my-profile)
-                                         timestamp)
-                                (format "%s#%s" author-url timestamp)))))
+                               (if (string-empty-p author-url)
+                                   (format "%s#%s"
+                                           (alist-get 'url org-social-variables--my-profile)
+                                           timestamp)
+                                 (format "%s#%s" author-url timestamp)))))
               (when post-url
                 (push post-url post-urls))))
           ;; Batch check for replies (only for visible posts)
@@ -401,21 +401,21 @@ Only checks posts that will be visible on the current page."
       (let* ((start-idx (* (- org-social-ui--current-page 1) org-social-ui--posts-per-page))
              (end-idx (* org-social-ui--current-page org-social-ui--posts-per-page))
              (visible-posts (cl-subseq org-social-ui--timeline-current-list
-                                      start-idx
-                                      (min end-idx (length org-social-ui--timeline-current-list))))
+                                       start-idx
+                                       (min end-idx (length org-social-ui--timeline-current-list))))
              (post-urls '()))
         ;; Extract post URLs only from visible posts
         (dolist (post visible-posts)
           (let* ((author-url (or (alist-get 'author-url post)
-                                (alist-get 'url post)))
+                                 (alist-get 'url post)))
                  (timestamp (or (alist-get 'timestamp post)
-                               (alist-get 'id post)))
+                                (alist-get 'id post)))
                  (post-url (when (and author-url timestamp)
-                            (if (string-empty-p author-url)
-                                (format "%s#%s"
-                                       (alist-get 'url org-social-variables--my-profile)
-                                       timestamp)
-                              (format "%s#%s" author-url timestamp)))))
+                             (if (string-empty-p author-url)
+                                 (format "%s#%s"
+                                         (alist-get 'url org-social-variables--my-profile)
+                                         timestamp)
+                               (format "%s#%s" author-url timestamp)))))
             (when post-url
               (push post-url post-urls))))
         ;; Check for replies (only for visible posts)
@@ -476,7 +476,7 @@ Only checks posts that will be visible on the current page."
       (cancel-timer org-social-ui--refresh-timer)
       (setq org-social-ui--refresh-timer nil))
     (let ((timeline (when (fboundp 'org-social-feed--get-timeline)
-                     (org-social-feed--get-timeline))))
+                      (org-social-feed--get-timeline))))
       (org-social-ui--check-replies-and-display-timeline timeline)
       (message "Timeline loaded with %d posts" (if timeline (length timeline) 0)))))
 
@@ -504,7 +504,7 @@ Only checks posts that will be visible on the current page."
                    (beginning-of-line)
                    ;; Delete the newline before the button too
                    (when (and (> (point) (point-min))
-                             (eq (char-before) ?\n))
+                              (eq (char-before) ?\n))
                      (backward-char))
                    ;; Save this position - this is where new posts will start
                    (setq new-posts-start (point))
@@ -517,8 +517,8 @@ Only checks posts that will be visible on the current page."
                  (let* ((start-idx (* (- org-social-ui--current-page 1) org-social-ui--posts-per-page))
                         (end-idx (* org-social-ui--current-page org-social-ui--posts-per-page))
                         (posts-to-show (cl-subseq org-social-ui--timeline-current-list
-                                                 start-idx
-                                                 (min end-idx total-posts))))
+                                                  start-idx
+                                                  (min end-idx total-posts))))
                    (dolist (post posts-to-show)
                      (org-social-ui--post-component post org-social-ui--timeline-current-list)))
                  ;; Add new "Show more" button if there are more posts
@@ -535,8 +535,7 @@ Only checks posts that will be visible on the current page."
                  (when new-posts-start
                    (goto-char new-posts-start))
                  ;; Clear loading flag
-                 (setq org-social-ui--timeline-loading-in-progress nil)
-)))))))))
+                 (setq org-social-ui--timeline-loading-in-progress nil))))))))))
 
 (provide 'org-social-ui-timeline)
 ;;; org-social-ui-timeline.el ends here

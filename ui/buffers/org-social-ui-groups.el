@@ -76,45 +76,45 @@
                          0
                        (or (alist-get 'posts group) 0))))
 
-      ;; Group header
-      (org-social-ui--insert-formatted-text "👥 " 1.2 "#4a90e2")
-      (org-social-ui--insert-formatted-text group-name 1.1 "#4a90e2")
-      (org-social-ui--insert-formatted-text "\n")
+    ;; Group header
+    (org-social-ui--insert-formatted-text "👥 " 1.2 "#4a90e2")
+    (org-social-ui--insert-formatted-text group-name 1.1 "#4a90e2")
+    (org-social-ui--insert-formatted-text "\n")
 
-      ;; Description
-      (org-social-ui--insert-formatted-text (format "  %s\n" description) nil "#666666")
+    ;; Description
+    (org-social-ui--insert-formatted-text (format "  %s\n" description) nil "#666666")
 
-      ;; Stats
-      (org-social-ui--insert-formatted-text "  ")
-      (org-social-ui--insert-formatted-text (format "%d member%s"
-                                                    member-count
-                                                    (if (= member-count 1) "" "s"))
-                                            nil "#008000")
-      (org-social-ui--insert-formatted-text " • ")
-      (org-social-ui--insert-formatted-text (format "%d post%s"
-                                                    post-count
-                                                    (if (= post-count 1) "" "s"))
-                                            nil "#008000")
-      (org-social-ui--insert-formatted-text "\n\n")
+    ;; Stats
+    (org-social-ui--insert-formatted-text "  ")
+    (org-social-ui--insert-formatted-text (format "%d member%s"
+                                                  member-count
+                                                  (if (= member-count 1) "" "s"))
+                                          nil "#008000")
+    (org-social-ui--insert-formatted-text " • ")
+    (org-social-ui--insert-formatted-text (format "%d post%s"
+                                                  post-count
+                                                  (if (= post-count 1) "" "s"))
+                                          nil "#008000")
+    (org-social-ui--insert-formatted-text "\n\n")
 
-      ;; Action buttons
-      (org-social-ui--insert-formatted-text "  ")
-      (widget-create 'push-button
-                     :notify `(lambda (&rest _)
-                               (org-social-ui-group-posts ,group-name))
-                     :help-echo (format "View posts in %s group" group-name)
-                     " 📄 View Posts ")
+    ;; Action buttons
+    (org-social-ui--insert-formatted-text "  ")
+    (widget-create 'push-button
+                   :notify `(lambda (&rest _)
+                              (org-social-ui-group-posts ,group-name))
+                   :help-echo (format "View posts in %s group" group-name)
+                   " 📄 View Posts ")
 
-      (org-social-ui--insert-formatted-text " ")
+    (org-social-ui--insert-formatted-text " ")
 
-      (widget-create 'push-button
-                     :notify `(lambda (&rest _)
-                               (message "Joining group functionality - to be implemented"))
-                     :help-echo (format "Join %s group" group-name)
-                     " ➕ Join Group ")
+    (widget-create 'push-button
+                   :notify `(lambda (&rest _)
+                              (message "Joining group functionality - to be implemented"))
+                   :help-echo (format "Join %s group" group-name)
+                   " ➕ Join Group ")
 
-      (org-social-ui--insert-formatted-text "\n")
-      (org-social-ui--insert-separator)))
+    (org-social-ui--insert-formatted-text "\n")
+    (org-social-ui--insert-separator)))
 
 (defun org-social-ui--insert-groups-content (groups)
   "Insert groups content with GROUPS."
@@ -194,7 +194,7 @@
                          (org-social-ui--insert-formatted-text "📝 ")
                          (widget-create 'push-button
                                         :notify `(lambda (&rest _)
-                                                  (org-social-ui-thread ,.post))
+                                                   (org-social-ui-thread ,.post))
                                         :help-echo "View thread"
                                         .post)
                          (org-social-ui--insert-formatted-text "\n"))))
