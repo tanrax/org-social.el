@@ -1,0 +1,18 @@
+*** /dev/null
+--- /dev/null
+***************
+*** 524,527
+-               ;; Move cursor to the new "Show more" button if it exists
+-               (goto-char (point-max))
+-               (when (search-backward "Show more" nil t)
+-                 (forward-button 1))))))))))
+--- 524,532 -----
++               ;; Move cursor to the first new post
++               ;; Find the last separator before "Show more" (or end of buffer)
++               (goto-char (point-max))
++               (let ((separator-regex (concat "^" (regexp-quote (org-social-ui--string-separator)) "$")))
++                 ;; Go back past "Show more" button if it exists
++                 (when (search-backward "Show more" nil t)
++                   (beginning-of-line))
++                 ;; Find the separator of the first new post
++                 (when (search-backward-regexp separator-regex nil t)

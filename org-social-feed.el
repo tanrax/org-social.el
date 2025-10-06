@@ -130,10 +130,6 @@ Argument NEW-RESPONSE"
 				   (eq (alist-get :status i) :processing)
 				   (eq (alist-get :status i) :pending)))
 		      org-social-variables--queue)))
-    (message "Downloading feeds: %s remaining"
-	     (if (> (length in-progress) 0)
-		 (length in-progress)
-	       "Processing..."))
     (when (= (length in-progress) 0)
       ;; Remove failed downloads
       (setq org-social-variables--queue
