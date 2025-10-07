@@ -46,7 +46,8 @@
 (declare-function org-social-file--new-post "org-social-file" (reply-url reply-id))
 (declare-function org-social-file--new-poll "org-social-file" ())
 (declare-function org-social-ui-timeline "org-social-ui" ())
-(declare-function org-social-file--validate "org-social-file" ())
+(declare-function org-social-validator-validate-buffer "org-social-validator" ())
+(declare-function org-social-validator-validate-and-display "org-social-validator" ())
 (declare-function org-social-polls--setup-poll-links "org-social-polls" ())
 (declare-function org-social-notifications--is-feed-followed-p "org-social-notifications" (url))
 (declare-function org-social-parser--get-my-profile "org-social-parser" ())
@@ -56,6 +57,9 @@
 (declare-function org-social-feed--initialize-queue-from-relay "org-social-feed" ())
 (declare-function org-social-feed--get-timeline "org-social-feed" ())
 (declare-function org-social-file--read-my-profile "org-social-file" ())
+
+;; Variables from org-social-variables
+(defvar org-social-file)
 
 (defun org-social--format-date (timestamp)
   "Format TIMESTAMP to human-readable date format: '24 Sep 2025, 15:30'.
@@ -119,6 +123,12 @@ TIMESTAMP should be in RFC 3339 format or a time value."
       (error
        (message "Warning: Could not load org-social-polls module")))
 
+    ;; Load validator module
+    (condition-case nil
+        (require 'org-social-validator)
+      (error
+       (message "Warning: Could not load org-social-validator module")))
+
     ;; Load new UI system
     (condition-case nil
         (require 'org-social-ui)
@@ -165,10 +175,15 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
 
 ;;;###autoload
 (defun org-social-validate-file ()
-  "Validate the current Org-social file structure."
+  "Validate the Org-social file structure."
   (interactive)
   (org-social--ensure-loaded)
-  (org-social-file--validate))
+  (require 'org-social-validator)
+  (require 'org-social-variables)
+  (if (file-exists-p org-social-file)
+      (with-current-buffer (find-file-noselect org-social-file)
+        (org-social-validator-validate-and-display))
+    (message "Org-social file not found: %s" org-social-file)))
 
 ;;;###autoload
 (defun org-social-new-poll ()

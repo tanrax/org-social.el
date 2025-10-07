@@ -34,6 +34,9 @@
 (require 'org-id)
 (require 'url)
 
+;; Forward declaration for validator
+(declare-function org-social-validator-validate-and-display "org-social-validator" ())
+
 ;; Minor mode definition
 (define-minor-mode org-social-mode
   "Minor mode for enhancing the Org-social experience."
@@ -126,9 +129,17 @@ and POLL-END is the RFC 3339 formatted end time."
       (progn
         (find-file org-social-file)
         (org-social-mode 1)
-        (goto-char (point-max)))
+        (goto-char (point-max))
+        ;; Validate file and show warnings if any
+        (when (fboundp 'org-social-validator-validate-and-display)
+          (require 'org-social-validator)
+          (org-social-validator-validate-and-display)))
     (when (y-or-n-p (format "File %s doesn't exist.  Create it? " org-social-file))
-      (org-social-file--create-new-feed-file))))
+      (org-social-file--create-new-feed-file)
+      ;; Validate newly created file
+      (when (fboundp 'org-social-validator-validate-and-display)
+        (require 'org-social-validator)
+        (org-social-validator-validate-and-display)))))
 
 (defun org-social-file--new-post (&optional reply-url reply-id)
   "Create a new post in your Org-social feed.
@@ -141,7 +152,11 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
     (org-social-file--find-posts-section)
     (goto-char (point-max))
     (org-social-file--insert-post-template reply-url reply-id))
-  (goto-char (point-max)))
+  (goto-char (point-max))
+  ;; Validate file after adding post
+  (when (fboundp 'org-social-validator-validate-and-display)
+    (require 'org-social-validator)
+    (org-social-validator-validate-and-display)))
 
 (defun org-social-file--new-poll ()
   "Create a new poll in your Org-social feed.
@@ -187,7 +202,11 @@ Interactively prompts for the poll question, options, and duration."
           (goto-char (point-max))
           (org-social-file--insert-poll-template question options poll-end))
         (goto-char (point-max))
-        (message "Poll created with %d options, ending at %s" (length options) poll-end)))))
+        (message "Poll created with %d options, ending at %s" (length options) poll-end)
+        ;; Validate file after adding poll
+        (when (fboundp 'org-social-validator-validate-and-display)
+          (require 'org-social-validator)
+          (org-social-validator-validate-and-display))))))
 
 (defun org-social-file--new-reaction (reply-url reply-id emoji)
   "Create a new reaction post with EMOJI to a post at REPLY-URL with REPLY-ID.
@@ -204,7 +223,11 @@ EMOJI is the reaction emoji to add."
     (goto-char (point-max))
     (org-social-file--insert-reaction-template reply-url reply-id emoji))
   (goto-char (point-max))
-  (message "Reaction %s added to post" emoji))
+  (message "Reaction %s added to post" emoji)
+  ;; Validate file after adding reaction
+  (when (fboundp 'org-social-validator-validate-and-display)
+    (require 'org-social-validator)
+    (org-social-validator-validate-and-display)))
 
 (defun org-social-file--insert-reaction-template (reply-url reply-id emoji)
   "Insert a reaction template at the current position.
@@ -220,27 +243,7 @@ EMOJI is the reaction emoji."
     (insert ":END:\n\n")
     (goto-char (point-max))))
 
-(defun org-social-file--validate ()
-  "Validate the current Org-social file structure."
-  (save-excursion
-    (goto-char (point-min))
-    (let ((errors '())
-          (has-title (re-search-forward "^#\\+TITLE:" nil t))
-          (has-nick (progn (goto-char (point-min))
-                           (re-search-forward "^#\\+NICK:" nil t)))
-          (has-posts (progn (goto-char (point-min))
-                            (re-search-forward "^\\* Posts" nil t))))
-
-      (unless has-title
-        (push "Missing #+TITLE field" errors))
-      (unless has-nick
-        (push "Missing #+NICK field" errors))
-      (unless has-posts
-        (push "Missing * Posts section" errors))
-
-      (if errors
-          (message "Validation errors: %s" (string-join errors " "))
-        (message "Org-social file structure is valid!")))))
+;; Validation moved to org-social-validator.el - use org-social-validator-validate-buffer instead
 
 ;; Mention functionality
 

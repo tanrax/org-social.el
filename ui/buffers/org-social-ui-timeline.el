@@ -241,6 +241,14 @@
                (not (string-empty-p org-social-my-public-url)))
     (error "Org-social-my-public-url is not configured.  Please set it to your public social.org URL"))
 
+  ;; Validate social.org file before loading timeline
+  (when (and (boundp 'org-social-file)
+             (file-exists-p org-social-file)
+             (fboundp 'org-social-validator-validate-and-display))
+    (require 'org-social-validator)
+    (with-current-buffer (find-file-noselect org-social-file)
+      (org-social-validator-validate-and-display)))
+
   (setq org-social-ui--current-screen 'timeline)
   (setq org-social-ui--current-page 1)
 

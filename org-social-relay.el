@@ -4,6 +4,7 @@
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
 ;; Version: 2.0
+;; URL: https://github.com/tanrax/org-social.el
 
 ;;; Commentary:
 
