@@ -96,8 +96,8 @@ Optional SUGGESTION provides a hint to fix the error."
           (insert (format "⚠ Found %d validation issue(s) in %s\n\n"
                           error-count
                           (or org-social-validator--current-file "buffer")))
-          (insert "These are warnings and won't prevent you from continuing.\n")
-          (insert "However, fixing them will ensure better compatibility.\n\n")
+          (insert "For more information about the Org Social specification, visit:\n")
+          (insert "https://github.com/tanrax/org-social\n\n")
           (insert (make-string 70 ?─) "\n\n")
           (dolist (error (reverse org-social-validator--errors))
             (insert (org-social-validator--format-error error))
