@@ -37,6 +37,9 @@
 ;; Forward declaration for validator
 (declare-function org-social-validator-validate-and-display "org-social-validator" ())
 
+;; Forward declarations for relay
+(declare-function org-social-relay--fetch-feeds "org-social-relay" (callback))
+
 ;; Minor mode definition
 (define-minor-mode org-social-mode
   "Minor mode for enhancing the Org-social experience."
@@ -283,23 +286,69 @@ Returns nil if extraction fails."
 NICK is the user's nickname and URL is their social.org URL."
   (insert (format "[[org-social:%s][%s]]" url nick)))
 
+(defun org-social-file--get-relay-users (callback)
+  "Get list of users from relay server and call CALLBACK with results.
+CALLBACK is called with a list of cons cells (NICK . URL)."
+  (require 'org-social-relay)
+  (message "Loading users from relay...")
+  (org-social-relay--fetch-feeds
+   (lambda (feeds-list)
+     (if feeds-list
+         (let ((users nil)
+               (processed 0)
+               (total (length feeds-list)))
+           (message "Fetching user information from %d feeds..." total)
+           (dolist (feed-url feeds-list)
+             (let ((nick (org-social-file--extract-nick-from-url feed-url)))
+               (setq processed (1+ processed))
+               (when nick
+                 (push (cons nick feed-url) users))
+               (when (= processed total)
+                 ;; All feeds processed
+                 (message "Loaded %d users from relay" (length users))
+                 (funcall callback (nreverse users))))))
+       (message "Failed to fetch feeds from relay")
+       (funcall callback nil)))))
+
 (defun org-social-file--mention-user ()
   "Prompt for a followed user and insert a mention at point."
   (interactive)
-  (let ((followed-users (org-social-file--get-followed-users)))
-    (if followed-users
-        (let* ((user-alist (mapcar (lambda (user)
-                                     (cons (car user) user))
-                                   followed-users))
-               (selected-nick (completing-read "Mention user: "
-                                               (mapcar #'car user-alist)
-                                               nil t))
-               (selected-user (cdr (assoc selected-nick user-alist))))
-          (when selected-user
-            (org-social-file--insert-mention (car selected-user)
-                                             (cdr selected-user))
-            (message "Mentioned user: %s" (car selected-user))))
-      (message "No followed users found. Add users to your #+FOLLOW: list first."))))
+  (if (and (boundp 'org-social-only-relay-followers-p)
+           org-social-only-relay-followers-p
+           (boundp 'org-social-relay)
+           org-social-relay
+           (not (string-empty-p org-social-relay)))
+      ;; Use relay to get users
+      (org-social-file--get-relay-users
+       (lambda (users)
+         (if users
+             (let* ((user-alist (mapcar (lambda (user)
+                                          (cons (car user) user))
+                                        users))
+                    (selected-nick (completing-read "Mention user: "
+                                                    (mapcar #'car user-alist)
+                                                    nil t))
+                    (selected-user (cdr (assoc selected-nick user-alist))))
+               (when selected-user
+                 (org-social-file--insert-mention (car selected-user)
+                                                  (cdr selected-user))
+                 (message "Mentioned user: %s" (car selected-user))))
+           (message "No users found in relay"))))
+    ;; Use local followers
+    (let ((followed-users (org-social-file--get-followed-users)))
+      (if followed-users
+          (let* ((user-alist (mapcar (lambda (user)
+                                       (cons (car user) user))
+                                     followed-users))
+                 (selected-nick (completing-read "Mention user: "
+                                                 (mapcar #'car user-alist)
+                                                 nil t))
+                 (selected-user (cdr (assoc selected-nick user-alist))))
+            (when selected-user
+              (org-social-file--insert-mention (car selected-user)
+                                               (cdr selected-user))
+              (message "Mentioned user: %s" (car selected-user))))
+        (message "No followed users found. Add users to your #+FOLLOW: list first.")))))
 
 ;; Forward declarations for wrapper functions
 (declare-function org-social-new-post "org-social" (&optional reply-url reply-id))
