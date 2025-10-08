@@ -176,13 +176,10 @@ Argument NEW-RESPONSE"
                                        posts)))
                            org-social-variables--feeds))
          (timeline-filtered (seq-filter (lambda (post)
-                                          ;; Keep posts with text OR with mood (reactions)
-                                          (let ((text (alist-get 'text post))
-                                                (mood (alist-get 'mood post)))
-                                            (or (and mood (not (string-empty-p mood)))
-                                                (and text
-                                                     (stringp text)
-                                                     (not (string-empty-p (string-trim text)))))))
+                                          ;; Keep posts with text (reactions are kept in data for display under posts)
+                                          (let ((text (alist-get 'text post)))
+                                            (or text
+                                                (alist-get 'mood post))))
                                         timeline))
          (timeline-sorted (sort timeline-filtered
                                 (lambda (a b)

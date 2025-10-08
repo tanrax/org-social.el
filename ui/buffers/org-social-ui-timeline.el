@@ -15,6 +15,21 @@
 (require 'org-social-ui-utils)
 (require 'org-social-ui-components)
 
+;; Helper function to filter out reactions
+(defun org-social-ui--filter-reactions (timeline)
+  "Filter out reactions from TIMELINE.
+Reactions are posts with reply_to, mood, and empty/short text."
+  (seq-filter
+   (lambda (post)
+     (let ((text (or (alist-get 'text post) ""))
+           (mood (alist-get 'mood post))
+           (reply-to (alist-get 'reply_to post)))
+       ;; Exclude reactions: posts with reply_to + mood + short text
+       (not (and reply-to
+                mood
+                (< (length (string-trim text)) 5)))))
+   timeline))
+
 ;; Forward declarations
 (declare-function org-social-relay--get-timeline "org-social-relay" ())
 (declare-function org-social-feed--get-timeline "org-social-feed" ())
@@ -84,11 +99,12 @@
 (defun org-social-ui--insert-timeline-posts (timeline)
   "Insert TIMELINE posts with infinite scroll pagination."
   (when timeline
-    ;; Store timeline globally for pagination
+    ;; Store timeline globally (keep all data including reactions for detection)
     (setq org-social-ui--timeline-current-list timeline)
+    ;; Store filtered timeline for display (without reactions as separate posts)
+    (setq org-social-ui--timeline-display-list (org-social-ui--filter-reactions timeline))
 
-    ;; Calculate pagination
-    (let* ((total-posts (length timeline))
+    (let* ((total-posts (length org-social-ui--timeline-display-list))
            (posts-shown (* org-social-ui--current-page org-social-ui--posts-per-page)))
 
       ;; Insert posts for current page
@@ -105,13 +121,14 @@
 
 (defun org-social-ui--insert-timeline-posts-paginated ()
   "Insert the current page of timeline posts."
-  (when org-social-ui--timeline-current-list
+  (when org-social-ui--timeline-display-list
     (let* ((start-idx (* (- org-social-ui--current-page 1) org-social-ui--posts-per-page))
            (end-idx (* org-social-ui--current-page org-social-ui--posts-per-page))
-           (posts-to-show (cl-subseq org-social-ui--timeline-current-list
+           (posts-to-show (cl-subseq org-social-ui--timeline-display-list
                                      start-idx
-                                     (min end-idx (length org-social-ui--timeline-current-list)))))
+                                     (min end-idx (length org-social-ui--timeline-display-list)))))
       (dolist (post posts-to-show)
+        ;; Pass the full timeline (with reactions) for reaction detection
         (org-social-ui--post-component post org-social-ui--timeline-current-list)))))
 
 ;;; Notifications Screen
@@ -389,12 +406,12 @@ Only checks posts that will be visible on the current page."
   (if (and (boundp 'org-social-relay)
            org-social-relay
            (not (string-empty-p org-social-relay))
-           org-social-ui--timeline-current-list)
+           org-social-ui--timeline-display-list)
       (let* ((start-idx (* (- org-social-ui--current-page 1) org-social-ui--posts-per-page))
              (end-idx (* org-social-ui--current-page org-social-ui--posts-per-page))
-             (visible-posts (cl-subseq org-social-ui--timeline-current-list
+             (visible-posts (cl-subseq org-social-ui--timeline-display-list
                                        start-idx
-                                       (min end-idx (length org-social-ui--timeline-current-list))))
+                                       (min end-idx (length org-social-ui--timeline-display-list))))
              (post-urls '()))
         ;; Extract post URLs only from visible posts
         (dolist (post visible-posts)
@@ -475,9 +492,9 @@ Only checks posts that will be visible on the current page."
 (defun org-social-ui--timeline-next-page ()
   "Load and append next page of posts (infinite scroll)."
   (interactive)
-  (when (and org-social-ui--timeline-current-list
+  (when (and org-social-ui--timeline-display-list
              (not org-social-ui--timeline-loading-in-progress))
-    (let* ((total-posts (length org-social-ui--timeline-current-list))
+    (let* ((total-posts (length org-social-ui--timeline-display-list))
            (posts-shown (* org-social-ui--current-page org-social-ui--posts-per-page)))
       (when (< posts-shown total-posts)
         (setq org-social-ui--timeline-loading-in-progress t)
@@ -507,10 +524,11 @@ Only checks posts that will be visible on the current page."
                  ;; Insert new page of posts at current position
                  (let* ((start-idx (* (- org-social-ui--current-page 1) org-social-ui--posts-per-page))
                         (end-idx (* org-social-ui--current-page org-social-ui--posts-per-page))
-                        (posts-to-show (cl-subseq org-social-ui--timeline-current-list
+                        (posts-to-show (cl-subseq org-social-ui--timeline-display-list
                                                   start-idx
                                                   (min end-idx total-posts))))
                    (dolist (post posts-to-show)
+                     ;; Pass full timeline for reaction detection
                      (org-social-ui--post-component post org-social-ui--timeline-current-list)))
                  ;; Add new "Show more" button if there are more posts
                  (when (< (* org-social-ui--current-page org-social-ui--posts-per-page) total-posts)

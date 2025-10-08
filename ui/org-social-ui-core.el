@@ -70,7 +70,10 @@
   "Current page number for paginated views.")
 
 (defvar org-social-ui--timeline-current-list nil
-  "Current timeline data for pagination.")
+  "Current timeline data for pagination (includes all posts and reactions).")
+
+(defvar org-social-ui--timeline-display-list nil
+  "Filtered timeline for display (excludes reactions shown as separate posts).")
 
 (defvar org-social-ui--timeline-widget-loading-more nil
   "Widget for loading more posts in timeline.")
