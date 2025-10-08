@@ -176,11 +176,13 @@ Argument NEW-RESPONSE"
                                        posts)))
                            org-social-variables--feeds))
          (timeline-filtered (seq-filter (lambda (post)
-                                          ;; Filter out posts with empty or nil text content
-                                          (let ((text (alist-get 'text post)))
-                                            (and text
-                                                 (stringp text)
-                                                 (not (string-empty-p (string-trim text))))))
+                                          ;; Keep posts with text OR with mood (reactions)
+                                          (let ((text (alist-get 'text post))
+                                                (mood (alist-get 'mood post)))
+                                            (or (and mood (not (string-empty-p mood)))
+                                                (and text
+                                                     (stringp text)
+                                                     (not (string-empty-p (string-trim text)))))))
                                         timeline))
          (timeline-sorted (sort timeline-filtered
                                 (lambda (a b)

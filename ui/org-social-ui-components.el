@@ -49,8 +49,37 @@ Uses relay to check for replies and caches the result."
              (setq result has-replies)))
           result)))))
 
-(defun org-social-ui--post-component (post _timeline-data)
-  "Insert a post component for POST with _TIMELINE-DATA context."
+(defun org-social-ui--get-post-reactions (post-url timeline-data)
+  "Get reactions for POST-URL from TIMELINE-DATA.
+Returns an alist of (emoji . list-of-authors)."
+  (when timeline-data
+    (let ((reactions '()))
+      (dolist (item timeline-data)
+        (let* ((reply-to (alist-get 'reply_to item))
+               (mood (alist-get 'mood item))
+               (text (or (alist-get 'text item) ""))
+               (author (or (alist-get 'author-nick item) "Unknown")))
+          ;; A reaction is a post with reply_to matching our URL, has mood, and empty/short text
+          (when (and reply-to
+                     mood
+                     (not (string-empty-p mood))
+                     (string= reply-to post-url)
+                     (or (string-empty-p text)
+                         (< (length (string-trim text)) 5)))
+            ;; Add this reaction
+            (let ((existing (assoc mood reactions)))
+              (if existing
+                  ;; Add author to existing emoji list
+                  (setcdr existing (cons author (cdr existing)))
+                ;; New emoji, create entry
+                (push (cons mood (list author)) reactions))))))
+      ;; Reverse author lists to maintain order
+      (mapcar (lambda (entry)
+                (cons (car entry) (nreverse (cdr entry))))
+              (nreverse reactions)))))
+
+(defun org-social-ui--post-component (post timeline-data)
+  "Insert a post component for POST with TIMELINE-DATA context."
   (let* ((author (or (alist-get 'author-nick post)
                      (alist-get 'nick post)
                      "Unknown"))
@@ -101,26 +130,20 @@ Uses relay to check for replies and caches the result."
           ;; Apply 'org-mode' syntax highlighting to this region only
           (org-social-ui--apply-org-mode-to-region org-content-start (point))))
 
-      ;; 3. Add line break between content and hashtags
-      (org-social-ui--insert-formatted-text "\n")
-
-      ;; 4. Tags and mood in same line
-      (when (or (and tags (not (string-empty-p tags)))
-                (and mood (not (string-empty-p mood))))
-        (when (and tags (not (string-empty-p tags)))
-          (let ((tag-list (split-string tags "\\s-+" t)))
-            (dolist (tag tag-list)
-              (org-social-ui--insert-formatted-text (format "#%s" tag) nil org-social-hashtag-color)
-              (org-social-ui--insert-formatted-text " "))))
-        ;; Mood at the end of tags line
-        (when (and mood (not (string-empty-p mood)))
-          (org-social-ui--insert-formatted-text (format "%s" mood)))
+      ;; 3. Add line break between content and tags (only if tags exist)
+      (when (and tags (not (string-empty-p tags)))
+        (org-social-ui--insert-formatted-text "\n")
+        ;; 4. Tags only
+        (let ((tag-list (split-string tags "\\s-+" t)))
+          (dolist (tag tag-list)
+            (org-social-ui--insert-formatted-text (format "#%s" tag) nil org-social-hashtag-color)
+            (org-social-ui--insert-formatted-text " ")))
         (org-social-ui--insert-formatted-text "\n"))
 
       ;; Add line break before action buttons
       (insert "\n")
 
-      ;; 3. Action buttons
+      ;; 5. Action buttons with mood at the end
       (let ((first-button t))
         ;; Reply button (only for others' posts)
         (when (not is-my-post)
@@ -167,12 +190,36 @@ Uses relay to check for replies and caches the result."
           (widget-create 'push-button
                          :notify `(lambda (&rest _)
                                     (message "Poll voting - to be implemented"))
-                         " 🗳 Vote ")))
+                         " 🗳 Vote "))
 
-      ;; 5. Add line break between buttons and user info
-      (org-social-ui--insert-formatted-text "\n\n")
+        ;; Mood at the end, aligned to the right
+        (when (and mood (not (string-empty-p mood)))
+          (let* ((current-col (current-column))
+                 (target-col 70)
+                 (spaces-needed (max 2 (- target-col current-col))))
+            (org-social-ui--insert-formatted-text (make-string spaces-needed ?\s))
+            (org-social-ui--insert-formatted-text mood nil "#ffaa00"))))
 
-      ;; 6. Post header with avatar, author name, timestamp, and client
+      ;; 6. Display reactions if any
+      (let ((reactions (org-social-ui--get-post-reactions post-url timeline-data)))
+        (if reactions
+            (progn
+              (org-social-ui--insert-formatted-text "\n\n")
+              (let ((first-reaction t))
+                (dolist (reaction reactions)
+                  (let ((emoji (car reaction))
+                        (count (length (cdr reaction))))
+                    (unless first-reaction
+                      (org-social-ui--insert-formatted-text " | " nil "#888888"))
+                    ;; Show emoji and count
+                    (org-social-ui--insert-formatted-text (format "%s %d" emoji count) nil "#ffaa00")
+                    (setq first-reaction nil))))
+              ;; Add line break after reactions
+              (org-social-ui--insert-formatted-text "\n\n"))
+          ;; No reactions, just add one line break
+          (org-social-ui--insert-formatted-text "\n\n")))
+
+      ;; 7. Post header with avatar, author name, timestamp, and client
       ;; Avatar image
       (if (and avatar (not (string-empty-p avatar)))
           (progn
@@ -190,10 +237,10 @@ Uses relay to check for replies and caches the result."
         (org-social-ui--insert-formatted-text " • ")
         (org-social-ui--insert-formatted-text client nil "#ffaa00"))
 
-      ;; 7. Add line break between user info and separator
+      ;; 8. Add line break between user info and separator
       (org-social-ui--insert-formatted-text "\n")
 
-      ;; 8. Final separator
+      ;; 9. Final separator
       (org-social-ui--insert-separator))))
 
 ;;; Timeline Screen
