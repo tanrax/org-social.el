@@ -349,54 +349,105 @@ Optional CALLBACK is called with success status when download completes."
 ;;; Navigation Functions
 
 (defun org-social-ui--goto-next-post ()
-  "Go to the next post."
+  "Go to the next post or group button."
   (interactive)
-  (let ((separator-regex (concat "^" (regexp-quote (org-social-ui--string-separator)) "$"))
-        (was-at-last nil))
-    ;; Try to find next separator
-    (if (search-forward-regexp separator-regex nil t)
-        (progn
-          (forward-line 1)
-          ;; Check if we've reached the last post
-          (when (org-social-ui--last-separator-p)
-            (setq was-at-last t)
-            (run-hooks 'org-social-ui--last-post-hook)))
-      ;; No separator found, we're past all posts
-      (setq was-at-last t))
+  ;; Check if we're in groups buffer
+  (if (eq org-social-ui--current-screen 'groups)
+      (org-social-ui--goto-next-group-button)
+    ;; Normal post navigation
+    (let ((separator-regex (concat "^" (regexp-quote (org-social-ui--string-separator)) "$"))
+          (was-at-last nil))
+      ;; Try to find next separator
+      (if (search-forward-regexp separator-regex nil t)
+          (progn
+            (forward-line 1)
+            ;; Check if we've reached the last post
+            (when (org-social-ui--last-separator-p)
+              (setq was-at-last t)
+              (run-hooks 'org-social-ui--last-post-hook)))
+        ;; No separator found, we're past all posts
+        (setq was-at-last t))
 
-    ;; If we're at the last post, try to load more
-    (when was-at-last
-      ;; Search for "Show more" button from the end of buffer (where it always is)
-      (unless (save-excursion
-                (goto-char (point-max))
-                (when (search-backward "Show more" nil t)
-                  (let ((widget (widget-at (point))))
-                    (when (and widget (eq (widget-type widget) 'push-button))
-                      (widget-button-press (point))
-                      t))))
-        (message "No more posts to load")))
+      ;; If we're at the last post, try to load more
+      (when was-at-last
+        ;; Search for "Show more" button from the end of buffer (where it always is)
+        (unless (save-excursion
+                  (goto-char (point-max))
+                  (when (search-backward "Show more" nil t)
+                    (let ((widget (widget-at (point))))
+                      (when (and widget (eq (widget-type widget) 'push-button))
+                        (widget-button-press (point))
+                        t))))
+          (message "No more posts to load")))
 
-    ;; Center the screen on cursor position
-    (recenter)))
+      ;; Center the screen on cursor position
+      (recenter))))
 
 (defun org-social-ui--goto-previous-post ()
-  "Go to the previous post."
+  "Go to the previous post or group button."
   (interactive)
-  (let ((separator-regex (concat "^" (regexp-quote (org-social-ui--string-separator)) "$")))
-    (if (search-backward-regexp separator-regex nil t)
+  ;; Check if we're in groups buffer
+  (if (eq org-social-ui--current-screen 'groups)
+      (org-social-ui--goto-previous-group-button)
+    ;; Normal post navigation
+    (let ((separator-regex (concat "^" (regexp-quote (org-social-ui--string-separator)) "$")))
+      (if (search-backward-regexp separator-regex nil t)
+          (progn
+            (if (search-backward-regexp separator-regex nil t)
+                (forward-line 1)
+              (progn
+                (goto-char (point-min))
+                ;; Only move forward if there's content to move to
+                (when (> (point-max) (point-min))
+                  (forward-line 1)))))
         (progn
-          (if (search-backward-regexp separator-regex nil t)
-              (forward-line 1)
-            (progn
-              (goto-char (point-min))
-              ;; Only move forward if there's content to move to
-              (when (> (point-max) (point-min))
-                (forward-line 1)))))
-      (progn
-        (goto-char (point-min))
-        (message "Already at first post")))
-    ;; Center the screen on cursor position
-    (recenter)))
+          (goto-char (point-min))
+          (message "Already at first post")))
+      ;; Center the screen on cursor position
+      (recenter))))
+
+(defun org-social-ui--goto-next-group-button ()
+  "Go to the next View Posts button in groups buffer."
+  (let ((found nil)
+        (start-point (point)))
+    ;; Search forward for "View Posts" button
+    (while (and (not found) (< (point) (point-max)))
+      (forward-char 1)
+      (let ((widget (widget-at (point))))
+        (when (and widget (eq (widget-type widget) 'push-button))
+          (let* ((widget-start (widget-get widget :from))
+                 (widget-end (widget-get widget :to))
+                 (widget-text (when (and widget-start widget-end)
+                                (buffer-substring-no-properties widget-start widget-end))))
+            (when (and widget-text (string-match-p "View Posts" widget-text))
+              (setq found t))))))
+    (if found
+        (recenter)
+      (goto-char start-point)
+      (message "No more groups"))))
+
+(defun org-social-ui--goto-previous-group-button ()
+  "Go to the previous View Posts button in groups buffer."
+  (let ((found nil)
+        (start-point (point)))
+    ;; Move back a bit to avoid finding the current button
+    (when (> (point) (point-min))
+      (backward-char 1))
+    ;; Search backward for "View Posts" button
+    (while (and (not found) (> (point) (point-min)))
+      (backward-char 1)
+      (let ((widget (widget-at (point))))
+        (when (and widget (eq (widget-type widget) 'push-button))
+          (let* ((widget-start (widget-get widget :from))
+                 (widget-end (widget-get widget :to))
+                 (widget-text (when (and widget-start widget-end)
+                                (buffer-substring-no-properties widget-start widget-end))))
+            (when (and widget-text (string-match-p "View Posts" widget-text))
+              (setq found t))))))
+    (if found
+        (recenter)
+      (goto-char start-point)
+      (message "No previous groups"))))
 
 (defun org-social-ui--last-separator-p ()
   "Check if we're at the last separator (near bottom of posts)."

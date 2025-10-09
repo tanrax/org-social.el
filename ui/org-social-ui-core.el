@@ -84,6 +84,11 @@
 (defvar org-social-ui--last-post-hook nil
   "Hook run when scrolled to last post.")
 
+(defvar org-social-ui--current-group-context nil
+  "Current group context for posting.
+When non-nil, contains an alist with \\='name and \\='relay-url keys.
+This is used to add the GROUP property when creating posts in a group buffer.")
+
 ;; Define keymap for org-social-ui-mode
 (defvar org-social-ui-mode-map
   (let ((map (make-sparse-keymap)))

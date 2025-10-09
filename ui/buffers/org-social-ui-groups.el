@@ -21,6 +21,9 @@
 (declare-function org-social-parser--get-my-profile "org-social-parser" ())
 (declare-function org-social-ui-timeline "org-social-ui-timeline" ())
 (declare-function org-social-ui-notifications "org-social-ui-notifications" ())
+(declare-function org-social-feed--get-post "org-social-feed" (post-url callback))
+(declare-function org-social-ui--filter-reactions "org-social-ui-timeline" (timeline))
+(declare-function org-social-file--new-post "org-social-file" (&optional author-url timestamp))
 
 (defun org-social-ui--insert-groups-header ()
   "Insert groups header with navigation and actions."
@@ -110,10 +113,24 @@
     (org-social-ui--insert-formatted-text "Add groups to your social.org file using #+GROUP: syntax.\n" nil "#666666")))
 
 (defun org-social-ui-group-posts (group-name)
-  "Display posts for GROUP-NAME."
-  (let ((buffer-name (format "*Org Social Group: %s*" group-name)))
+  "Display posts for GROUP-NAME.
+Fetches posts from relay and displays them like timeline."
+  ;; Get group info from user's profile to get relay URL
+  (require 'org-social-parser)
+  (let* ((my-profile (org-social-parser--get-my-profile))
+         (user-groups (alist-get 'group my-profile))
+         (group-info (cl-find-if (lambda (g)
+                                   (string= (alist-get 'name g) group-name))
+                                 user-groups))
+         (relay-url (alist-get 'relay-url group-info))
+         (buffer-name (format "*Org Social Group: %s*" group-name)))
+
     (switch-to-buffer buffer-name)
     (kill-all-local-variables)
+
+    ;; Set group context for posting
+    (setq org-social-ui--current-group-context group-info)
+    (setq org-social-ui--current-screen 'group-posts)
 
     ;; Disable read-only mode before modifying buffer
     (setq buffer-read-only nil)
@@ -124,15 +141,45 @@
 
     ;; Header
     (org-social-ui--insert-logo)
-    (org-social-ui--insert-formatted-text (format "Group: %s\n" group-name) 1.2 "#4a90e2")
+    (org-social-ui--insert-formatted-text "👥 " 1.2 "#4a90e2")
+    (org-social-ui--insert-formatted-text group-name 1.2 "#4a90e2")
+    (org-social-ui--insert-formatted-text (format " (%s)\n\n" relay-url) nil "#666666")
 
-    ;; Back button
+    ;; Navigation buttons
     (widget-create 'push-button
                    :notify (lambda (&rest _) (org-social-ui-groups))
                    :help-echo "Back to groups"
-                   " ← Back to Groups ")
+                   " ← Groups ")
 
-    (org-social-ui--insert-formatted-text "\n")
+    (org-social-ui--insert-formatted-text " ")
+
+    (widget-create 'push-button
+                   :notify (lambda (&rest _) (org-social-ui-timeline))
+                   :help-echo "View timeline"
+                   " 📰 Timeline ")
+
+    (org-social-ui--insert-formatted-text "\n\n")
+
+    ;; Action buttons
+    (widget-create 'push-button
+                   :notify (lambda (&rest _) (org-social-file--new-post))
+                   :help-echo "Create a new post in this group"
+                   " ✍ New Post ")
+
+    (org-social-ui--insert-formatted-text " ")
+
+    (widget-create 'push-button
+                   :notify (lambda (&rest _) (org-social-ui--refresh))
+                   :help-echo "Refresh group posts"
+                   " ↻ Refresh ")
+
+    (org-social-ui--insert-formatted-text "\n\n")
+
+    ;; Help text
+    (org-social-ui--insert-formatted-text "Navigation: (n) Next | (p) Previous | (t) Thread | (P) Profile\n" nil "#666666")
+    (org-social-ui--insert-formatted-text "Post: (c) New Post | (r) Reply | (R) React\n" nil "#666666")
+    (org-social-ui--insert-formatted-text "Other: (g) Refresh | (b) Back | (q) Quit\n" nil "#666666")
+
     (org-social-ui--insert-separator)
 
     ;; Loading message
@@ -148,37 +195,8 @@
              (not (string-empty-p org-social-relay)))
         (org-social-relay--fetch-group-posts
          group-name
-         (lambda (posts)
-           (with-current-buffer buffer-name
-             (let ((inhibit-read-only t)
-                   (buffer-read-only nil))
-               ;; Remove loading message
-               (goto-char (point-min))
-               (when (search-forward "Loading group posts..." nil t)
-                 (beginning-of-line)
-                 (let ((line-start (point)))
-                   (forward-line 1)
-                   (delete-region line-start (point))))
-               ;; Insert posts
-               (goto-char (point-max))
-               (if posts
-                   (progn
-                     (org-social-ui--insert-formatted-text
-                      (format "Posts in %s group:\n\n" group-name) nil "#4a90e2")
-                     ;; For now just show post URLs, can be enhanced later
-                     (dolist (post posts)
-                       (let-alist post
-                         (org-social-ui--insert-formatted-text "📝 ")
-                         (widget-create 'push-button
-                                        :notify `(lambda (&rest _)
-                                                   (org-social-ui-thread ,.post))
-                                        :help-echo "View thread"
-                                        .post)
-                         (org-social-ui--insert-formatted-text "\n"))))
-                 (org-social-ui--insert-formatted-text "No posts found in this group.\n" nil "#666666"))
-               ;; Enable read-only mode
-               (setq buffer-read-only t)
-               (goto-char (point-min))))))
+         (lambda (posts-data)
+           (org-social-ui--process-and-display-group-posts posts-data group-name buffer-name)))
       ;; No relay configured
       (let ((inhibit-read-only t))
         (goto-char (point-max))
@@ -216,6 +234,95 @@
       (org-social-ui--setup-centered-buffer)
       (setq buffer-read-only t)
       (goto-char (point-min)))))
+
+(defun org-social-ui--process-and-display-group-posts (posts-data group-name buffer-name)
+  "Process POSTS-DATA from relay and display them in GROUP-NAME buffer.
+BUFFER-NAME is the target buffer for display."
+  (if (and posts-data (> (length posts-data) 0))
+      (let ((all-post-urls '())
+            (posts-to-display '())
+            (total-urls 0)
+            (fetched-count 0))
+
+        ;; Extract all post URLs from hierarchical structure
+        (dolist (item posts-data)
+          (let ((post-url (alist-get 'post item)))
+            (when post-url
+              (push post-url all-post-urls))))
+
+        (setq total-urls (length all-post-urls))
+
+        (if (= total-urls 0)
+            ;; No posts found
+            (with-current-buffer buffer-name
+              (let ((inhibit-read-only t))
+                (goto-char (point-max))
+                (when (search-backward "Loading group posts..." nil t)
+                  (beginning-of-line)
+                  (let ((line-start (point)))
+                    (forward-line 1)
+                    (delete-region line-start (point))))
+                (goto-char (point-max))
+                (org-social-ui--insert-formatted-text "No posts found in this group.\n" nil "#666666")
+                (setq buffer-read-only t)))
+
+          ;; Fetch each post URL
+          (dolist (post-url all-post-urls)
+            (org-social-feed--get-post
+             post-url
+             (lambda (post-data)
+               (setq fetched-count (1+ fetched-count))
+
+               ;; If we got valid post data, add it to the list
+               (when post-data
+                 (push post-data posts-to-display))
+
+               ;; When all posts are fetched, display them
+               (when (= fetched-count total-urls)
+                 (with-current-buffer buffer-name
+                   (let ((inhibit-read-only t))
+                     ;; Remove loading message
+                     (goto-char (point-min))
+                     (when (search-forward "Loading group posts..." nil t)
+                       (beginning-of-line)
+                       (let ((line-start (point)))
+                         (forward-line 1)
+                         (delete-region line-start (point))))
+
+                     ;; Sort posts by date (newest first)
+                     (setq posts-to-display
+                           (sort posts-to-display
+                                 (lambda (a b)
+                                   (> (or (alist-get 'date a) 0)
+                                      (or (alist-get 'date b) 0)))))
+
+                     ;; Store posts for navigation
+                     (setq org-social-ui--timeline-current-list posts-to-display)
+                     (setq org-social-ui--timeline-display-list (org-social-ui--filter-reactions posts-to-display))
+
+                     ;; Display posts
+                     (goto-char (point-max))
+                     (if (> (length posts-to-display) 0)
+                         (dolist (post posts-to-display)
+                           (org-social-ui--post-component post org-social-ui--timeline-current-list))
+                       (org-social-ui--insert-formatted-text "No valid posts found in this group.\n" nil "#666666"))
+
+                     (setq buffer-read-only t)
+                     (goto-char (point-min))
+                     (message "Loaded %d posts for group %s" (length posts-to-display) group-name)))))))))) ;; Close inner if and outer let
+
+    ;; No posts data
+    (with-current-buffer buffer-name
+      (let ((inhibit-read-only t))
+        (goto-char (point-max))
+        (when (search-backward "Loading group posts..." nil t)
+          (beginning-of-line)
+          (let ((line-start (point)))
+            (forward-line 1)
+            (delete-region line-start (point))))
+        (goto-char (point-max))
+        (org-social-ui--insert-formatted-text "No posts found in this group.\n" nil "#666666")
+        (setq buffer-read-only t))))
 
 (defun org-social-ui--refresh-all-overlays ()
   "Refresh all `org-mode' syntax overlays in the current buffer."
