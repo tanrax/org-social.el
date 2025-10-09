@@ -59,6 +59,17 @@ Example: \"https://andros.dev/static/preview/\" would generate URLs like
                  (string :tag "Preview base URL"))
   :group 'org-social)
 
+(defcustom org-social-live-preview-url "https://org-social-preview.andros.dev/?post="
+  "Base URL for live post previews.
+When set to a non-nil value, a Share button will appear in the post buttons row
+that opens the post preview in the system's native browser.  The post URL is
+URL-encoded and appended to this base URL.
+Example: \"https://org-social-preview.andros.dev/?post=\" generates URLs like
+\"https://org-social-preview.andros.dev/?post=https%3A%2F%2Ffoo.org%2Fsocial.org%232025-02-03T23%3A05%3A00%2B0100\""
+  :type '(choice (const :tag "No live preview URL" nil)
+                 (string :tag "Live preview base URL"))
+  :group 'org-social)
+
 (defcustom org-social-relay "https://org-social-relay.andros.dev"
   "URL of the Org Social Relay server.
 When set, the relay will be used to register your feed and discover mentions,

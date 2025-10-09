@@ -16,6 +16,7 @@
 (require 'widget)
 (require 'wid-edit)
 (require 'cl-lib)
+(require 'url-util)
 
 ;; Forward declarations
 (declare-function org-social-relay--check-post-has-replies "org-social-relay" (post-url callback))
@@ -48,6 +49,18 @@ Uses relay to check for replies and caches the result."
              (puthash post-url (if has-replies 'yes 'no) org-social-ui--replies-cache)
              (setq result has-replies)))
           result)))))
+
+(defun org-social-ui--open-live-preview (author-url timestamp)
+  "Open live preview of post in system browser.
+Constructs post URL from AUTHOR-URL and TIMESTAMP, URL-encodes it,
+and opens it with `org-social-live-preview-url' base URL."
+  (when (and (boundp 'org-social-live-preview-url)
+             org-social-live-preview-url
+             (not (string-empty-p org-social-live-preview-url)))
+    (let* ((post-url (format "%s#%s" author-url timestamp))
+           (encoded-url (url-hexify-string post-url))
+           (preview-url (concat org-social-live-preview-url encoded-url)))
+      (browse-url preview-url))))
 
 (defun org-social-ui--get-post-reactions (post-url timeline-data)
   "Get reactions for POST-URL from TIMELINE-DATA.
@@ -182,6 +195,17 @@ Returns an alist of (emoji . list-of-authors)."
                          :notify `(lambda (&rest _)
                                     (org-social-ui--add-reaction ,author-url ,timestamp))
                          " 😊 React ")
+          (setq first-button nil))
+
+        ;; Share button (if org-social-live-preview-url is set)
+        (when (and (boundp 'org-social-live-preview-url)
+                   org-social-live-preview-url
+                   (not (string-empty-p org-social-live-preview-url)))
+          (unless first-button (org-social-ui--insert-formatted-text " "))
+          (widget-create 'push-button
+                         :notify `(lambda (&rest _)
+                                    (org-social-ui--open-live-preview ,author-url ,timestamp))
+                         " 🔗 Share ")
           (setq first-button nil))
 
         ;; Poll vote button
