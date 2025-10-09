@@ -35,6 +35,11 @@ Reactions are posts with reply_to, mood, and empty/short text."
 (declare-function org-social-feed--get-timeline "org-social-feed" ())
 (declare-function org-social-feed--process-queue "org-social-feed" ())
 (declare-function org-social-relay--check-posts-for-replies "org-social-relay" (post-urls callback))
+(declare-function org-social--format-date "org-social" (timestamp))
+(declare-function org-social-file--new-post "org-social-file" (&optional reply-url reply-id))
+(declare-function org-social-file--new-poll "org-social-file" ())
+(declare-function org-social-ui-notifications "org-social-ui-notifications" ())
+(declare-function org-social-ui-groups "org-social-ui-groups" ())
 
 ;; Refresh timer variable
 (defvar org-social-ui--refresh-timer nil

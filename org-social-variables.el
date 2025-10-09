@@ -48,17 +48,6 @@ and view profiles (P)."
   :type 'boolean
   :group 'org-social)
 
-(defcustom org-social-preview-base-url nil
-  "Base URL for post previews.
-When set, a Share button will appear in the timeline to copy the full
-preview URL for posts.  The URL is constructed by appending the post ID
-\(with '+' replacing '+' and ':' being removed) and '.html' to this base URL.
-Example: \"https://andros.dev/static/preview/\" would generate URLs like
-\"https://andros.dev/static/preview/2025-09-15T09-22-05plus0200.html\""
-  :type '(choice (const :tag "No preview URL" nil)
-                 (string :tag "Preview base URL"))
-  :group 'org-social)
-
 (defcustom org-social-live-preview-url "https://org-social-preview.andros.dev/?post="
   "Base URL for live post previews.
 When set to a non-nil value, a Share button will appear in the post buttons row

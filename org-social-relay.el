@@ -618,5 +618,67 @@ Call CALLBACK with t if post has replies, nil otherwise."
      (let ((result (alist-get post-url results nil nil 'string=)))
        (funcall callback result)))))
 
+(defun org-social-relay--fetch-group-details (group-name callback)
+  "Fetch complete group details including posts and metadata from GROUP-NAME.
+Call CALLBACK with an alist containing \\='posts and \\='members keys."
+  (when (and org-social-relay
+             (not (string-empty-p org-social-relay)))
+    (let ((relay-url (string-trim-right org-social-relay "/")))
+      (org-social-relay--discover-endpoints
+       relay-url
+       (lambda (endpoints)
+         (let ((group-messages-endpoint (gethash "group-messages" endpoints)))
+           (if group-messages-endpoint
+               (let ((href (plist-get group-messages-endpoint :href))
+                     (method (plist-get group-messages-endpoint :method)))
+                 (let ((url (if (string-match-p "{group id}" href)
+                                (concat relay-url "/groups/" (url-hexify-string group-name) "/")
+                              (concat relay-url
+                                      (replace-regexp-in-string
+                                       "{group_name}"
+                                       (url-hexify-string group-name)
+                                       href)))))
+                   (request url
+                            :type method
+                            :timeout 15
+                            :success (cl-function
+                                      (lambda (&key data &allow-other-keys)
+                                        (condition-case err
+                                            (if (and data (stringp data) (not (string-empty-p data)))
+                                                (let* ((response (json-read-from-string data))
+                                                       (response-type (cdr (assoc 'type response)))
+                                                       (posts-data (cdr (assoc 'data response)))
+                                                       (meta-data (cdr (assoc 'meta response))))
+                                                  (if (string= response-type "Success")
+                                                      (let ((posts-list (if (vectorp posts-data)
+                                                                            (append posts-data nil)
+                                                                          posts-data))
+                                                            (members-list (if meta-data
+                                                                              (let ((members (cdr (assoc 'members meta-data))))
+                                                                                (if (vectorp members)
+                                                                                    (append members nil)
+                                                                                  members))
+                                                                            '())))
+                                                        (funcall callback `((posts . ,posts-list)
+                                                                           (members . ,members-list))))
+                                                    (progn
+                                                      (message "Relay returned error response: %s" response-type)
+                                                      (funcall callback nil))))
+                                              (progn
+                                                (message "Received empty, nil, or non-string response from relay: %S" data)
+                                                (funcall callback nil)))
+                                          (error
+                                           (message "Failed to parse relay group details response: %s (data: %S)" (error-message-string err) data)
+                                           (funcall callback nil)))))
+                            :error (cl-function
+                                    (lambda (&key error-thrown &allow-other-keys)
+                                      (message "Failed to fetch group details from relay: %s"
+                                               (if error-thrown
+                                                   (error-message-string error-thrown)
+                                                 "Unknown error"))
+                                      (funcall callback nil))))))
+             (message "group-messages endpoint not found in relay API")
+             (funcall callback nil))))))))
+
 (provide 'org-social-relay)
 ;;; org-social-relay.el ends here

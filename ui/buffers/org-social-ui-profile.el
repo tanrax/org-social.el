@@ -20,6 +20,12 @@
 (declare-function request-response-status-code "request" (response))
 (declare-function org-social-parser--get-value "org-social-parser" (feed key))
 (declare-function org-social-parser--get-posts-from-feed "org-social-parser" (feed))
+(declare-function org-social-ui-timeline "org-social-ui-timeline" ())
+(declare-function org-social-ui-thread "org-social-ui-thread" (post-url))
+
+;; Thread tracking variables (defined in org-social-ui-thread.el)
+(defvar org-social-ui--thread-stack)
+(defvar org-social-ui--thread-level)
 
 (defun org-social-ui-profile (user-url)
   "Display profile screen for USER-URL."

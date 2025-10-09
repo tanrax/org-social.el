@@ -23,6 +23,10 @@
 (declare-function org-social-ui-thread "org-social-ui-thread" (post-url))
 (declare-function org-social-ui-profile "org-social-ui-profile" (user-url))
 (declare-function org-social-file--new-post "org-social-file" (&optional reply-url reply-id))
+(declare-function org-social-file--new-poll "org-social-file" ())
+(declare-function org-social-ui-timeline "org-social-ui-timeline" ())
+(declare-function org-social-ui-notifications "org-social-ui-notifications" ())
+(declare-function org-social-ui-groups "org-social-ui-groups" ())
 (declare-function org-social--format-date "org-social" (timestamp))
 
 ;; Thread tracking variables

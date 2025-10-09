@@ -18,6 +18,9 @@
 ;; Forward declarations
 (declare-function org-social-relay--fetch-mentions "org-social-relay" (callback))
 (declare-function org-social-parser--get-my-profile "org-social-parser" ())
+(declare-function org-social-ui-timeline "org-social-ui-timeline" ())
+(declare-function org-social-ui-groups "org-social-ui-groups" ())
+(declare-function org-social--format-date "org-social" (timestamp))
 
 (defun org-social-ui--insert-notifications-header ()
   "Insert notifications header with navigation and actions."

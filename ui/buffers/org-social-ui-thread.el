@@ -18,6 +18,11 @@
 ;; Forward declarations
 (declare-function org-social-relay--fetch-replies "org-social-relay" (post-url callback))
 (declare-function org-social-feed--get-post "org-social-feed" (post-url callback))
+(declare-function org-social-ui-timeline "org-social-ui-timeline" ())
+(declare-function org-social-parser--get-posts-from-feed "org-social-parser" (feed))
+(declare-function org-social-parser--get-value "org-social-parser" (feed key))
+(declare-function request "request" (url &rest args))
+(declare-function request-response-status-code "request" (response))
 
 ;; Thread tracking variables
 (defvar org-social-ui--thread-stack nil

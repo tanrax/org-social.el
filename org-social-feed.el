@@ -177,9 +177,12 @@ Argument NEW-RESPONSE"
                            org-social-variables--feeds))
          (timeline-filtered (seq-filter (lambda (post)
                                           ;; Keep posts with text (reactions are kept in data for display under posts)
-                                          (let ((text (alist-get 'text post)))
-                                            (or text
-                                                (alist-get 'mood post))))
+                                          ;; Exclude group posts (posts with GROUP property)
+                                          (let ((text (alist-get 'text post))
+                                                (group (alist-get 'group post)))
+                                            (and (not group) ; Exclude posts with GROUP property
+                                                 (or text
+                                                     (alist-get 'mood post)))))
                                         timeline))
          (timeline-sorted (sort timeline-filtered
                                 (lambda (a b)

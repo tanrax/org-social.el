@@ -5,7 +5,6 @@
 ;; Author: Andros Fenollosa <hi@andros.dev>
 ;; Version: 2.0
 ;; URL: https://github.com/tanrax/org-social.el
-;; Package-Requires: ((emacs "30.1") (org "9.0"))
 
 ;; This file is NOT part of GNU Emacs.
 

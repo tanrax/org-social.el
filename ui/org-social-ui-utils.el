@@ -20,6 +20,13 @@
 (declare-function org-social-file--new-poll "org-social-file" ())
 (declare-function org-social-file--new-reaction "org-social-file" (reply-url reply-id emoji))
 (declare-function emojify-completing-read "emojify" (&optional prompt))
+(declare-function org-social-ui-timeline "org-social-ui-timeline" ())
+(declare-function org-social-ui-notifications "org-social-ui-notifications" ())
+(declare-function org-social-ui-groups "org-social-ui-groups" ())
+
+;; Thread tracking variables (defined in org-social-ui-thread.el)
+(defvar org-social-ui--thread-stack)
+(defvar org-social-ui--thread-level)
 
 ;; Image Constants
 (defconst org-social-ui--regex-image "\\bhttps?:\\/\\/[^][()[:space:]]+\\.\\(?:png\\|jpe?g\\|gif\\)\\b"
@@ -409,8 +416,19 @@ Optional CALLBACK is called with success status when download completes."
 (defun org-social-ui--goto-next-group-button ()
   "Go to the next View Posts button in groups buffer."
   (let ((found nil)
-        (start-point (point)))
-    ;; Search forward for "View Posts" button
+        (start-point (point))
+        (current-widget (widget-at (point))))
+    ;; If we're on a "View Posts" button, skip past it first
+    (when (and current-widget (eq (widget-type current-widget) 'push-button))
+      (let* ((widget-start (widget-get current-widget :from))
+             (widget-end (widget-get current-widget :to))
+             (widget-text (when (and widget-start widget-end)
+                            (buffer-substring-no-properties widget-start widget-end))))
+        (when (and widget-text (string-match-p "View Posts" widget-text))
+          ;; Move past this widget
+          (goto-char widget-end))))
+
+    ;; Search forward for next "View Posts" button
     (while (and (not found) (< (point) (point-max)))
       (forward-char 1)
       (let ((widget (widget-at (point))))
@@ -420,6 +438,8 @@ Optional CALLBACK is called with success status when download completes."
                  (widget-text (when (and widget-start widget-end)
                                 (buffer-substring-no-properties widget-start widget-end))))
             (when (and widget-text (string-match-p "View Posts" widget-text))
+              ;; Move to the start of the widget for consistency
+              (goto-char widget-start)
               (setq found t))))))
     (if found
         (recenter)
@@ -429,11 +449,19 @@ Optional CALLBACK is called with success status when download completes."
 (defun org-social-ui--goto-previous-group-button ()
   "Go to the previous View Posts button in groups buffer."
   (let ((found nil)
-        (start-point (point)))
-    ;; Move back a bit to avoid finding the current button
-    (when (> (point) (point-min))
-      (backward-char 1))
-    ;; Search backward for "View Posts" button
+        (start-point (point))
+        (current-widget (widget-at (point))))
+    ;; If we're on a "View Posts" button, skip before it first
+    (when (and current-widget (eq (widget-type current-widget) 'push-button))
+      (let* ((widget-start (widget-get current-widget :from))
+             (widget-end (widget-get current-widget :to))
+             (widget-text (when (and widget-start widget-end)
+                            (buffer-substring-no-properties widget-start widget-end))))
+        (when (and widget-text (string-match-p "View Posts" widget-text))
+          ;; Move before this widget
+          (goto-char widget-start))))
+
+    ;; Search backward for previous "View Posts" button
     (while (and (not found) (> (point) (point-min)))
       (backward-char 1)
       (let ((widget (widget-at (point))))
@@ -443,6 +471,8 @@ Optional CALLBACK is called with success status when download completes."
                  (widget-text (when (and widget-start widget-end)
                                 (buffer-substring-no-properties widget-start widget-end))))
             (when (and widget-text (string-match-p "View Posts" widget-text))
+              ;; Move to the start of the widget for consistency
+              (goto-char widget-start)
               (setq found t))))))
     (if found
         (recenter)

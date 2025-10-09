@@ -117,10 +117,6 @@ To use the old version 1, you need to use the `v1` branch:
 ;; Hide Reply, Vote, and Profile buttons for a cleaner timeline view. Change to 't' to hide them. Keyboard shortcuts 'r', 'v', and 'P' still work
 (setq org-social-hide-post-buttons nil)
 
-;; Set base URL for post previews. When configured, a Share button will appear in timeline
-;; Example: (setq org-social-preview-base-url "https://example.com/preview/")
-(setq org-social-preview-base-url nil)
-
 ;; Set base URL for live post previews. When configured, a Share button will appear in post buttons
 ;; that opens the post preview in the system browser with URL-encoded post URL
 ;; Example: (setq org-social-live-preview-url "https://org-social-preview.andros.dev/?post=")
@@ -145,8 +141,7 @@ To use the old version 1, you need to use the `v1` branch:
 | `org-social-relay` | URL of the Org Social Relay server for registering your feed and discovering mentions, replies, and social interactions. | `"https://org-social-relay.andros.dev"` | ✅ | `string` |
 | `org-social-my-public-url` | Public URL of your social.org file where others can access your feed. | `nil` | ✅ | `string` |
 | `org-social-hide-post-buttons` | Hide Reply, Vote, and Profile buttons from timeline posts for a cleaner view. Keyboard shortcuts still work. | `nil` | ❌ | `boolean` |
-| `org-social-preview-base-url` | Base URL for post previews. When set, a Share button appears in timeline to copy preview URLs to clipboard. | `nil` | ❌ | `string` |
-| `org-social-live-preview-url` | Base URL for live post previews. When set, a Share button appears in post buttons that opens the post preview in the system browser with URL-encoded post URL. | `"https://org-social-preview.andros.dev/?post="` | ❌ | `string` |
+| `org-social-live-preview-url` | Base URL for live post previews. When set, a Share button appears in post buttons that opens the post preview in the system browser with URL-encoded post URL. Set to `nil` to hide the Share button. | `"https://org-social-preview.andros.dev/?post="` | ❌ | `string` |
 | `org-social-only-relay-followers-p` | When non-nil, use only feeds from the relay server. Requires relay configuration. | `nil` | ❌ | `boolean` |
 
 You can customize these variables through Emacs' customization interface:
