@@ -18,6 +18,9 @@
 ;; Forward declarations
 (declare-function org-social-relay--fetch-groups "org-social-relay" (callback))
 (declare-function org-social-relay--fetch-group-posts "org-social-relay" (group-name callback))
+(declare-function org-social-parser--get-my-profile "org-social-parser" ())
+(declare-function org-social-ui-timeline "org-social-ui-timeline" ())
+(declare-function org-social-ui-notifications "org-social-ui-notifications" ())
 
 (defun org-social-ui--insert-groups-header ()
   "Insert groups header with navigation and actions."
@@ -54,35 +57,25 @@
   (org-social-ui--insert-formatted-text "\n\n")
 
   ;; Help text
-  (org-social-ui--insert-formatted-text "Groups and Communities\n" 1.2 "#4a90e2")
-  (org-social-ui--insert-formatted-text "Navigate:\n" nil "#666666")
-  (org-social-ui--insert-formatted-text "(n) Next | (p) Previous | (T) Timeline | (N) Notifications\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Navigation: (n) Next | (p) Previous\n" nil "#666666")
   (org-social-ui--insert-formatted-text "Other: (g) Refresh | (q) Quit\n" nil "#666666")
 
   (org-social-ui--insert-separator))
 
 (defun org-social-ui--group-component (group)
-  "Insert a group component for GROUP (can be string or object)."
-  (let* ((group-name (if (stringp group)
-                         group
-                       (or (alist-get 'name group) "Unknown")))
-         (description (if (stringp group)
-                          "Group description"
-                        (or (alist-get 'description group) "No description")))
-         (member-count (if (stringp group)
-                           0
-                         (or (alist-get 'members group) 0)))
-         (post-count (if (stringp group)
-                         0
-                       (or (alist-get 'posts group) 0))))
+  "Insert a group component for GROUP (can be alist with name and relay-url)."
+  (let* ((group-name (or (alist-get 'name group) "Unknown"))
+         (relay-url (or (alist-get 'relay-url group) "Unknown"))
+         (member-count (or (alist-get 'members group) 0))
+         (post-count (or (alist-get 'posts group) 0)))
 
     ;; Group header
     (org-social-ui--insert-formatted-text "👥 " 1.2 "#4a90e2")
     (org-social-ui--insert-formatted-text group-name 1.1 "#4a90e2")
     (org-social-ui--insert-formatted-text "\n")
 
-    ;; Description
-    (org-social-ui--insert-formatted-text (format "  %s\n" description) nil "#666666")
+    ;; Relay URL
+    (org-social-ui--insert-formatted-text (format "  %s\n" relay-url) nil "#666666")
 
     ;; Stats
     (org-social-ui--insert-formatted-text "  ")
@@ -97,7 +90,7 @@
                                           nil "#008000")
     (org-social-ui--insert-formatted-text "\n\n")
 
-    ;; Action buttons
+    ;; Action button
     (org-social-ui--insert-formatted-text "  ")
     (widget-create 'push-button
                    :notify `(lambda (&rest _)
@@ -105,32 +98,16 @@
                    :help-echo (format "View posts in %s group" group-name)
                    " 📄 View Posts ")
 
-    (org-social-ui--insert-formatted-text " ")
-
-    (widget-create 'push-button
-                   :notify `(lambda (&rest _)
-                              (message "Joining group functionality - to be implemented"))
-                   :help-echo (format "Join %s group" group-name)
-                   " ➕ Join Group ")
-
     (org-social-ui--insert-formatted-text "\n")
     (org-social-ui--insert-separator)))
 
 (defun org-social-ui--insert-groups-content (groups)
   "Insert groups content with GROUPS."
   (if groups
-      (progn
-        (org-social-ui--insert-formatted-text (format "Found %d group%s:\n\n"
-                                                      (length groups)
-                                                      (if (= (length groups) 1) "" "s"))
-                                              nil "#4a90e2")
-        (dolist (group groups)
-          (org-social-ui--group-component group)))
-    (org-social-ui--insert-formatted-text "No groups found.\n" nil "#666666")
-    (when (and (boundp 'org-social-relay) org-social-relay (not (string-empty-p org-social-relay)))
-      (org-social-ui--insert-formatted-text "Make sure your relay supports groups and is properly configured.\n" nil "#666666"))
-    (org-social-ui--insert-formatted-text "\nRelay URL: " nil "#666666")
-    (org-social-ui--insert-formatted-text (or org-social-relay "Not configured") nil "#4a90e2")))
+      (dolist (group groups)
+        (org-social-ui--group-component group))
+    (org-social-ui--insert-formatted-text "No groups subscribed.\n" nil "#666666")
+    (org-social-ui--insert-formatted-text "Add groups to your social.org file using #+GROUP: syntax.\n" nil "#666666")))
 
 (defun org-social-ui-group-posts (group-name)
   "Display posts for GROUP-NAME."
@@ -227,54 +204,18 @@
     ;; Insert header
     (org-social-ui--insert-groups-header)
 
-    ;; Show loading message
-    (org-social-ui--insert-formatted-text "Loading groups...\n" nil "#4a90e2")
+    ;; Get user's subscribed groups from their social.org file
+    (require 'org-social-parser)
+    (let* ((my-profile (org-social-parser--get-my-profile))
+           (user-groups (alist-get 'group my-profile)))
 
-    ;; Set up the buffer with centering
-    (org-social-ui--setup-centered-buffer)
-    (goto-char (point-min))
+      ;; Insert groups content
+      (org-social-ui--insert-groups-content user-groups)
 
-    ;; Load groups data
-    (if (and (boundp 'org-social-relay)
-             org-social-relay
-             (not (string-empty-p org-social-relay)))
-        ;; Use relay to fetch groups
-        (progn
-          (message "Loading groups from relay...")
-          (org-social-relay--fetch-groups
-           (lambda (groups)
-             (with-current-buffer org-social-ui--groups-buffer-name
-               (let ((inhibit-read-only t)
-                     (buffer-read-only nil))
-                 ;; Remove loading message
-                 (goto-char (point-min))
-                 (when (search-forward "Loading groups..." nil t)
-                   (beginning-of-line)
-                   (let ((line-start (point)))
-                     (forward-line 1)
-                     (delete-region line-start (point))))
-                 ;; Insert groups
-                 (goto-char (point-max))
-                 (org-social-ui--insert-groups-content groups)
-                 ;; Enable read-only mode
-                 (setq buffer-read-only t)
-                 (goto-char (point-min)))))))
-      ;; No relay configured
-      (progn
-        (let ((inhibit-read-only t))
-          ;; Remove loading message
-          (goto-char (point-min))
-          (when (search-forward "Loading groups..." nil t)
-            (beginning-of-line)
-            (let ((line-start (point)))
-              (forward-line 1)
-              (delete-region line-start (point))))
-          ;; Show configuration message
-          (goto-char (point-max))
-          (org-social-ui--insert-formatted-text "Relay not configured.\n" nil "#ff6600")
-          (org-social-ui--insert-formatted-text "To view and participate in groups, configure:\n" nil "#666666")
-          (org-social-ui--insert-formatted-text "- org-social-relay (relay server URL)\n" nil "#666666")
-          (setq buffer-read-only t))))))
+      ;; Set up the buffer with centering
+      (org-social-ui--setup-centered-buffer)
+      (setq buffer-read-only t)
+      (goto-char (point-min)))))
 
 (defun org-social-ui--refresh-all-overlays ()
   "Refresh all `org-mode' syntax overlays in the current buffer."
