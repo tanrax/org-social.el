@@ -23,6 +23,7 @@
 (declare-function org-social-ui-timeline "org-social-ui-timeline" ())
 (declare-function org-social-ui-notifications "org-social-ui-notifications" ())
 (declare-function org-social-ui-groups "org-social-ui-groups" ())
+(declare-function org-social-ui-search "org-social-ui-search" ())
 
 ;; Thread tracking variables (defined in org-social-ui-thread.el)
 (defvar org-social-ui--thread-stack)
@@ -594,6 +595,12 @@ Returns t if button was found and pressed, nil otherwise."
   "Switch to groups view."
   (interactive)
   (org-social-ui-groups))
+
+(defun org-social-ui--view-search ()
+  "Switch to search view."
+  (interactive)
+  (require 'org-social-ui-search)
+  (org-social-ui-search))
 
 (defun org-social-ui--refresh ()
   "Refresh current screen."

@@ -276,11 +276,16 @@ Call CALLBACK with the list of matching post URLs."
            (if search-endpoint
                (let ((href (plist-get search-endpoint :href))
                      (method (plist-get search-endpoint :method)))
-                 (let ((url (format "%s%s?%s=%s"
-                                    relay-url
-                                    href
-                                    (if (eq search-type 'tag) "tag" "q")
-                                    (url-hexify-string query))))
+                 ;; Replace {query} placeholder in href with actual query
+                 (let ((url (concat relay-url
+                                    (replace-regexp-in-string
+                                     "{query}"
+                                     (url-hexify-string query)
+                                     ;; Use correct parameter name based on search type
+                                     (replace-regexp-in-string
+                                      "\\?q="
+                                      (if (eq search-type 'tag) "?tag=" "?q=")
+                                      href)))))
                    (request url
                             :type method
                             :timeout 15

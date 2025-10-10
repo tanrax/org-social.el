@@ -40,6 +40,7 @@ Reactions are posts with reply_to, mood, and empty/short text."
 (declare-function org-social-file--new-poll "org-social-file" ())
 (declare-function org-social-ui-notifications "org-social-ui-notifications" ())
 (declare-function org-social-ui-groups "org-social-ui-groups" ())
+(declare-function org-social-ui-search "org-social-ui-search" ())
 
 ;; Refresh timer variable
 (defvar org-social-ui--refresh-timer nil
@@ -69,6 +70,13 @@ Reactions are posts with reply_to, mood, and empty/short text."
                  :help-echo "View groups"
                  " 👥 Groups ")
 
+  (org-social-ui--insert-formatted-text " ")
+
+  (widget-create 'push-button
+                 :notify (lambda (&rest _) (org-social-ui-search))
+                 :help-echo "Search posts"
+                 " 🔍 Search ")
+
   (org-social-ui--insert-formatted-text "\n\n")
 
   ;; Action buttons
@@ -96,7 +104,7 @@ Reactions are posts with reply_to, mood, and empty/short text."
   ;; Help text
   (org-social-ui--insert-formatted-text "Navigation: (n) Next | (p) Previous | (t) Thread | (P) Profile\n" nil "#666666")
   (org-social-ui--insert-formatted-text "Post: (c) New Post | (l) New Poll | (r) Reply | (R) React\n" nil "#666666")
-  (org-social-ui--insert-formatted-text "Actions: (N) Notifications | (G) Groups\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Actions: (N) Notifications | (G) Groups | (S) Search\n" nil "#666666")
   (org-social-ui--insert-formatted-text "Other: (g) Refresh | (q) Quit\n" nil "#666666")
 
   (org-social-ui--insert-separator))
@@ -161,6 +169,13 @@ Reactions are posts with reply_to, mood, and empty/short text."
                  :notify (lambda (&rest _) (org-social-ui-groups))
                  :help-echo "View groups"
                  " 👥 Groups ")
+
+  (org-social-ui--insert-formatted-text " ")
+
+  (widget-create 'push-button
+                 :notify (lambda (&rest _) (org-social-ui-search))
+                 :help-echo "Search posts"
+                 " 🔍 Search ")
 
   (org-social-ui--insert-formatted-text "\n\n")
 

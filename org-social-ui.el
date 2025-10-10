@@ -30,6 +30,7 @@
 (require 'org-social-ui-notifications)
 (require 'org-social-ui-profile)
 (require 'org-social-ui-groups)
+(require 'org-social-ui-search)
 
 (provide 'org-social-ui)
 ;;; org-social-ui.el ends here
