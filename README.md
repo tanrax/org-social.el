@@ -283,6 +283,12 @@ GPL-3.0 - See LICENSE file for details.
 
 # 📝 Changelog
 
+## 2.1
+
+- Groups Improvements: Full relay integration.
+- Timeline Enhancements.
+- Removed deprecated `org-social-preview-base-url` variable.
+
 ## 2.0
 
 - New Modern UI. Complete UI rewrite with modern widget-based interface
