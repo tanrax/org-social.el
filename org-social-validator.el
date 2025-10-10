@@ -215,17 +215,19 @@ Optional SUGGESTION provides a hint to fix the error."
    ;; GROUP validation
    ((string= keyword "GROUP")
     (let ((parts (split-string value)))
-      (unless (= (length parts) 2)
+      (unless (>= (length parts) 2)
         (org-social-validator--error
          line 1
          "GROUP must have format: <name> <relay-url>"
-         "Example: #+GROUP: emacs https://example-relay.com"))
+         "Example: #+GROUP: Emacs Users https://example-relay.com"))
       (when (>= (length parts) 2)
-        (unless (string-match-p "^https?://" (cadr parts))
-          (org-social-validator--error
-           line 1
-           "GROUP relay URL must start with http:// or https://"
-           "Example: #+GROUP: emacs https://example-relay.com")))))
+        ;; Last element should be the relay URL
+        (let ((relay-url (car (last parts))))
+          (unless (string-match-p "^https?://" relay-url)
+            (org-social-validator--error
+             line 1
+             "GROUP relay URL must start with http:// or https://"
+             "Example: #+GROUP: Emacs Users https://example-relay.com"))))))
 
    ;; CONTACT validation
    ((string= keyword "CONTACT")
@@ -265,17 +267,19 @@ Optional SUGGESTION provides a hint to fix the error."
    ;; GROUP validation in properties
    ((string= property "GROUP")
     (let ((parts (split-string value)))
-      (unless (= (length parts) 2)
+      (unless (>= (length parts) 2)
         (org-social-validator--error
          post-line 1
          "GROUP property must have format: <name> <relay-url>"
-         "Example: :GROUP: emacs https://example-relay.com"))
+         "Example: :GROUP: Emacs Users https://example-relay.com"))
       (when (>= (length parts) 2)
-        (unless (string-match-p "^https?://" (cadr parts))
-          (org-social-validator--error
-           post-line 1
-           "GROUP relay URL must start with http:// or https://"
-           "Example: :GROUP: emacs https://example-relay.com")))))
+        ;; Last element should be the relay URL
+        (let ((relay-url (car (last parts))))
+          (unless (string-match-p "^https?://" relay-url)
+            (org-social-validator--error
+             post-line 1
+             "GROUP relay URL must start with http:// or https://"
+             "Example: :GROUP: Emacs Users https://example-relay.com"))))))
 
    ;; LANG validation
    ((string= property "LANG")
