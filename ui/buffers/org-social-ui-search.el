@@ -185,8 +185,6 @@ QUERY is the search query used."
                          (progn
                            (dolist (post posts-to-display)
                              (org-social-ui--post-component post org-social-ui--timeline-current-list))
-                           ;; Switch to org-social-ui-mode for proper rendering
-                           (org-social-ui--setup-centered-buffer)
                            (setq buffer-read-only t))
                        (progn
                          (org-social-ui--insert-formatted-text "No valid posts found.\n\n" nil "#666666")
@@ -269,11 +267,11 @@ QUERY is the search query used."
     (org-social-ui--insert-formatted-text "\n")
     (org-social-ui--insert-separator)
 
-    ;; Set up widgets and buffer
+    ;; Set up widgets and buffer (don't use org-social-ui-mode because it's read-only)
     (use-local-map widget-keymap)
     (widget-setup)
 
-    ;; Enable visual-fill-column for centering without special-mode
+    ;; Enable visual-fill-column for centering
     (when (fboundp 'visual-fill-column-mode)
       (setq-local visual-fill-column-center-text t)
       (setq-local visual-fill-column-width 75)
