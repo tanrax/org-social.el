@@ -76,27 +76,30 @@
   (let* ((query (widget-value org-social-ui--search-query-widget))
          (search-type-str (widget-value org-social-ui--search-type-widget))
          (search-type (if (string= search-type-str "tag") 'tag nil))
-         (buffer-name (buffer-name)))
+         (results-buffer-name "*Org Social Search Results*"))
 
     ;; Validate query
     (when (or (not query) (string-empty-p (string-trim query)))
       (message "Please enter a search query")
       (cl-return-from org-social-ui--perform-search))
 
-    ;; Clear previous results and show loading message
-    (let ((inhibit-read-only t))
-      (goto-char (point-min))
-      ;; Find the separator after the search form
-      (when (search-forward (org-social-ui--string-separator) nil t)
-        (forward-line 1)
-        (delete-region (point) (point-max))
-        (org-social-ui--insert-formatted-text "Searching...\n" nil "#4a90e2")))
+    ;; Create/switch to results buffer and show loading
+    (with-current-buffer (get-buffer-create results-buffer-name)
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (remove-overlays)
+        (org-social-ui--insert-logo)
+        (org-social-ui--insert-formatted-text "Searching...\n" nil "#4a90e2")
+        (org-social-ui--setup-centered-buffer)
+        (setq buffer-read-only t)))
+
+    (switch-to-buffer results-buffer-name)
 
     ;; Perform search
     (org-social-relay--search-posts
      query
      (lambda (post-urls)
-       (org-social-ui--process-and-display-search-results post-urls buffer-name query))
+       (org-social-ui--process-and-display-search-results post-urls results-buffer-name query))
      search-type)))
 
 (defun org-social-ui--process-and-display-search-results (post-urls buffer-name query)
@@ -120,24 +123,32 @@ QUERY is the search query used."
         (setq total-urls (length all-post-urls))
 
         (if (= total-urls 0)
-            ;; No posts found
+            ;; No posts found - recreate buffer
             (with-current-buffer buffer-name
               (let ((inhibit-read-only t))
-                (goto-char (point-max))
-                (when (search-backward "Searching..." nil t)
-                  (beginning-of-line)
-                  (delete-region (point) (progn (forward-line 1) (point))))
-                (goto-char (point-max))
+                (erase-buffer)
+                (remove-overlays)
+
+                ;; Insert header
+                (org-social-ui--insert-search-header)
+
+                ;; No results message
                 (org-social-ui--insert-formatted-text
-                 (format "No results found for '%s'.\n\n" query)
+                 (format "No results found for '%s'\n\n" query)
                  nil "#666666")
+
                 (widget-create 'push-button
                                :notify (lambda (&rest _)
                                          (org-social-ui-search))
                                :help-echo "Start a new search"
                                " 🔄 New Search ")
+
                 (org-social-ui--insert-formatted-text "\n")
-                (widget-setup)))
+
+                ;; Set up buffer with org-social-ui-mode
+                (org-social-ui--setup-centered-buffer)
+                (setq buffer-read-only t)
+                (goto-char (point-min))))
 
           ;; Fetch each post URL
           (dolist (post-url all-post-urls)
@@ -154,12 +165,6 @@ QUERY is the search query used."
                (when (= fetched-count total-urls)
                  (with-current-buffer buffer-name
                    (let ((inhibit-read-only t))
-                     ;; Remove searching message
-                     (goto-char (point-min))
-                     (when (search-forward "Searching..." nil t)
-                       (beginning-of-line)
-                       (delete-region (point) (progn (forward-line 1) (point))))
-
                      ;; Sort posts by date (newest first)
                      (setq posts-to-display
                            (sort posts-to-display
@@ -172,47 +177,71 @@ QUERY is the search query used."
                      (setq org-social-ui--timeline-current-list posts-to-display)
                      (setq org-social-ui--timeline-display-list (org-social-ui--filter-reactions posts-to-display))
 
-                     ;; Display results header
-                     (goto-char (point-max))
-                     (insert (propertize (format "Found %d result%s for '%s':\n\n"
-                                                 (length posts-to-display)
-                                                 (if (= (length posts-to-display) 1) "" "s")
-                                                 query)
-                                         'face '(:foreground "#4a90e2")))
+                     ;; Recreate buffer with results (like groups does)
+                     (erase-buffer)
+                     (remove-overlays)
+
+                     ;; Insert header
+                     (org-social-ui--insert-search-header)
+
+                     ;; Search info and new search button
+                     (org-social-ui--insert-formatted-text
+                      (format "Found %d result%s for '%s'\n\n"
+                              (length posts-to-display)
+                              (if (= (length posts-to-display) 1) "" "s")
+                              query)
+                      nil "#4a90e2")
+
+                     (widget-create 'push-button
+                                    :notify (lambda (&rest _)
+                                              (org-social-ui-search))
+                                    :help-echo "Start a new search"
+                                    " 🔄 New Search ")
+
+                     (org-social-ui--insert-formatted-text "\n")
+                     (org-social-ui--insert-separator)
 
                      ;; Display posts
                      (if (> (length posts-to-display) 0)
-                         (progn
-                           (dolist (post posts-to-display)
-                             (org-social-ui--post-component post org-social-ui--timeline-current-list))
-                           (setq buffer-read-only t))
-                       (progn
-                         (org-social-ui--insert-formatted-text "No valid posts found.\n\n" nil "#666666")
-                         (widget-create 'push-button
-                                        :notify (lambda (&rest _)
-                                                  (org-social-ui-search))
-                                        :help-echo "Start a new search"
-                                        " 🔄 New Search ")
-                         (org-social-ui--insert-formatted-text "\n")
-                         (widget-setup)))
+                         (dolist (post posts-to-display)
+                           (org-social-ui--post-component post org-social-ui--timeline-current-list))
+                       (org-social-ui--insert-formatted-text "No valid posts found.\n" nil "#666666"))
 
+                     ;; Set up buffer with org-social-ui-mode (like groups)
+                     (org-social-ui--setup-centered-buffer)
+                     (setq buffer-read-only t)
                      (goto-char (point-min))
                      (message "Found %d result%s for '%s'"
                               (length posts-to-display)
                               (if (= (length posts-to-display) 1) "" "s")
                               query)))))))))
 
-    ;; No posts data
+    ;; No posts data - recreate buffer
     (with-current-buffer buffer-name
       (let ((inhibit-read-only t))
-        (goto-char (point-max))
-        (when (search-backward "Searching..." nil t)
-          (beginning-of-line)
-          (delete-region (point) (progn (forward-line 1) (point))))
-        (goto-char (point-max))
+        (erase-buffer)
+        (remove-overlays)
+
+        ;; Insert header
+        (org-social-ui--insert-search-header)
+
+        ;; No results message
         (org-social-ui--insert-formatted-text
-         (format "No results found for '%s'.\n" query)
-         nil "#666666")))))
+         (format "No results found for '%s'\n\n" query)
+         nil "#666666")
+
+        (widget-create 'push-button
+                       :notify (lambda (&rest _)
+                                 (org-social-ui-search))
+                       :help-echo "Start a new search"
+                       " 🔄 New Search ")
+
+        (org-social-ui--insert-formatted-text "\n")
+
+        ;; Set up buffer with org-social-ui-mode
+        (org-social-ui--setup-centered-buffer)
+        (setq buffer-read-only t)
+        (goto-char (point-min))))))
 
 ;;;###autoload
 (defun org-social-ui-search ()
