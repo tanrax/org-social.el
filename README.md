@@ -269,13 +269,13 @@ For example, to automatically upload your social file to a remote server after s
 
 | Name | Status |
 |------|--------|
-| Org Social Preview Generator | ✅ |
 | Relay: Self-register | ✅ |
 | Relay: List all feeds | ✅ |
 | Relay: Mentions | ✅ |
 | Relay: Replies/threads | ✅ |
-| Relay: Groups | ❌ |
+| Relay: Groups | ✅ |
 | Relay: Search | ❌ |
+| Org Social Live Preview Generator | ✅ |
 
 ## 📄 License
 
