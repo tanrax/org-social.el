@@ -330,9 +330,16 @@ BUFFER-NAME is the target buffer for display."
             (total-urls 0)
             (fetched-count 0))
 
-        ;; Extract all post URLs from hierarchical structure
+        ;; Extract all post URLs from data structure
+        ;; Posts can be either strings (direct URLs) or alists with 'post field
         (dolist (item posts-data)
-          (let ((post-url (alist-get 'post item)))
+          (let ((post-url (cond
+                           ;; If item is a string, it's directly a URL
+                           ((stringp item) item)
+                           ;; If item is an alist, try to get 'post field
+                           ((listp item) (alist-get 'post item))
+                           ;; Otherwise skip
+                           (t nil))))
             (when post-url
               (push post-url all-post-urls))))
 
@@ -370,6 +377,14 @@ BUFFER-NAME is the target buffer for display."
                      ;; Remove loading message
                      (goto-char (point-min))
                      (when (search-forward "Loading group posts..." nil t)
+                       (beginning-of-line)
+                       (let ((line-start (point)))
+                         (forward-line 1)
+                         (delete-region line-start (point))))
+
+                     ;; Also remove "No posts found" message if it exists
+                     (goto-char (point-min))
+                     (when (search-forward "No posts found in this group." nil t)
                        (beginning-of-line)
                        (let ((line-start (point)))
                          (forward-line 1)
