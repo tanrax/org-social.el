@@ -274,7 +274,7 @@ For example, to automatically upload your social file to a remote server after s
 | Relay: Mentions | ✅ |
 | Relay: Replies/threads | ✅ |
 | Relay: Groups | ✅ |
-| Relay: Search | ❌ |
+| Relay: Search | ✅ |
 | Org Social Live Preview Generator | ✅ |
 
 ## 📄 License
@@ -285,7 +285,8 @@ GPL-3.0 - See LICENSE file for details.
 
 ## 2.1
 
-- Groups Improvements: Full relay integration.
+- Groups relay integration.
+- Added Search.
 - Timeline Enhancements.
 - Removed deprecated `org-social-preview-base-url` variable.
 
