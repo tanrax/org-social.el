@@ -18,13 +18,14 @@
 (require 'org-social-ui-components)
 
 ;; Forward declarations
-(declare-function org-social-relay--search-posts "org-social-relay" (query callback &optional search-type))
+(declare-function org-social-relay--search-posts "org-social-relay" (query callback &optional search-type page per-page))
 (declare-function org-social-feed--get-post "org-social-feed" (post-url callback))
 (declare-function org-social-ui-timeline "org-social-ui-timeline" ())
 (declare-function org-social-ui-notifications "org-social-ui-notifications" ())
 (declare-function org-social-ui-groups "org-social-ui-groups" ())
 (declare-function org-social-ui--filter-reactions "org-social-ui-timeline" (timeline))
 (declare-function org-social-ui--setup-centered-buffer "org-social-ui-core" ())
+(declare-function org-social-ui--goto-previous-post "org-social-ui-actions" ())
 
 ;; External variables
 (defvar org-social-ui--timeline-current-list)
@@ -39,6 +40,21 @@
 
 (defvar-local org-social-ui--search-results nil
   "Current search results.")
+
+(defvar-local org-social-ui--search-current-query nil
+  "Current search query string.")
+
+(defvar-local org-social-ui--search-current-type nil
+  "Current search type (nil for text, \\='tag for tag search).")
+
+(defvar-local org-social-ui--search-current-page 1
+  "Current page number for search results.")
+
+(defvar-local org-social-ui--search-has-next nil
+  "Whether there are more search results available.")
+
+(defvar-local org-social-ui--search-loading nil
+  "Whether a search request is in progress.")
 
 (defun org-social-ui--insert-search-header ()
   "Insert search header with navigation."
@@ -91,19 +107,29 @@
         (org-social-ui--insert-logo)
         (org-social-ui--insert-formatted-text "Searching...\n" nil "#4a90e2")
         (org-social-ui--setup-centered-buffer)
+        ;; Initialize pagination variables
+        (setq org-social-ui--search-current-query query)
+        (setq org-social-ui--search-current-type search-type)
+        (setq org-social-ui--search-current-page 1)
+        (setq org-social-ui--search-has-next nil)
+        (setq org-social-ui--search-loading t)
         (setq buffer-read-only t)))
 
     (switch-to-buffer results-buffer-name)
 
-    ;; Perform search
+    ;; Perform search with pagination
     (org-social-relay--search-posts
      query
-     (lambda (post-urls)
-       (org-social-ui--process-and-display-search-results post-urls results-buffer-name query))
-     search-type)))
+     (lambda (post-urls meta)
+       (org-social-ui--process-and-display-search-results post-urls meta results-buffer-name query))
+     search-type
+     1    ; page
+     10   ; per-page
+     )))
 
-(defun org-social-ui--process-and-display-search-results (post-urls buffer-name query)
+(defun org-social-ui--process-and-display-search-results (post-urls meta buffer-name query)
   "Process POST-URLS from search and display them in BUFFER-NAME.
+META contains pagination metadata from the relay.
 QUERY is the search query used."
   (if (and post-urls (> (length post-urls) 0))
       (let ((all-post-urls '())
@@ -142,8 +168,6 @@ QUERY is the search query used."
                                          (org-social-ui-search))
                                :help-echo "Start a new search"
                                " 🔄 New Search ")
-
-                (org-social-ui--insert-formatted-text "\n")
 
                 ;; Set up buffer with org-social-ui-mode
                 (org-social-ui--setup-centered-buffer)
@@ -184,21 +208,13 @@ QUERY is the search query used."
                      ;; Insert header
                      (org-social-ui--insert-search-header)
 
-                     ;; Search info and new search button
-                     (org-social-ui--insert-formatted-text
-                      (format "Found %d result%s for '%s'\n\n"
-                              (length posts-to-display)
-                              (if (= (length posts-to-display) 1) "" "s")
-                              query)
-                      nil "#4a90e2")
-
+                     ;; New search button
                      (widget-create 'push-button
                                     :notify (lambda (&rest _)
                                               (org-social-ui-search))
                                     :help-echo "Start a new search"
                                     " 🔄 New Search ")
 
-                     (org-social-ui--insert-formatted-text "\n")
                      (org-social-ui--insert-separator)
 
                      ;; Display posts
@@ -207,14 +223,26 @@ QUERY is the search query used."
                            (org-social-ui--post-component post org-social-ui--timeline-current-list))
                        (org-social-ui--insert-formatted-text "No valid posts found.\n" nil "#666666"))
 
+                     ;; Update pagination metadata
+                     (when meta
+                       (setq org-social-ui--search-has-next
+                             (cdr (assoc 'hasNext meta))))
+                     (setq org-social-ui--search-loading nil)
+
+                     ;; Add "Show more" button if there are more results
+                     (when org-social-ui--search-has-next
+                       (org-social-ui--insert-formatted-text "\n")
+                       (widget-create 'push-button
+                                      :notify (lambda (&rest _) (org-social-ui--search-next-page))
+                                      :help-echo "Load more search results"
+                                      " Show more ")
+                       (org-social-ui--insert-formatted-text "\n"))
+
                      ;; Set up buffer with org-social-ui-mode (like groups)
                      (org-social-ui--setup-centered-buffer)
                      (setq buffer-read-only t)
-                     (goto-char (point-min))
-                     (message "Found %d result%s for '%s'"
-                              (length posts-to-display)
-                              (if (= (length posts-to-display) 1) "" "s")
-                              query)))))))))
+                     (widget-setup)
+                     (goto-char (point-min))))))))))
 
     ;; No posts data - recreate buffer
     (with-current-buffer buffer-name
@@ -236,12 +264,134 @@ QUERY is the search query used."
                        :help-echo "Start a new search"
                        " 🔄 New Search ")
 
-        (org-social-ui--insert-formatted-text "\n")
-
         ;; Set up buffer with org-social-ui-mode
         (org-social-ui--setup-centered-buffer)
         (setq buffer-read-only t)
         (goto-char (point-min))))))
+
+(defun org-social-ui--search-next-page ()
+  "Load and append next page of search results (infinite scroll)."
+  (interactive)
+  (when (and org-social-ui--search-has-next
+             (not org-social-ui--search-loading)
+             org-social-ui--search-current-query)
+    (setq org-social-ui--search-loading t)
+    (setq org-social-ui--search-current-page (1+ org-social-ui--search-current-page))
+    (let ((buffer-name (buffer-name)))
+      ;; Remove "Show more" button
+      (let ((inhibit-read-only t))
+        (goto-char (point-max))
+        (when (search-backward "Show more" nil t)
+          (beginning-of-line)
+          (when (and (> (point) (point-min))
+                     (eq (char-before) ?\n))
+            (backward-char))
+          (let ((start (point)))
+            (search-forward "Show more")
+            (forward-line 1)
+            (delete-region start (point)))))
+
+      ;; Fetch next page
+      (org-social-relay--search-posts
+       org-social-ui--search-current-query
+       (lambda (post-urls meta)
+         (org-social-ui--append-search-results post-urls meta buffer-name))
+       org-social-ui--search-current-type
+       org-social-ui--search-current-page
+       10))))
+
+(defun org-social-ui--append-search-results (post-urls meta buffer-name)
+  "Append POST-URLS to existing search results in BUFFER-NAME.
+META contains pagination metadata."
+  (if (and post-urls (> (length post-urls) 0))
+      (let ((all-post-urls '())
+            (posts-to-display '())
+            (total-urls 0)
+            (fetched-count 0))
+
+        ;; Extract post URLs
+        (dolist (item post-urls)
+          (let ((post-url (cond
+                           ((stringp item) item)
+                           ((listp item) (alist-get 'post item))
+                           (t nil))))
+            (when post-url
+              (push post-url all-post-urls))))
+
+        (setq total-urls (length all-post-urls))
+
+        (if (= total-urls 0)
+            ;; No more results
+            (with-current-buffer buffer-name
+              (setq org-social-ui--search-loading nil)
+              (setq org-social-ui--search-has-next nil)
+              (message "No more search results"))
+
+          ;; Fetch each post URL
+          (dolist (post-url all-post-urls)
+            (org-social-feed--get-post
+             post-url
+             (lambda (post-data)
+               (setq fetched-count (1+ fetched-count))
+
+               (when post-data
+                 (push post-data posts-to-display))
+
+               ;; When all posts are fetched, append them
+               (when (= fetched-count total-urls)
+                 (with-current-buffer buffer-name
+                   (let ((inhibit-read-only t)
+                         (new-posts-start (point-max)))
+
+                     ;; Sort posts by date
+                     (setq posts-to-display
+                           (sort posts-to-display
+                                 (lambda (a b)
+                                   (> (or (alist-get 'date a) 0)
+                                      (or (alist-get 'date b) 0)))))
+
+                     ;; Append to existing results
+                     (setq org-social-ui--search-results
+                           (append org-social-ui--search-results posts-to-display))
+                     (setq org-social-ui--timeline-current-list
+                           (append org-social-ui--timeline-current-list posts-to-display))
+
+                     ;; Insert new posts at the end
+                     (goto-char (point-max))
+                     (dolist (post posts-to-display)
+                       (org-social-ui--post-component post org-social-ui--timeline-current-list))
+
+                     ;; Update pagination metadata
+                     (when meta
+                       (setq org-social-ui--search-has-next
+                             (cdr (assoc 'hasNext meta))))
+                     (setq org-social-ui--search-loading nil)
+
+                     ;; Add "Show more" button if there are more results
+                     (when org-social-ui--search-has-next
+                       (org-social-ui--insert-formatted-text "\n")
+                       (widget-create 'push-button
+                                      :notify (lambda (&rest _) (org-social-ui--search-next-page))
+                                      :help-echo "Load more search results"
+                                      " Show more ")
+                       (org-social-ui--insert-formatted-text "\n"))
+
+                     (setq buffer-read-only t)
+                     (widget-setup)
+
+                     ;; Move cursor to first new post
+                     (goto-char new-posts-start)
+                     (org-social-ui--goto-previous-post)
+
+                     (message "Loaded %d more result%s"
+                              (length posts-to-display)
+                              (if (= (length posts-to-display) 1) "" "s"))))))))))
+
+    ;; No more results
+    (with-current-buffer buffer-name
+      (setq org-social-ui--search-loading nil)
+      (setq org-social-ui--search-has-next nil)
+      (message "No more search results"))))
 
 ;;;###autoload
 (defun org-social-ui-search ()

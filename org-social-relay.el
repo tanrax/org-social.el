@@ -262,10 +262,12 @@ Call CALLBACK with the thread structure."
              (message "replies endpoint not found in relay API")
              (funcall callback nil))))))))
 
-(defun org-social-relay--search-posts (query callback &optional search-type)
+(defun org-social-relay--search-posts (query callback &optional search-type page per-page)
   "Search posts by QUERY from the relay server.
 SEARCH-TYPE can be \\='tag to search by tag, defaults to text search.
-Call CALLBACK with the list of matching post URLs."
+PAGE is the page number (default 1).
+PER-PAGE is results per page (default 10, max 50).
+Call CALLBACK with the list of matching post URLs and metadata."
   (when (and org-social-relay
              (not (string-empty-p org-social-relay)))
     (let ((relay-url (string-trim-right org-social-relay "/")))
@@ -277,15 +279,19 @@ Call CALLBACK with the list of matching post URLs."
                (let ((href (plist-get search-endpoint :href))
                      (method (plist-get search-endpoint :method)))
                  ;; Replace {query} placeholder in href with actual query
-                 (let ((url (concat relay-url
-                                    (replace-regexp-in-string
-                                     "{query}"
-                                     (url-hexify-string query)
-                                     ;; Use correct parameter name based on search type
-                                     (replace-regexp-in-string
-                                      "\\?q="
-                                      (if (eq search-type 'tag) "?tag=" "?q=")
-                                      href)))))
+                 (let* ((base-url (concat relay-url
+                                          (replace-regexp-in-string
+                                           "{query}"
+                                           (url-hexify-string query)
+                                           ;; Use correct parameter name based on search type
+                                           (replace-regexp-in-string
+                                            "\\?q="
+                                            (if (eq search-type 'tag) "?tag=" "?q=")
+                                            href))))
+                        ;; Add pagination parameters
+                        (url (concat base-url
+                                     (when page (format "&page=%d" page))
+                                     (when per-page (format "&perPage=%d" per-page)))))
                    (request url
                             :type method
                             :timeout 15
@@ -295,30 +301,32 @@ Call CALLBACK with the list of matching post URLs."
                                             (if (and data (stringp data) (not (string-empty-p data)))
                                                 (let* ((response (json-read-from-string data))
                                                        (response-type (cdr (assoc 'type response)))
-                                                       (search-data (cdr (assoc 'data response))))
+                                                       (search-data (cdr (assoc 'data response)))
+                                                       (meta-data (cdr (assoc 'meta response))))
                                                   (if (string= response-type "Success")
                                                       (let ((search-list (if (vectorp search-data)
                                                                              (append search-data nil)
                                                                            search-data)))
-                                                        (funcall callback search-list))
+                                                        ;; Call callback with both data and metadata
+                                                        (funcall callback search-list meta-data))
                                                     (progn
                                                       (message "Relay returned error response: %s" response-type)
-                                                      (funcall callback nil))))
+                                                      (funcall callback nil nil))))
                                               (progn
                                                 (message "Received empty, nil, or non-string response from relay: %S" data)
-                                                (funcall callback nil)))
+                                                (funcall callback nil nil)))
                                           (error
                                            (message "Failed to parse relay search response: %s (data: %S)" (error-message-string err) data)
-                                           (funcall callback nil)))))
+                                           (funcall callback nil nil)))))
                             :error (cl-function
                                     (lambda (&key error-thrown &allow-other-keys)
                                       (message "Failed to search posts from relay: %s"
                                                (if error-thrown
                                                    (error-message-string error-thrown)
                                                  "Unknown error"))
-                                      (funcall callback nil))))))
+                                      (funcall callback nil nil))))))
              (message "search endpoint not found in relay API")
-             (funcall callback nil))))))))
+             (funcall callback nil nil))))))))
 
 
 (defun org-social-relay--fetch-groups (callback)
