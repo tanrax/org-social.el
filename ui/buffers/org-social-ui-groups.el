@@ -17,8 +17,8 @@
 
 ;; Forward declarations
 (declare-function org-social-relay--fetch-groups "org-social-relay" (callback))
-(declare-function org-social-relay--fetch-group-posts "org-social-relay" (group-name callback))
-(declare-function org-social-relay--fetch-group-details "org-social-relay" (group-name callback))
+(declare-function org-social-relay--fetch-group-posts "org-social-relay" (group-href group-method callback))
+(declare-function org-social-relay--fetch-group-details "org-social-relay" (group-href group-method callback))
 (declare-function org-social-parser--get-my-profile "org-social-parser" ())
 (declare-function org-social-ui-timeline "org-social-ui-timeline" ())
 (declare-function org-social-ui-notifications "org-social-ui-notifications" ())
@@ -98,7 +98,7 @@
     (org-social-ui--insert-formatted-text "  ")
     (widget-create 'push-button
                    :notify `(lambda (&rest _)
-                              (org-social-ui-group-posts ,group-name))
+                              (org-social-ui-group-posts ',group))
                    :help-echo (format "View posts in %s group" group-name)
                    " 📄 View Posts ")
 
@@ -113,24 +113,22 @@
     (org-social-ui--insert-formatted-text "No groups subscribed.\n" nil "#666666")
     (org-social-ui--insert-formatted-text "Add groups to your social.org file using #+GROUP: syntax.\n" nil "#666666")))
 
-(defun org-social-ui-group-posts (group-name)
-  "Display posts for GROUP-NAME.
+(defun org-social-ui-group-posts (group)
+  "Display posts for GROUP.
+GROUP is an alist with \\='name, \\='href, \\='method, and \\='relay-url.
 Fetches posts from relay and displays them like timeline."
-  ;; Get group info from user's profile to get relay URL
-  (require 'org-social-parser)
-  (let* ((my-profile (org-social-parser--get-my-profile))
-         (user-groups (alist-get 'group my-profile))
-         (group-info (cl-find-if (lambda (g)
-                                   (string= (alist-get 'name g) group-name))
-                                 user-groups))
-         (relay-url (alist-get 'relay-url group-info))
+  (let* ((group-name (alist-get 'name group))
+         (group-href (alist-get 'href group))
+         (group-method (alist-get 'method group))
+         (relay-url (or (alist-get 'relay-url group) org-social-relay))
          (buffer-name (format "*Org Social Group: %s*" group-name)))
 
     (switch-to-buffer buffer-name)
     (kill-all-local-variables)
 
     ;; Set group context for posting
-    (setq org-social-ui--current-group-context group-info)
+    (setq org-social-ui--current-group-context `((name . ,group-name)
+                                                  (relay-url . ,relay-url)))
     (setq org-social-ui--current-screen 'group-posts)
 
     ;; Disable read-only mode before modifying buffer
@@ -195,7 +193,8 @@ Fetches posts from relay and displays them like timeline."
              org-social-relay
              (not (string-empty-p org-social-relay)))
         (org-social-relay--fetch-group-posts
-         group-name
+         group-href
+         group-method
          (lambda (posts-data)
            (org-social-ui--process-and-display-group-posts posts-data group-name buffer-name)))
       ;; No relay configured
@@ -204,17 +203,21 @@ Fetches posts from relay and displays them like timeline."
         (org-social-ui--insert-formatted-text "Relay not configured. Cannot load group posts.\n" nil "#ff6600")
         (setq buffer-read-only t)))))
 
-(defun org-social-ui--fetch-and-display-groups (user-groups buffer-name)
-  "Fetch group details from relay for USER-GROUPS and display in BUFFER-NAME."
-  (let ((total-groups (length user-groups))
+(defun org-social-ui--fetch-and-display-groups (relay-groups buffer-name)
+  "Fetch group details from relay for RELAY-GROUPS and display in BUFFER-NAME.
+RELAY-GROUPS is a list of alists with \\='name, \\='href, and \\='method from the relay."
+  (let ((total-groups (length relay-groups))
         (fetched-count 0)
         (groups-with-data '()))
 
-    (dolist (group user-groups)
-      (let ((group-name (alist-get 'name group)))
+    (dolist (group relay-groups)
+      (let ((group-name (alist-get 'name group))
+            (group-href (alist-get 'href group))
+            (group-method (alist-get 'method group)))
         ;; Fetch group data from relay including members
         (org-social-relay--fetch-group-details
-         group-name
+         group-href
+         group-method
          (lambda (group-details)
            (setq fetched-count (1+ fetched-count))
 
@@ -223,9 +226,12 @@ Fetches posts from relay and displays them like timeline."
                   (members-list (if group-details (alist-get 'members group-details) '()))
                   (member-count (length members-list))
                   (post-count (length posts-list))
-                  (group-with-data (append group
-                                          `((members . ,member-count)
-                                            (posts . ,post-count)))))
+                  (group-with-data `((name . ,group-name)
+                                     (href . ,group-href)
+                                     (method . ,group-method)
+                                     (relay-url . ,org-social-relay)
+                                     (members . ,member-count)
+                                     (posts . ,post-count))))
              (push group-with-data groups-with-data))
 
            ;; When all groups are fetched, display them
@@ -281,31 +287,39 @@ Fetches posts from relay and displays them like timeline."
     (org-social-ui--setup-centered-buffer)
     (goto-char (point-min))
 
-    ;; Get user's subscribed groups from their social.org file
-    (require 'org-social-parser)
-    (let* ((my-profile (org-social-parser--get-my-profile))
-           (user-groups (alist-get 'group my-profile)))
-
-      (if (and user-groups
-               (boundp 'org-social-relay)
-               org-social-relay
-               (not (string-empty-p org-social-relay)))
-          ;; Fetch group details from relay
-          (org-social-ui--fetch-and-display-groups user-groups buffer-name)
-        ;; No relay or no groups
-        (let ((inhibit-read-only t))
-          (goto-char (point-min))
-          (when (search-forward "Loading groups..." nil t)
-            (beginning-of-line)
-            (let ((line-start (point)))
-              (forward-line 1)
-              (delete-region line-start (point))))
-          (goto-char (point-max))
-          (if user-groups
-              (org-social-ui--insert-groups-content user-groups)
-            (org-social-ui--insert-formatted-text "No groups subscribed.\n" nil "#666666")
-            (org-social-ui--insert-formatted-text "Add groups to your social.org file using #+GROUP: syntax.\n" nil "#666666"))
-          (setq buffer-read-only t))))))
+    ;; Fetch groups from relay
+    (if (and (boundp 'org-social-relay)
+             org-social-relay
+             (not (string-empty-p org-social-relay)))
+        ;; Fetch groups from relay with names and slugs
+        (org-social-relay--fetch-groups
+         (lambda (relay-groups)
+           (if relay-groups
+               (org-social-ui--fetch-and-display-groups relay-groups buffer-name)
+             ;; No groups returned from relay
+             (with-current-buffer buffer-name
+               (let ((inhibit-read-only t))
+                 (goto-char (point-min))
+                 (when (search-forward "Loading groups..." nil t)
+                   (beginning-of-line)
+                   (let ((line-start (point)))
+                     (forward-line 1)
+                     (delete-region line-start (point))))
+                 (goto-char (point-max))
+                 (org-social-ui--insert-formatted-text "No groups available.\n" nil "#666666")
+                 (setq buffer-read-only t))))))
+      ;; No relay configured
+      (let ((inhibit-read-only t))
+        (goto-char (point-min))
+        (when (search-forward "Loading groups..." nil t)
+          (beginning-of-line)
+          (let ((line-start (point)))
+            (forward-line 1)
+            (delete-region line-start (point))))
+        (goto-char (point-max))
+        (org-social-ui--insert-formatted-text "Relay not configured. Cannot load groups.\n" nil "#666666")
+        (org-social-ui--insert-formatted-text "Configure org-social-relay to view groups.\n" nil "#666666")
+        (setq buffer-read-only t)))))
 
 (defun org-social-ui--process-and-display-group-posts (posts-data group-name buffer-name)
   "Process POSTS-DATA from relay and display them in GROUP-NAME buffer.
