@@ -3,6 +3,7 @@
 ## 2.2
 
 - New notification system.
+- Inline images.
 - Minor fixes.
 
 ## 2.1
