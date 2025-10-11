@@ -30,6 +30,24 @@ Reactions are posts with reply_to, mood, and empty/short text."
                  (< (length (string-trim text)) 5)))))
    timeline))
 
+;; Helper function to filter out group posts (only for timeline)
+(defun org-social-ui--filter-timeline-posts (timeline)
+  "Filter out reactions and group posts from TIMELINE for timeline view.
+This combines reaction filtering with group filtering."
+  (seq-filter
+   (lambda (post)
+     (let ((text (or (alist-get 'text post) ""))
+           (mood (alist-get 'mood post))
+           (reply-to (alist-get 'reply_to post))
+           (group (alist-get 'group post)))
+       ;; Exclude reactions: posts with reply_to + mood + short text
+       ;; Exclude group posts: posts with group property
+       (not (or (and reply-to
+                     mood
+                     (< (length (string-trim text)) 5))
+                group))))
+   timeline))
+
 ;; Forward declarations
 (declare-function org-social-relay--get-timeline "org-social-relay" ())
 (declare-function org-social-feed--get-timeline "org-social-feed" ())
@@ -114,8 +132,8 @@ Reactions are posts with reply_to, mood, and empty/short text."
   (when timeline
     ;; Store timeline globally (keep all data including reactions for detection)
     (setq org-social-ui--timeline-current-list timeline)
-    ;; Store filtered timeline for display (without reactions as separate posts)
-    (setq org-social-ui--timeline-display-list (org-social-ui--filter-reactions timeline))
+    ;; Store filtered timeline for display (without reactions or group posts)
+    (setq org-social-ui--timeline-display-list (org-social-ui--filter-timeline-posts timeline))
 
     (let* ((total-posts (length org-social-ui--timeline-display-list))
            (posts-shown (* org-social-ui--current-page org-social-ui--posts-per-page)))

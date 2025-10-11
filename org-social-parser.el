@@ -205,10 +205,11 @@ Returns t if valid, nil if invalid (should be ignored)."
    ((string= prop-name "POLL_END")
     (string-match-p "^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}" value))
    ;; GROUP must be: groupname relayurl format
+   ;; Group name can have spaces, URL must be the last part
    ((string= prop-name "GROUP")
     (let ((parts (split-string value "\\s-+" t)))
       (and (>= (length parts) 2)
-           (string-match-p "^https?://" (cadr parts)))))
+           (string-match-p "^https?://" (car (last parts))))))
    ;; LANG must be language code (2-5 chars, letters/hyphens only)
    ((string= prop-name "LANG")
     (string-match-p "^[a-z]\{2,5\}\\(-[a-z]\{2,3\}\\)?$" value))

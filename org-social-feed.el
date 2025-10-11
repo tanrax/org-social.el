@@ -180,7 +180,9 @@ Argument NEW-RESPONSE"
                                           ;; Exclude group posts (posts with GROUP property)
                                           (let ((text (alist-get 'text post))
                                                 (group (alist-get 'group post)))
-                                            (and (not group) ; Exclude posts with GROUP property
+                                            ;; Exclude posts with GROUP property from timeline
+                                            (and (not group)
+                                                 ;; Must have text or mood
                                                  (or text
                                                      (alist-get 'mood post)))))
                                         timeline))
