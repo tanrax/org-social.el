@@ -264,12 +264,12 @@ For example, to automatically upload your social file to a remote server after s
 ## 🔄 Workflow
 
 1. **Setup**: Configure `org-social-file` and create your social.org file
-2. **View timeline**: Use `M-x org-social-timeline` or `C-c C-t`
+2. **View timeline**: Use `M-x org-social-timeline` or `C-c s C-t`
 3. **Navigate**: Use `n`/`p` to move between posts in the timeline
 4. **Reply**: Press `r` when positioned on a post to create a reply
 5. **Vote on polls**: Press `v` when positioned on a poll to vote
-6. **Create posts**: Use `M-x org-social-new-post` or `C-c C-n`
-7. **Create polls**: Use `M-x org-social-new-poll` or `C-c C-p`
+6. **Create posts**: Use `M-x org-social-new-post` or `C-c s n`
+7. **Create polls**: Use `M-x org-social-new-poll` or `C-c s p`
 8. **Save and sync**: Use `C-x C-s` to save with hooks
 
 ## 🔌 Compatibility
