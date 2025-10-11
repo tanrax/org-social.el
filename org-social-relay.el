@@ -151,6 +151,70 @@ Call CALLBACK with the list of feed URLs."
              (message "feeds endpoint not found in relay API")
              (funcall callback nil))))))))
 
+
+(defun org-social-relay--fetch-notifications (callback &optional type)
+  "Fetch notifications for the user's feed from the relay server.
+Call CALLBACK with the list of notification objects (mentions, reactions, replies).
+Optional TYPE filters by notification type: \\='mention, \\='reaction, or \\='reply."
+  (when (and org-social-relay
+             org-social-my-public-url
+             (not (string-empty-p org-social-relay))
+             (not (string-empty-p org-social-my-public-url)))
+    (let ((relay-url (string-trim-right org-social-relay "/"))
+          (feed-url org-social-my-public-url))
+      (org-social-relay--discover-endpoints
+       relay-url
+       (lambda (endpoints)
+         (let ((notifications-endpoint (gethash "notifications" endpoints)))
+           (if notifications-endpoint
+               (let ((href (plist-get notifications-endpoint :href))
+                     (method (plist-get notifications-endpoint :method)))
+                 (let ((url (if type
+                                (concat relay-url
+                                        (replace-regexp-in-string
+                                         "{\\(feed_url\\|url feed\\)}"
+                                         (url-hexify-string feed-url)
+                                         href)
+                                        (format "&type=%s" (symbol-name type)))
+                              (concat relay-url
+                                      (replace-regexp-in-string
+                                       "{\\(feed_url\\|url feed\\)}"
+                                       (url-hexify-string feed-url)
+                                       href)))))
+                   (request url
+                            :type method
+                            :timeout 10
+                            :success (cl-function
+                                      (lambda (&key data &allow-other-keys)
+                                        (condition-case err
+                                            (if (and data (stringp data) (not (string-empty-p data)))
+                                                (let* ((response (json-read-from-string data))
+                                                       (response-type (cdr (assoc 'type response)))
+                                                       (notifications-data (cdr (assoc 'data response))))
+                                                  (if (string= response-type "Success")
+                                                      (let ((notifications-list (if (vectorp notifications-data)
+                                                                                    (append notifications-data nil)
+                                                                                  notifications-data)))
+                                                        (funcall callback notifications-list))
+                                                    (progn
+                                                      (message "Relay returned error response: %s" response-type)
+                                                      (funcall callback nil))))
+                                              (progn
+                                                (message "Received empty, nil, or non-string response from relay: %S" data)
+                                                (funcall callback nil)))
+                                          (error
+                                           (message "Failed to parse relay notifications response: %s (data: %S)" (error-message-string err) data)
+                                           (funcall callback nil)))))
+                            :error (cl-function
+                                    (lambda (&key error-thrown &allow-other-keys)
+                                      (message "Failed to fetch notifications from relay: %s"
+                                               (if error-thrown
+                                                   (error-message-string error-thrown)
+                                                 "Unknown error"))
+                                      (funcall callback nil))))))
+             (message "notifications endpoint not found in relay API")
+             (funcall callback nil))))))))
+
 (defun org-social-relay--fetch-mentions (callback)
   "Fetch mentions for the user's feed from the relay server.
 Call CALLBACK with the list of post URLs that mention the user."

@@ -6,7 +6,7 @@
 ;; URL: https://github.com/tanrax/org-social.el
 
 ;;; Commentary:
-;; Notifications view for mentions and activity.
+;; Notifications view for mentions, reactions, and replies.
 
 ;;; Code:
 
@@ -16,10 +16,13 @@
 (require 'org-social-ui-components)
 
 ;; Forward declarations
-(declare-function org-social-relay--fetch-mentions "org-social-relay" (callback))
+(declare-function org-social-relay--fetch-notifications "org-social-relay" (callback &optional type))
 (declare-function org-social-parser--get-my-profile "org-social-parser" ())
 (declare-function org-social-ui-timeline "org-social-ui-timeline" ())
 (declare-function org-social-ui-groups "org-social-ui-groups" ())
+(declare-function org-social-ui-profile "org-social-ui-profile" (feed-url))
+(declare-function org-social-ui-thread "org-social-ui-thread" (post-url))
+(declare-function org-social-file--new-post "org-social-file" (reply-to-url &optional reply-to-timestamp))
 (declare-function org-social--format-date "org-social" (timestamp))
 
 (defun org-social-ui--insert-notifications-header ()
@@ -57,23 +60,24 @@
   (org-social-ui--insert-formatted-text "\n\n")
 
   ;; Help text
-  (org-social-ui--insert-formatted-text "Your Mentions and Replies\n" 1.2 "#4a90e2")
+  (org-social-ui--insert-formatted-text "Your Notifications\n" 1.2 "#4a90e2")
   (org-social-ui--insert-formatted-text "Navigation:\n" nil "#666666")
   (org-social-ui--insert-formatted-text "(n) Next | (p) Previous | (T) Timeline | (G) Groups\n" nil "#666666")
   (org-social-ui--insert-formatted-text "Other: (g) Refresh | (q) Quit\n" nil "#666666")
 
   (org-social-ui--insert-separator))
 
-(defun org-social-ui--mention-component (mention-url)
-  "Insert a mention component for MENTION-URL."
-  (org-social-ui--insert-formatted-text "📧 " 1.1 "#ff6600")
-  (org-social-ui--insert-formatted-text "New mention: ")
+(defun org-social-ui--mention-component (notification)
+  "Insert a mention component for NOTIFICATION.
+NOTIFICATION is an alist with keys: type, post."
+  (let* ((post-url (cdr (assoc 'post notification)))
+         (author-url (when (string-match "\\(.*\\)#" post-url)
+                       (match-string 1 post-url)))
+         (timestamp (when (string-match "#\\(.+\\)$" post-url)
+                      (match-string 1 post-url))))
 
-  ;; Extract info from URL (format: https://domain.com/social.org#timestamp)
-  (let ((author-url (when (string-match "\\(.*\\)#" mention-url)
-                      (match-string 1 mention-url)))
-        (timestamp (when (string-match "#\\(.+\\)$" mention-url)
-                     (match-string 1 mention-url))))
+    (org-social-ui--insert-formatted-text "📧 " 1.1 "#ff6600")
+    (org-social-ui--insert-formatted-text "New mention from ")
 
     (when author-url
       ;; Author name button
@@ -93,7 +97,7 @@
     ;; Action buttons
     (widget-create 'push-button
                    :notify `(lambda (&rest _)
-                              (org-social-ui-thread ,mention-url))
+                              (org-social-ui-thread ,post-url))
                    :help-echo "View thread"
                    " 🧵 View Thread ")
 
@@ -109,17 +113,140 @@
     (org-social-ui--insert-formatted-text "\n")
     (org-social-ui--insert-separator)))
 
-(defun org-social-ui--insert-notifications-content (mentions)
-  "Insert notifications content with MENTIONS."
-  (if mentions
-      (progn
-        (org-social-ui--insert-formatted-text (format "Found %d mention%s:\n\n"
-                                                      (length mentions)
-                                                      (if (= (length mentions) 1) "" "s"))
-                                              nil "#4a90e2")
-        (dolist (mention mentions)
-          (org-social-ui--mention-component mention)))
-    (org-social-ui--insert-formatted-text "No new mentions or replies found.\n" nil "#666666")
+(defun org-social-ui--reaction-component (notification)
+  "Insert a reaction component for NOTIFICATION.
+NOTIFICATION is an alist with keys: type, post, emoji, parent."
+  (let* ((post-url (cdr (assoc 'post notification)))
+         (emoji (cdr (assoc 'emoji notification)))
+         (parent-url (cdr (assoc 'parent notification)))
+         (author-url (when (string-match "\\(.*\\)#" post-url)
+                       (match-string 1 post-url)))
+         (timestamp (when (string-match "#\\(.+\\)$" post-url)
+                      (match-string 1 post-url))))
+
+    (org-social-ui--insert-formatted-text (format "%s " emoji) 1.1 "#ff6600")
+    (org-social-ui--insert-formatted-text "Reaction from ")
+
+    (when author-url
+      ;; Author name button
+      (widget-create 'push-button
+                     :notify `(lambda (&rest _)
+                                (org-social-ui-profile ,author-url))
+                     :help-echo (format "View profile: %s" author-url)
+                     (format "@%s" (file-name-nondirectory (string-trim-right author-url "/social.org"))))
+
+      (org-social-ui--insert-formatted-text " • ")
+
+      (when timestamp
+        (org-social-ui--insert-formatted-text (org-social--format-date timestamp) nil "#666666")))
+
+    (org-social-ui--insert-formatted-text "\n  ")
+
+    ;; Action buttons
+    (when parent-url
+      (widget-create 'push-button
+                     :notify `(lambda (&rest _)
+                                (org-social-ui-thread ,parent-url))
+                     :help-echo "View your post"
+                     " 📝 View Post "))
+
+    (org-social-ui--insert-formatted-text "\n")
+    (org-social-ui--insert-separator)))
+
+(defun org-social-ui--reply-component (notification)
+  "Insert a reply component for NOTIFICATION.
+NOTIFICATION is an alist with keys: type, post, parent."
+  (let* ((post-url (cdr (assoc 'post notification)))
+         (parent-url (cdr (assoc 'parent notification)))
+         (author-url (when (string-match "\\(.*\\)#" post-url)
+                       (match-string 1 post-url)))
+         (timestamp (when (string-match "#\\(.+\\)$" post-url)
+                      (match-string 1 post-url))))
+
+    (org-social-ui--insert-formatted-text "💬 " 1.1 "#4a90e2")
+    (org-social-ui--insert-formatted-text "New reply from ")
+
+    (when author-url
+      ;; Author name button
+      (widget-create 'push-button
+                     :notify `(lambda (&rest _)
+                                (org-social-ui-profile ,author-url))
+                     :help-echo (format "View profile: %s" author-url)
+                     (format "@%s" (file-name-nondirectory (string-trim-right author-url "/social.org"))))
+
+      (org-social-ui--insert-formatted-text " • ")
+
+      (when timestamp
+        (org-social-ui--insert-formatted-text (org-social--format-date timestamp) nil "#666666")))
+
+    (org-social-ui--insert-formatted-text "\n  ")
+
+    ;; Action buttons
+    (widget-create 'push-button
+                   :notify `(lambda (&rest _)
+                              (org-social-ui-thread ,post-url))
+                   :help-echo "View reply"
+                   " 🧵 View Reply ")
+
+    (org-social-ui--insert-formatted-text " ")
+
+    (when parent-url
+      (widget-create 'push-button
+                     :notify `(lambda (&rest _)
+                                (org-social-ui-thread ,parent-url))
+                     :help-echo "View your post"
+                     " 📝 View Post "))
+
+    (org-social-ui--insert-formatted-text " ")
+
+    (when author-url
+      (widget-create 'push-button
+                     :notify `(lambda (&rest _)
+                                (org-social-file--new-post ,author-url ,timestamp))
+                     :help-echo "Reply"
+                     " ↳ Reply "))
+
+    (org-social-ui--insert-formatted-text "\n")
+    (org-social-ui--insert-separator)))
+
+(defun org-social-ui--insert-notifications-content (notifications)
+  "Insert notifications content with NOTIFICATIONS."
+  (if notifications
+      (let ((mention-count 0)
+            (reaction-count 0)
+            (reply-count 0))
+        ;; Count each type
+        (dolist (notif notifications)
+          (let ((type (cdr (assoc 'type notif))))
+            (cond
+             ((string= type "mention") (setq mention-count (1+ mention-count)))
+             ((string= type "reaction") (setq reaction-count (1+ reaction-count)))
+             ((string= type "reply") (setq reply-count (1+ reply-count))))))
+
+        ;; Display summary
+        (org-social-ui--insert-formatted-text
+         (format "Found %d notification%s: "
+                 (length notifications)
+                 (if (= (length notifications) 1) "" "s"))
+         nil "#4a90e2")
+        (org-social-ui--insert-formatted-text
+         (format "%d mention%s, %d reaction%s, %d repl%s\n\n"
+                 mention-count (if (= mention-count 1) "" "s")
+                 reaction-count (if (= reaction-count 1) "" "s")
+                 reply-count (if (= reply-count 1) "y" "ies"))
+         nil "#666666")
+
+        ;; Display each notification
+        (dolist (notif notifications)
+          (let ((type (cdr (assoc 'type notif))))
+            (cond
+             ((string= type "mention")
+              (org-social-ui--mention-component notif))
+             ((string= type "reaction")
+              (org-social-ui--reaction-component notif))
+             ((string= type "reply")
+              (org-social-ui--reply-component notif))))))
+    (org-social-ui--insert-formatted-text "No new notifications found.\n" nil "#666666")
     (when (and (boundp 'org-social-relay) org-social-relay (not (string-empty-p org-social-relay)))
       (org-social-ui--insert-formatted-text "Make sure your relay is properly configured.\n" nil "#666666"))
     (org-social-ui--insert-formatted-text "\nYour public URL: " nil "#666666")
@@ -145,7 +272,7 @@
     (org-social-ui--insert-notifications-header)
 
     ;; Show loading message
-    (org-social-ui--insert-formatted-text "Loading mentions...\n" nil "#4a90e2")
+    (org-social-ui--insert-formatted-text "Loading notifications...\n" nil "#4a90e2")
 
     ;; Set up the buffer with centering
     (org-social-ui--setup-centered-buffer)
@@ -158,33 +285,34 @@
              (boundp 'org-social-my-public-url)
              org-social-my-public-url
              (not (string-empty-p org-social-my-public-url)))
-        ;; Use relay to fetch mentions
+        ;; Use relay to fetch notifications
         (progn
-          (message "Loading mentions from relay...")
-          (org-social-relay--fetch-mentions
-           (lambda (mentions)
+          (message "Loading notifications from relay...")
+          (org-social-relay--fetch-notifications
+           (lambda (notifications)
              (with-current-buffer org-social-ui--notifications-buffer-name
                (let ((inhibit-read-only t)
                      (buffer-read-only nil))
                  ;; Remove loading message
                  (goto-char (point-min))
-                 (when (search-forward "Loading mentions..." nil t)
+                 (when (search-forward "Loading notifications..." nil t)
                    (beginning-of-line)
                    (let ((line-start (point)))
                      (forward-line 1)
                      (delete-region line-start (point))))
-                 ;; Insert mentions
+                 ;; Insert notifications
                  (goto-char (point-max))
-                 (org-social-ui--insert-notifications-content mentions)
+                 (org-social-ui--insert-notifications-content notifications)
                  ;; Enable read-only mode
                  (setq buffer-read-only t)
+                 (widget-setup)
                  (goto-char (point-min)))))))
       ;; No relay configured
       (progn
         (let ((inhibit-read-only t))
           ;; Remove loading message
           (goto-char (point-min))
-          (when (search-forward "Loading mentions..." nil t)
+          (when (search-forward "Loading notifications..." nil t)
             (beginning-of-line)
             (let ((line-start (point)))
               (forward-line 1)
@@ -192,7 +320,7 @@
           ;; Show configuration message
           (goto-char (point-max))
           (org-social-ui--insert-formatted-text "Relay not configured.\n" nil "#ff6600")
-          (org-social-ui--insert-formatted-text "To receive mentions and replies, configure both:\n" nil "#666666")
+          (org-social-ui--insert-formatted-text "To receive notifications, configure both:\n" nil "#666666")
           (org-social-ui--insert-formatted-text "- org-social-relay (relay server URL)\n" nil "#666666")
           (org-social-ui--insert-formatted-text "- org-social-my-public-url (your public social.org URL)\n" nil "#666666")
           (setq buffer-read-only t))))))

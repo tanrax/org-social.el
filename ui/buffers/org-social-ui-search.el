@@ -277,7 +277,7 @@ QUERY is the search query used."
              org-social-ui--search-current-query)
     (setq org-social-ui--search-loading t)
     (setq org-social-ui--search-current-page (1+ org-social-ui--search-current-page))
-    (let ((buffer-name (buffer-name)))
+    (let ((buffer-name "*Org Social Search Results*"))
       ;; Remove "Show more" button
       (let ((inhibit-read-only t))
         (goto-char (point-max))
@@ -381,7 +381,6 @@ META contains pagination metadata."
 
                      ;; Move cursor to first new post
                      (goto-char new-posts-start)
-                     (org-social-ui--goto-previous-post)
 
                      (message "Loaded %d more result%s"
                               (length posts-to-display)
