@@ -339,36 +339,28 @@ Reactions are posts with reply_to, mood, and empty/short text."
         (require 'org-social-feed)
         (require 'org-social-file)
 
-        ;; Check if we already have feeds loaded
-        (if (and (boundp 'org-social-variables--feeds)
-                 org-social-variables--feeds
-                 (> (length org-social-variables--feeds) 0))
-            ;; We have feeds, display them
-            (progn
-              (let ((timeline (when (fboundp 'org-social-feed--get-timeline)
-                                (org-social-feed--get-timeline))))
-                (org-social-ui--check-replies-and-display-timeline timeline)))
-          ;; No feeds loaded yet, start the loading process
-          (progn
-            ;; Load my profile first to get followers list
-            (when (fboundp 'org-social-file--read-my-profile)
-              (org-social-file--read-my-profile))
+        ;; Clear cache to force fresh download
+        (setq org-social-variables--feeds nil)
+        (setq org-social-variables--queue nil)
+        (message "Cache cleared, loading fresh data from relay...")
 
-            ;; Initialize feeds from relay if available, otherwise from local followers
-            (if (and (boundp 'org-social-relay)
-                     org-social-relay
-                     (not (string-empty-p org-social-relay))
-                     (fboundp 'org-social-feed--initialize-queue-from-relay))
-                (progn
-                  (org-social-feed--initialize-queue-from-relay))
-              (progn
-                ;; Initialize queue from local followers
-                (when (fboundp 'org-social-feed--initialize-queue)
-                  (org-social-feed--initialize-queue)
-                  (org-social-feed--process-queue))))
+        ;; Load my profile first to get followers list
+        (when (fboundp 'org-social-file--read-my-profile)
+          (org-social-file--read-my-profile))
 
-            ;; Show message and set up timer to check for loaded feeds
-            (org-social-ui--setup-timeline-refresh-timer))))
+        ;; Initialize feeds from relay if available, otherwise from local followers
+        (if (and (boundp 'org-social-relay)
+                 org-social-relay
+                 (not (string-empty-p org-social-relay))
+                 (fboundp 'org-social-feed--initialize-queue-from-relay))
+            (org-social-feed--initialize-queue-from-relay)
+          ;; Initialize queue from local followers
+          (when (fboundp 'org-social-feed--initialize-queue)
+            (org-social-feed--initialize-queue)
+            (org-social-feed--process-queue)))
+
+        ;; Show message and set up timer to check for loaded feeds
+        (org-social-ui--setup-timeline-refresh-timer))
     (error
      (with-current-buffer org-social-ui--timeline-buffer-name
        (let ((inhibit-read-only t))

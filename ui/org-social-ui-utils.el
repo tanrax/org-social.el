@@ -605,11 +605,15 @@ Returns t if button was found and pressed, nil otherwise."
 (defun org-social-ui--refresh ()
   "Refresh current screen."
   (interactive)
+  ;; Clear cache to force fresh download
+  (setq org-social-variables--feeds nil)
+  (setq org-social-variables--queue nil)
   ;; Reset pagination state
   (setq org-social-ui--current-page 1
         org-social-ui--timeline-current-list nil)
   (when org-social-ui--timeline-widget-loading-more
     (setq org-social-ui--timeline-widget-loading-more nil))
+  (message "Cache cleared, refreshing...")
   (cond
    ((eq org-social-ui--current-screen 'timeline)
     (org-social-ui-timeline))

@@ -22,6 +22,7 @@
 (declare-function org-social-parser--get-my-profile "org-social-parser" ())
 (declare-function org-social-ui-timeline "org-social-ui-timeline" ())
 (declare-function org-social-ui-notifications "org-social-ui-notifications" ())
+(declare-function org-social-ui-search "org-social-ui-search" ())
 (declare-function org-social-feed--get-post "org-social-feed" (post-url callback))
 (declare-function org-social-ui--filter-reactions "org-social-ui-timeline" (timeline))
 (declare-function org-social-file--new-post "org-social-file" (&optional author-url timestamp))
@@ -49,6 +50,13 @@
                  :notify (lambda (&rest _) (org-social-ui-groups))
                  :help-echo "View groups"
                  " 👥 Groups ")
+
+  (org-social-ui--insert-formatted-text " ")
+
+  (widget-create 'push-button
+                 :notify (lambda (&rest _) (org-social-ui-search))
+                 :help-echo "Search posts"
+                 " 🔍 Search ")
 
   (org-social-ui--insert-formatted-text "\n\n")
 

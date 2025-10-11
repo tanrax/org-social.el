@@ -154,8 +154,10 @@ Call CALLBACK with the list of feed URLs."
 
 (defun org-social-relay--fetch-notifications (callback &optional type)
   "Fetch notifications for the user's feed from the relay server.
-Call CALLBACK with the list of notification objects (mentions, reactions, replies).
-Optional TYPE filters by notification type: \\='mention, \\='reaction, or \\='reply."
+Call CALLBACK with the list of notification objects
+\(mentions, reactions, replies).
+Optional TYPE filters by notification type:
+\\='mention, \\='reaction, or \\='reply."
   (when (and org-social-relay
              org-social-my-public-url
              (not (string-empty-p org-social-relay))
@@ -424,8 +426,8 @@ METHOD is the HTTP method to use (e.g., \\='GET\\=')."
                                                 (if (string= response-type "Success")
                                                     ;; Extract name and href from _links.groups
                                                     (let* ((groups-array (if (vectorp groups-links)
-                                                                            (append groups-links nil)
-                                                                          groups-links))
+                                                                             (append groups-links nil)
+                                                                           groups-links))
                                                            (groups-list
                                                             (mapcar (lambda (group-obj)
                                                                       (let ((name (cdr (assoc 'name group-obj)))
@@ -464,36 +466,36 @@ Call CALLBACK with the list of group posts."
              (not (string-empty-p org-social-relay)))
     (let ((relay-url (string-trim-right org-social-relay "/")))
       (request (concat relay-url group-href)
-                            :type group-method
-                            :timeout 15
-                            :success (cl-function
-                                      (lambda (&key data &allow-other-keys)
-                                        (condition-case err
-                                            (if (and data (stringp data) (not (string-empty-p data)))
-                                                (let* ((response (json-read-from-string data))
-                                                       (response-type (cdr (assoc 'type response)))
-                                                       (posts-data (cdr (assoc 'data response))))
-                                                  (if (string= response-type "Success")
-                                                      (let ((posts-list (if (vectorp posts-data)
-                                                                            (append posts-data nil)
-                                                                          posts-data)))
-                                                        (funcall callback posts-list))
-                                                    (progn
-                                                      (message "Relay returned error response: %s" response-type)
-                                                      (funcall callback nil))))
-                                              (progn
-                                                (message "Received empty, nil, or non-string response from relay: %S" data)
-                                                (funcall callback nil)))
-                                          (error
-                                           (message "Failed to parse relay group posts response: %s (data: %S)" (error-message-string err) data)
-                                           (funcall callback nil)))))
-                            :error (cl-function
-                                    (lambda (&key error-thrown &allow-other-keys)
-                                      (message "Failed to fetch group posts from relay: %s"
-                                               (if error-thrown
-                                                   (error-message-string error-thrown)
-                                                 "Unknown error"))
-                                      (funcall callback nil)))))))
+               :type group-method
+               :timeout 15
+               :success (cl-function
+                         (lambda (&key data &allow-other-keys)
+                           (condition-case err
+                               (if (and data (stringp data) (not (string-empty-p data)))
+                                   (let* ((response (json-read-from-string data))
+                                          (response-type (cdr (assoc 'type response)))
+                                          (posts-data (cdr (assoc 'data response))))
+                                     (if (string= response-type "Success")
+                                         (let ((posts-list (if (vectorp posts-data)
+                                                               (append posts-data nil)
+                                                             posts-data)))
+                                           (funcall callback posts-list))
+                                       (progn
+                                         (message "Relay returned error response: %s" response-type)
+                                         (funcall callback nil))))
+                                 (progn
+                                   (message "Received empty, nil, or non-string response from relay: %S" data)
+                                   (funcall callback nil)))
+                             (error
+                              (message "Failed to parse relay group posts response: %s (data: %S)" (error-message-string err) data)
+                              (funcall callback nil)))))
+               :error (cl-function
+                       (lambda (&key error-thrown &allow-other-keys)
+                         (message "Failed to fetch group posts from relay: %s"
+                                  (if error-thrown
+                                      (error-message-string error-thrown)
+                                    "Unknown error"))
+                         (funcall callback nil)))))))
 
 (defun org-social-relay--fetch-polls (callback)
   "Fetch polls from the relay server.
@@ -706,44 +708,44 @@ Call CALLBACK with an alist containing \\='posts and \\='members keys."
              (not (string-empty-p org-social-relay)))
     (let ((relay-url (string-trim-right org-social-relay "/")))
       (request (concat relay-url group-href)
-                            :type group-method
-                            :timeout 15
-                            :success (cl-function
-                                      (lambda (&key data &allow-other-keys)
-                                        (condition-case err
-                                            (if (and data (stringp data) (not (string-empty-p data)))
-                                                (let* ((response (json-read-from-string data))
-                                                       (response-type (cdr (assoc 'type response)))
-                                                       (posts-data (cdr (assoc 'data response)))
-                                                       (meta-data (cdr (assoc 'meta response))))
-                                                  (if (string= response-type "Success")
-                                                      (let ((posts-list (if (vectorp posts-data)
-                                                                            (append posts-data nil)
-                                                                          posts-data))
-                                                            (members-list (if meta-data
-                                                                              (let ((members (cdr (assoc 'members meta-data))))
-                                                                                (if (vectorp members)
-                                                                                    (append members nil)
-                                                                                  members))
-                                                                            '())))
-                                                        (funcall callback `((posts . ,posts-list)
-                                                                           (members . ,members-list))))
-                                                    (progn
-                                                      (message "Relay returned error response: %s" response-type)
-                                                      (funcall callback nil))))
-                                              (progn
-                                                (message "Received empty, nil, or non-string response from relay: %S" data)
-                                                (funcall callback nil)))
-                                          (error
-                                           (message "Failed to parse relay group details response: %s (data: %S)" (error-message-string err) data)
-                                           (funcall callback nil)))))
-                            :error (cl-function
-                                    (lambda (&key error-thrown &allow-other-keys)
-                                      (message "Failed to fetch group details from relay: %s"
-                                               (if error-thrown
-                                                   (error-message-string error-thrown)
-                                                 "Unknown error"))
-                                      (funcall callback nil)))))))
+               :type group-method
+               :timeout 15
+               :success (cl-function
+                         (lambda (&key data &allow-other-keys)
+                           (condition-case err
+                               (if (and data (stringp data) (not (string-empty-p data)))
+                                   (let* ((response (json-read-from-string data))
+                                          (response-type (cdr (assoc 'type response)))
+                                          (posts-data (cdr (assoc 'data response)))
+                                          (meta-data (cdr (assoc 'meta response))))
+                                     (if (string= response-type "Success")
+                                         (let ((posts-list (if (vectorp posts-data)
+                                                               (append posts-data nil)
+                                                             posts-data))
+                                               (members-list (if meta-data
+                                                                 (let ((members (cdr (assoc 'members meta-data))))
+                                                                   (if (vectorp members)
+                                                                       (append members nil)
+                                                                     members))
+                                                               '())))
+                                           (funcall callback `((posts . ,posts-list)
+                                                               (members . ,members-list))))
+                                       (progn
+                                         (message "Relay returned error response: %s" response-type)
+                                         (funcall callback nil))))
+                                 (progn
+                                   (message "Received empty, nil, or non-string response from relay: %S" data)
+                                   (funcall callback nil)))
+                             (error
+                              (message "Failed to parse relay group details response: %s (data: %S)" (error-message-string err) data)
+                              (funcall callback nil)))))
+               :error (cl-function
+                       (lambda (&key error-thrown &allow-other-keys)
+                         (message "Failed to fetch group details from relay: %s"
+                                  (if error-thrown
+                                      (error-message-string error-thrown)
+                                    "Unknown error"))
+                         (funcall callback nil)))))))
 
 (provide 'org-social-relay)
 ;;; org-social-relay.el ends here

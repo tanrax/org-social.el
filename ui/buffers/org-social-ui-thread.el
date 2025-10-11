@@ -19,6 +19,9 @@
 (declare-function org-social-relay--fetch-replies "org-social-relay" (post-url callback))
 (declare-function org-social-feed--get-post "org-social-feed" (post-url callback))
 (declare-function org-social-ui-timeline "org-social-ui-timeline" ())
+(declare-function org-social-ui-notifications "org-social-ui-notifications" ())
+(declare-function org-social-ui-groups "org-social-ui-groups" ())
+(declare-function org-social-ui-search "org-social-ui-search" ())
 (declare-function org-social-parser--get-posts-from-feed "org-social-parser" (feed))
 (declare-function org-social-parser--get-value "org-social-parser" (feed key))
 (declare-function request "request" (url &rest args))
@@ -60,6 +63,35 @@
 
       ;; Insert header with parent button if needed
       (org-social-ui--insert-logo)
+
+      ;; Navigation buttons
+      (widget-create 'push-button
+                     :notify (lambda (&rest _) (org-social-ui-timeline))
+                     :help-echo "View timeline"
+                     " 📰 Timeline ")
+
+      (org-social-ui--insert-formatted-text " ")
+
+      (widget-create 'push-button
+                     :notify (lambda (&rest _) (org-social-ui-notifications))
+                     :help-echo "View notifications"
+                     " 🔔 Notifications ")
+
+      (org-social-ui--insert-formatted-text " ")
+
+      (widget-create 'push-button
+                     :notify (lambda (&rest _) (org-social-ui-groups))
+                     :help-echo "View groups"
+                     " 👥 Groups ")
+
+      (org-social-ui--insert-formatted-text " ")
+
+      (widget-create 'push-button
+                     :notify (lambda (&rest _) (org-social-ui-search))
+                     :help-echo "Search posts"
+                     " 🔍 Search ")
+
+      (org-social-ui--insert-formatted-text "\n\n")
 
       ;; Back button
       (widget-create 'push-button
