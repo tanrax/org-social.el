@@ -106,6 +106,8 @@
         (remove-overlays)
         (org-social-ui--insert-logo)
         (org-social-ui--insert-formatted-text "Searching...\n" nil "#4a90e2")
+        ;; Set current screen to search BEFORE setup
+        (setq org-social-ui--current-screen 'search)
         (org-social-ui--setup-centered-buffer)
         ;; Initialize pagination variables
         (setq org-social-ui--search-current-query query)
@@ -169,8 +171,8 @@ QUERY is the search query used."
                                :help-echo "Start a new search"
                                " 🔄 New Search ")
 
-                ;; Set up buffer with org-social-ui-mode
-                (org-social-ui--setup-centered-buffer)
+                ;; Don't call setup again, just finalize
+                (widget-setup)
                 (setq buffer-read-only t)
                 (goto-char (point-min))))
 
@@ -238,10 +240,9 @@ QUERY is the search query used."
                                       " Show more ")
                        (org-social-ui--insert-formatted-text "\n"))
 
-                     ;; Set up buffer with org-social-ui-mode (like groups)
-                     (org-social-ui--setup-centered-buffer)
-                     (setq buffer-read-only t)
+                     ;; Don't call setup again, just finalize widgets
                      (widget-setup)
+                     (setq buffer-read-only t)
                      (goto-char (point-min))))))))))
 
     ;; No posts data - recreate buffer
@@ -264,8 +265,8 @@ QUERY is the search query used."
                        :help-echo "Start a new search"
                        " 🔄 New Search ")
 
-        ;; Set up buffer with org-social-ui-mode
-        (org-social-ui--setup-centered-buffer)
+        ;; Don't call setup again, just finalize
+        (widget-setup)
         (setq buffer-read-only t)
         (goto-char (point-min))))))
 
