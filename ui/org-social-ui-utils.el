@@ -114,6 +114,42 @@ Replaces *** and deeper headings with visual markers."
 
 ;;; Image Functions
 
+(defun org-social-ui--open-image-in-buffer (url)
+  "Open image from URL in a new buffer at full size."
+  (interactive)
+  (when (and url (stringp url))
+    ;; Ensure image is cached
+    (unless (org-social-ui--cache-image-p url)
+      (org-social-ui--cache-image url))
+    ;; Get image file path
+    (let ((image-file (expand-file-name
+                       (base64-encode-string url :no-line-break)
+                       org-social-image-cache-directory)))
+      (when (file-exists-p image-file)
+        ;; Create new buffer for image
+        (let* ((buffer-name (format "*Image: %s*" (file-name-nondirectory url)))
+               (buffer (get-buffer-create buffer-name)))
+          (with-current-buffer buffer
+            (let ((inhibit-read-only t))
+              (erase-buffer)
+              ;; Insert image at full size
+              (condition-case err-msg
+                  (progn
+                    (insert-image (create-image image-file nil nil :max-width (window-pixel-width) :max-height (window-pixel-height)))
+                    (insert "\n\n")
+                    (insert (propertize (format "URL: %s\n" url) 'face '(:foreground "#666666")))
+                    (insert (propertize "Press 'q' to close this buffer" 'face '(:foreground "#888888"))))
+                (error
+                 (insert (format "Error displaying image: %s\n" (error-message-string err-msg)))
+                 (insert (format "URL: %s\n" url))))
+              ;; Setup buffer
+              (setq buffer-read-only t)
+              (local-set-key (kbd "q") 'kill-current-buffer)
+              (local-set-key (kbd "Q") 'kill-current-buffer)
+              (goto-char (point-min))))
+          ;; Switch to the image buffer
+          (switch-to-buffer buffer))))))
+
 (defun org-social-ui--image-p (text)
   "Check if TEXT contain an image URL."
   (and text (stringp text) (string-match-p org-social-ui--regex-image text)))
@@ -232,27 +268,74 @@ Optional CALLBACK is called with success status when download completes."
                (desc (match-string 2))
                (display-text (or desc url))
                (link-start (match-beginning 0))
-               (link-end (match-end 0)))
-          ;; Replace the entire link syntax with just the display text
-          (delete-region link-start link-end)
-          (goto-char link-start)
-          (insert display-text)
-          ;; Create overlay for the display text with click functionality
-          (let ((overlay (make-overlay link-start (+ link-start (length display-text))))
-                (keymap (make-sparse-keymap)))
-            ;; Setup keymap for clicking
-            (define-key keymap (kbd "RET") `(lambda () (interactive) (eww ,url)))
-            (define-key keymap (kbd "<mouse-1>") `(lambda () (interactive) (eww ,url)))
-            (define-key keymap (kbd "<mouse-2>") `(lambda () (interactive) (eww ,url)))
-            ;; Apply properties to overlay
-            (overlay-put overlay 'face 'org-link)
-            (overlay-put overlay 'mouse-face 'highlight)
-            (overlay-put overlay 'priority 100)
-            (overlay-put overlay 'org-social-overlay t)
-            (overlay-put overlay 'keymap keymap)
-            (overlay-put overlay 'help-echo (format "Visit: %s" url))
-            ;; Store URL for reference
-            (overlay-put overlay 'org-social-url url))))
+               (link-end (match-end 0))
+               (is-image (string-match-p org-social-ui--regex-image url)))
+          ;; Check if URL is an image
+          (if is-image
+              ;; Handle image link
+              (progn
+                ;; Delete the link syntax
+                (delete-region link-start link-end)
+                (goto-char link-start)
+                ;; Insert newline before image for better spacing
+                (insert "\n")
+                ;; Try to display the image inline
+                (let ((image-start (point)))
+                  (condition-case nil
+                      (progn
+                        ;; Use existing cache function to download and display image
+                        (org-social-ui--put-image-from-cache url nil 400)
+                        ;; Add newline after image
+                        (insert "\n")
+                        ;; Create overlay on the image for click functionality
+                        (let ((image-overlay (make-overlay image-start (point)))
+                              (keymap (make-sparse-keymap)))
+                          ;; Setup keymap for clicking on image
+                          (define-key keymap (kbd "RET") `(lambda () (interactive) (org-social-ui--open-image-in-buffer ,url)))
+                          (define-key keymap (kbd "<mouse-1>") `(lambda () (interactive) (org-social-ui--open-image-in-buffer ,url)))
+                          (define-key keymap (kbd "<mouse-2>") `(lambda () (interactive) (org-social-ui--open-image-in-buffer ,url)))
+                          (overlay-put image-overlay 'keymap keymap)
+                          (overlay-put image-overlay 'mouse-face 'highlight)
+                          (overlay-put image-overlay 'priority 100)
+                          (overlay-put image-overlay 'org-social-overlay t)
+                          (overlay-put image-overlay 'help-echo "Click to open image in full size")))
+                    (error
+                     ;; If image fails to load, show fallback text
+                     (goto-char image-start)
+                     (insert (format "🖼️ [Image: %s]\n" (or desc url)))
+                     (let ((fallback-overlay (make-overlay image-start (point)))
+                           (keymap (make-sparse-keymap)))
+                       (define-key keymap (kbd "RET") `(lambda () (interactive) (eww ,url)))
+                       (define-key keymap (kbd "<mouse-1>") `(lambda () (interactive) (eww ,url)))
+                       (overlay-put fallback-overlay 'face 'org-link)
+                       (overlay-put fallback-overlay 'mouse-face 'highlight)
+                       (overlay-put fallback-overlay 'priority 100)
+                       (overlay-put fallback-overlay 'org-social-overlay t)
+                       (overlay-put fallback-overlay 'keymap keymap)
+                       (overlay-put fallback-overlay 'help-echo (format "Visit: %s" url))
+                       (overlay-put fallback-overlay 'org-social-url url))))))
+            ;; Handle regular link (not an image)
+            (progn
+              ;; Replace the entire link syntax with just the display text
+              (delete-region link-start link-end)
+              (goto-char link-start)
+              (insert display-text)
+              ;; Create overlay for the display text with click functionality
+              (let ((overlay (make-overlay link-start (+ link-start (length display-text))))
+                    (keymap (make-sparse-keymap)))
+                ;; Setup keymap for clicking
+                (define-key keymap (kbd "RET") `(lambda () (interactive) (eww ,url)))
+                (define-key keymap (kbd "<mouse-1>") `(lambda () (interactive) (eww ,url)))
+                (define-key keymap (kbd "<mouse-2>") `(lambda () (interactive) (eww ,url)))
+                ;; Apply properties to overlay
+                (overlay-put overlay 'face 'org-link)
+                (overlay-put overlay 'mouse-face 'highlight)
+                (overlay-put overlay 'priority 100)
+                (overlay-put overlay 'org-social-overlay t)
+                (overlay-put overlay 'keymap keymap)
+                (overlay-put overlay 'help-echo (format "Visit: %s" url))
+                ;; Store URL for reference
+                (overlay-put overlay 'org-social-url url))))))
 
       ;; Hashtags: No longer needed - now handled by org-social-ui--insert-formatted-text
       ;; (Hashtag coloring moved to use same technique as name/date/client)

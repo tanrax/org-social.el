@@ -57,6 +57,7 @@
 (declare-function org-social-feed--initialize-queue-from-relay "org-social-feed" ())
 (declare-function org-social-feed--get-timeline "org-social-feed" ())
 (declare-function org-social-file--read-my-profile "org-social-file" ())
+(declare-function org-social-raw-timeline "org-social-raw" ())
 
 ;; Variables from org-social-variables
 (defvar org-social-file)
@@ -133,7 +134,13 @@ TIMESTAMP should be in RFC 3339 format or a time value."
     (condition-case nil
         (require 'org-social-ui)
       (error
-       (message "Warning: Could not load org-social-ui module")))))
+       (message "Warning: Could not load org-social-ui module")))
+
+    ;; Load raw timeline module
+    (condition-case nil
+        (require 'org-social-raw)
+      (error
+       (message "Warning: Could not load org-social-raw module")))))
 
 ;;;###autoload
 (defun org-social-open-file ()
@@ -164,7 +171,9 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
   "Display timeline in raw Org mode format following Org Social specification."
   (interactive)
   (org-social--ensure-loaded)
-  (org-social--timeline-raw))
+  (unless (fboundp 'org-social-raw-timeline)
+    (error "Raw timeline functionality not available.  Check if org-social-raw module loaded correctly"))
+  (org-social-raw-timeline))
 
 ;;;###autoload
 (defun org-social-setup ()
@@ -282,147 +291,6 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
     (if (fboundp 'org-social-ui-groups)
         (org-social-ui-groups)
       (error "Groups UI not available.  Please check if org-social-ui module is loaded correctly"))))
-
-(defun org-social--timeline-raw ()
-  "Display timeline in raw Org mode format following Org Social specification.
-Creates a buffer with all timeline posts formatted according to the Org Social
-specification with proper metadata and structure."
-  (let ((buffer-name "*Org Social Timeline (Raw)*")
-        (timeline-data nil))
-
-    ;; Get timeline data
-    (condition-case err
-        (progn
-          ;; Ensure required modules are loaded
-          (require 'org-social-feed)
-          (require 'org-social-file)
-
-          ;; Initialize feeds if needed
-          (unless (and (boundp 'org-social-variables--feeds)
-                       org-social-variables--feeds
-                       (> (length org-social-variables--feeds) 0))
-            ;; Load my profile first
-            (when (fboundp 'org-social-file--read-my-profile)
-              (org-social-file--read-my-profile))
-
-            ;; Initialize feeds from relay if available, otherwise from local followers
-            (if (and (boundp 'org-social-relay)
-                     org-social-relay
-                     (not (string-empty-p org-social-relay))
-                     (fboundp 'org-social-feed--initialize-queue-from-relay))
-                (progn
-                  (message "Loading feeds from relay...")
-                  (org-social-feed--initialize-queue-from-relay))
-              (when (fboundp 'org-social-feed--initialize-queue)
-                (message "Loading feeds from local followers...")
-                (org-social-feed--initialize-queue)
-                (org-social-feed--process-queue))))
-
-          ;; Get timeline
-          (setq timeline-data (when (fboundp 'org-social-feed--get-timeline)
-                                (org-social-feed--get-timeline))))
-      (error
-       (message "Error loading timeline data: %s" (error-message-string err))))
-
-    ;; Create and populate buffer
-    (with-current-buffer (get-buffer-create buffer-name)
-      (erase-buffer)
-      (org-mode)
-
-      ;; Insert Org Social compliant header
-      (insert "#+TITLE: Timeline (Raw Format)\n")
-      (insert "#+NICK: timeline\n")
-      (insert "#+DESCRIPTION: Timeline in raw Org Social format\n")
-      (insert "\n")
-
-      ;; Insert explanation as comment
-      (insert "# This buffer shows your timeline in raw Org Social format.\n")
-      (insert "# Each post follows the Org Social specification with proper metadata.\n")
-      (insert "\n")
-
-      ;; Start Posts section (mandatory in Org Social format)
-      (insert "* Posts\n")
-
-      (if (and timeline-data (> (length timeline-data) 0))
-          (progn
-            ;; Add comment about number of posts
-            (insert (format "# Found %d posts from timeline\n" (length timeline-data)))
-            ;; Render each post
-            (dolist (post timeline-data)
-              (org-social--render-post-raw post)))
-        (insert "# No posts available. Timeline may still be loading.\n")
-        (insert "# Try running this command again in a few seconds.\n"))
-
-      ;; Setup buffer
-      (goto-char (point-min))
-      (display-buffer (current-buffer))
-      (message "Timeline raw format displayed in %s" buffer-name))))
-
-(defun org-social--render-post-raw (post)
-  "Render a single POST in raw Org Social format following the specification."
-  (when post
-    (let* ((author-nick (or (alist-get 'author-nick post) "Unknown"))
-           (author-url (alist-get 'author-url post))
-           (timestamp (alist-get 'timestamp post))
-           (id (or (alist-get 'id post) timestamp)) ; Use ID if available, fallback to timestamp
-           (content (alist-get 'content post))
-           (tags (alist-get 'tags post))
-           (client (alist-get 'client post))
-           (mood (alist-get 'mood post))
-           (lang (alist-get 'lang post))
-           (poll-end (alist-get 'poll-end post))
-           (reply-to (alist-get 'reply-to post))
-           (group (alist-get 'group post))
-           (poll-option (alist-get 'poll-option post)))
-
-      ;; Insert post header (level 2 headline)
-      (insert "**\n")
-
-      ;; Insert properties block
-      (insert ":PROPERTIES:\n")
-
-      ;; Required ID property (must be first)
-      (when id
-        (insert (format ":ID: %s\n" id)))
-
-      ;; Optional properties in logical order (following specification examples)
-      (when lang
-        (insert (format ":LANG: %s\n" lang)))
-
-      (when tags
-        (insert (format ":TAGS: %s\n" tags)))
-
-      (when client
-        (insert (format ":CLIENT: %s\n" client)))
-
-      (when mood
-        (insert (format ":MOOD: %s\n" mood)))
-
-      (when reply-to
-        (insert (format ":REPLY_TO: %s\n" reply-to)))
-
-      (when poll-end
-        (insert (format ":POLL_END: %s\n" poll-end)))
-
-      (when poll-option
-        (insert (format ":POLL_OPTION: %s\n" poll-option)))
-
-      (when group
-        (insert (format ":GROUP: %s\n" group)))
-
-      ;; Close properties block
-      (insert ":END:\n\n")
-
-      ;; Insert author information as a comment (for reference)
-      (insert (format "# Author: %s (%s)\n" author-nick (or author-url "Unknown URL")))
-
-      ;; Insert content (can be multiline, preserving formatting)
-      (when content
-        (let ((clean-content (string-trim content)))
-          (when (not (string-empty-p clean-content))
-            (insert (format "%s\n" clean-content)))))
-
-      (insert "\n"))))
 
 (provide 'org-social)
 ;;; org-social.el ends here

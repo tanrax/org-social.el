@@ -429,11 +429,11 @@ Optional SUGGESTION provides a hint to fix the error."
         (goto-char posts-start)
         (let ((tree (org-element-parse-buffer)))
           (org-element-map tree 'headline
-            (lambda (hl)
-              (when (and (= (org-element-property :level hl) 2)
-                         (> (org-element-property :begin hl) posts-start))
-                (let ((post (org-social-validator--parse-post hl)))
-                  (push post posts))))))))
+			   (lambda (hl)
+			     (when (and (= (org-element-property :level hl) 2)
+					(> (org-element-property :begin hl) posts-start))
+			       (let ((post (org-social-validator--parse-post hl)))
+				 (push post posts))))))))
 
     (nreverse posts)))
 

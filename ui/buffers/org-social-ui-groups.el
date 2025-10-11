@@ -136,7 +136,7 @@ Fetches posts from relay and displays them like timeline."
 
     ;; Set group context for posting
     (setq org-social-ui--current-group-context `((name . ,group-name)
-                                                  (relay-url . ,relay-url)))
+                                                 (relay-url . ,relay-url)))
     (setq org-social-ui--current-screen 'group-posts)
 
     ;; Disable read-only mode before modifying buffer
@@ -259,7 +259,7 @@ RELAY-GROUPS is a list of alists with \\='name, \\='href, and \\='method from th
                        (sort groups-with-data
                              (lambda (a b)
                                (string< (alist-get 'name a)
-                                       (alist-get 'name b)))))
+					(alist-get 'name b)))))
 
                  ;; Display groups
                  (goto-char (point-max))
@@ -420,18 +420,18 @@ BUFFER-NAME is the target buffer for display."
                      (goto-char (point-min))
                      (message "Loaded %d posts for group %s" (length posts-to-display) group-name)))))))))) ;; Close inner if and outer let
 
-    ;; No posts data
-    (with-current-buffer buffer-name
-      (let ((inhibit-read-only t))
-        (goto-char (point-max))
-        (when (search-backward "Loading group posts..." nil t)
-          (beginning-of-line)
-          (let ((line-start (point)))
-            (forward-line 1)
-            (delete-region line-start (point))))
-        (goto-char (point-max))
-        (org-social-ui--insert-formatted-text "No posts found in this group.\n" nil "#666666")
-        (setq buffer-read-only t))))
+  ;; No posts data
+  (with-current-buffer buffer-name
+    (let ((inhibit-read-only t))
+      (goto-char (point-max))
+      (when (search-backward "Loading group posts..." nil t)
+        (beginning-of-line)
+        (let ((line-start (point)))
+          (forward-line 1)
+          (delete-region line-start (point))))
+      (goto-char (point-max))
+      (org-social-ui--insert-formatted-text "No posts found in this group.\n" nil "#666666")
+      (setq buffer-read-only t))))
 
 (defun org-social-ui--refresh-all-overlays ()
   "Refresh all `org-mode' syntax overlays in the current buffer."

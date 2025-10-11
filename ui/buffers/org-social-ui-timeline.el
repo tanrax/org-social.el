@@ -26,8 +26,8 @@ Reactions are posts with reply_to, mood, and empty/short text."
            (reply-to (alist-get 'reply_to post)))
        ;; Exclude reactions: posts with reply_to + mood + short text
        (not (and reply-to
-                mood
-                (< (length (string-trim text)) 5)))))
+                 mood
+                 (< (length (string-trim text)) 5)))))
    timeline))
 
 ;; Forward declarations
