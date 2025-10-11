@@ -24,6 +24,10 @@
 (declare-function org-social-ui-notifications "org-social-ui-notifications" ())
 (declare-function org-social-ui-groups "org-social-ui-groups" ())
 (declare-function org-social-ui-search "org-social-ui-search" ())
+(declare-function org-social-parser--get-posts-from-feed "org-social-parser" (feed))
+(declare-function org-social-parser--get-value "org-social-parser" (feed key))
+(declare-function org-social-ui-thread "org-social-ui-thread" (post-url))
+(declare-function org-social-ui--post-component "org-social-ui-components" (post &optional full-timeline))
 
 ;; Thread tracking variables (defined in org-social-ui-thread.el)
 (defvar org-social-ui--thread-stack)
@@ -728,6 +732,112 @@ Returns t if button was found and pressed, nil otherwise."
 
 ;;; Thread Helper Functions
 
+(defun org-social-ui--fetch-post-sync (post-url)
+  "Fetch post data for POST-URL synchronously.
+Returns post data alist or nil if failed."
+  (require 'org-social-feed)
+  (when (and post-url (stringp post-url))
+    (if (string-match "\\(.*\\)#\\(.+\\)$" post-url)
+        (let* ((feed-url (match-string 1 post-url))
+               (post-id (match-string 2 post-url))
+               (buffer (condition-case nil
+                           (url-retrieve-synchronously feed-url t nil 10)
+                         (error nil))))
+          (when buffer
+            (with-current-buffer buffer
+              (set-buffer-multibyte t)
+              (goto-char (point-min))
+              (when (re-search-forward "\n\n" nil t)
+                (let* ((feed-data (decode-coding-string
+                                   (buffer-substring-no-properties (point) (point-max))
+                                   'utf-8))
+                       (posts (org-social-parser--get-posts-from-feed feed-data))
+                       (target-post (cl-find-if
+                                     (lambda (post)
+                                       (let ((timestamp (or (alist-get 'timestamp post)
+                                                            (alist-get 'id post))))
+                                         (and timestamp (string= timestamp post-id))))
+                                     posts)))
+                  (kill-buffer buffer)
+                  (when target-post
+                    (append target-post
+                            `((author-url . ,feed-url)
+                              (author-nick . ,(or (org-social-parser--get-value feed-data "NICK") "Unknown"))
+                              (feed-avatar . ,(org-social-parser--get-value feed-data "AVATAR"))))))))))
+      nil)))
+
+(defun org-social-ui--fetch-replies-sync (post-url)
+  "Fetch replies for POST-URL from relay synchronously.
+Returns list of reply structures from relay data, or nil if failed."
+  (require 'org-social-relay)
+  (require 'json)
+  (when (and org-social-relay
+             (not (string-empty-p org-social-relay)))
+    (let* ((relay-url (string-trim-right org-social-relay "/"))
+           (encoded-url (url-hexify-string post-url))
+           (url (format "%s/replies/?post=%s" relay-url encoded-url))
+           (buffer (condition-case nil
+                       (url-retrieve-synchronously url t nil 10)
+                     (error nil))))
+      (when buffer
+        (with-current-buffer buffer
+          (set-buffer-multibyte t)
+          (goto-char (point-min))
+          (when (re-search-forward "\n\n" nil t)
+            (let* ((json-data (decode-coding-string
+                               (buffer-substring-no-properties (point) (point-max))
+                               'utf-8))
+                   (response (condition-case nil
+                                 (json-read-from-string json-data)
+                               (error nil)))
+                   (response-type (when response (cdr (assoc 'type response))))
+                   (replies-data (when response (cdr (assoc 'data response)))))
+              (kill-buffer buffer)
+              (when (and response-type (string= response-type "Success") replies-data)
+                (if (vectorp replies-data)
+                    (append replies-data nil)
+                  replies-data)))))))))
+
+(defun org-social-ui--display-thread-tree (replies-tree)
+  "Display REPLIES-TREE structure from relay.
+Each element in REPLIES-TREE is an alist with \\='post and \\='children keys."
+  (dolist (reply-node replies-tree)
+    (let ((post-url (cdr (assoc 'post reply-node)))
+          (children (cdr (assoc 'children reply-node))))
+      ;; Fetch and display the reply post
+      (when post-url
+        (let ((post-data (org-social-ui--fetch-post-sync post-url)))
+          (when post-data
+            (org-social-ui--post-component post-data nil))))
+      ;; Recursively display children (if any)
+      (when (and children (> (length children) 0))
+        (org-social-ui--display-thread-tree (if (vectorp children)
+                                                (append children nil)
+                                              children))))))
+
+(defun org-social-ui--thread-go-back ()
+  "Go back to previous thread level or timeline and kill current buffer."
+  (interactive)
+  (let ((current-buffer (current-buffer)))
+    (if (> (length org-social-ui--thread-stack) 1)
+        (progn
+          ;; Remove current level from stack
+          (pop org-social-ui--thread-stack)
+          (setq org-social-ui--thread-level (length org-social-ui--thread-stack))
+          ;; Navigate to previous thread level (which is already in the stack)
+          (let ((parent-post-url (car org-social-ui--thread-stack)))
+            ;; Remove it temporarily to avoid duplicating when org-social-ui-thread pushes
+            (pop org-social-ui--thread-stack)
+            (setq org-social-ui--thread-level (length org-social-ui--thread-stack))
+            ;; Now navigate (this will push it back)
+            (org-social-ui-thread parent-post-url)))
+      ;; If at top level, go back to timeline and clear stack
+      (setq org-social-ui--thread-stack nil)
+      (setq org-social-ui--thread-level 0)
+      (org-social-ui-timeline))
+    ;; Always kill the buffer we came from
+    (when (buffer-live-p current-buffer)
+      (kill-buffer current-buffer))))
 
 (provide 'org-social-ui-utils)
 ;;; org-social-ui-utils.el ends here
