@@ -87,6 +87,9 @@ TIMESTAMP should be in RFC 3339 format or a time value."
   (unless (and (featurep 'org-social-variables)
                (featurep 'org-social-file))
     (add-to-list 'load-path org-social--root-dir)
+    ;; Add UI subdirectories to load-path
+    (add-to-list 'load-path (expand-file-name "ui" org-social--root-dir))
+    (add-to-list 'load-path (expand-file-name "ui/buffers" org-social--root-dir))
     ;; Load core modules (must succeed)
     (condition-case err
         (progn
