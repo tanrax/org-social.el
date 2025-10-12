@@ -69,9 +69,7 @@
   "Find or create the Posts section in the current buffer."
   (goto-char (point-min))
   (if (re-search-forward "^\\* Posts" nil t)
-      (progn
-        (end-of-line)
-        (point))
+      (line-end-position)
     ;; If Posts section doesn't exist, create it at the end
     (goto-char (point-max))
     (unless (bolp) (insert "\n"))
