@@ -9,7 +9,7 @@ An Emacs client for [Org Social](https://github.com/tanrax/org-social), a decent
 
 ## 🎯 Getting Started
 
-**Note:** The Relay server is required for org-social.el to work.
+**Note:** The Relay server is required for `org-social.el` to work.
 
 ### Required Configuration
 
