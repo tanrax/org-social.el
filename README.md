@@ -257,7 +257,7 @@ For example, to automatically upload your social file to a remote server after s
 ## 🔄 Workflow
 
 1. **Setup**: Configure `org-social-file` and create your social.org file
-2. **View timeline**: Use `M-x org-social-timeline` or `C-c s C-t`
+2. **View timeline**: Use `M-x org-social-timeline` or `C-c s t`
 3. **Navigate**: Use `n`/`p` to move between posts in the timeline
 4. **Reply**: Press `r` when positioned on a post to create a reply
 5. **Vote on polls**: Press `v` when positioned on a poll to vote
