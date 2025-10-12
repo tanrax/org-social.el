@@ -39,23 +39,24 @@
 
 (defun org-social-ui--format-org-headings (text)
   "Format `org-mode' headings in TEXT to be more visually appealing.
-Replaces *** and deeper headings with visual markers."
+Replaces *** and deeper headings with visual markers, promoting them
+to account for the structure of the social.org file."
   (let ((lines (split-string text "\n")))
     (mapconcat
      (lambda (line)
        (cond
-        ;; Level 6 heading: ****** → ▸▸▸▸▸▸
+        ;; Level 6 heading: ****** → ▸▸▸▸
         ((string-match "^\\(\\*\\{6,\\}\\) \\(.+\\)$" line)
-         (concat "▸▸▸▸▸▸ " (match-string 2 line)))
-        ;; Level 5 heading: ***** → ▸▸▸▸▸
-        ((string-match "^\\(\\*\\{5\\}\\) \\(.+\\)$" line)
-         (concat "▸▸▸▸▸ " (match-string 2 line)))
-        ;; Level 4 heading: **** → ▸▸▸▸
-        ((string-match "^\\(\\*\\{4\\}\\) \\(.+\\)$" line)
          (concat "▸▸▸▸ " (match-string 2 line)))
-        ;; Level 3 heading: *** → ▸▸▸
-        ((string-match "^\\(\\*\\{3\\}\\) \\(.+\\)$" line)
+        ;; Level 5 heading: ***** → ▸▸▸
+        ((string-match "^\\(\\*\\{5\\}\\) \\(.+\\)$" line)
          (concat "▸▸▸ " (match-string 2 line)))
+        ;; Level 4 heading: **** → ▸▸
+        ((string-match "^\\(\\*\\{4\\}\\) \\(.+\\)$" line)
+         (concat "▸▸ " (match-string 2 line)))
+        ;; Level 3 heading: *** → ▸
+        ((string-match "^\\(\\*\\{3\\}\\) \\(.+\\)$" line)
+         (concat "▸ " (match-string 2 line)))
         ;; Default: return line as is
         (t line)))
      lines
