@@ -17,34 +17,42 @@
 
 ;; Helper function to filter out reactions
 (defun org-social-ui--filter-reactions (timeline)
-  "Filter out reactions from TIMELINE.
-Reactions are posts with reply_to, mood, and empty/short text."
-  (seq-filter
-   (lambda (post)
-     (let ((text (or (alist-get 'text post) ""))
-           (mood (alist-get 'mood post))
-           (reply-to (alist-get 'reply_to post)))
-       ;; Exclude reactions: posts with reply_to + mood + short text
-       (not (and reply-to
-                 mood
-                 (< (length (string-trim text)) 5)))))
-   timeline))
-
-;; Helper function to filter out group posts (only for timeline)
-(defun org-social-ui--filter-timeline-posts (timeline)
-  "Filter out reactions and group posts from TIMELINE for timeline view.
-This combines reaction filtering with group filtering."
+  "Filter out reactions and poll votes from TIMELINE.
+Reactions are posts with reply_to, mood, and empty/short text.
+Poll votes are posts with poll_option property."
   (seq-filter
    (lambda (post)
      (let ((text (or (alist-get 'text post) ""))
            (mood (alist-get 'mood post))
            (reply-to (alist-get 'reply_to post))
-           (group (alist-get 'group post)))
+           (poll-option (alist-get 'poll_option post)))
        ;; Exclude reactions: posts with reply_to + mood + short text
+       ;; Exclude poll votes: posts with poll_option
+       (not (or (and reply-to
+                     mood
+                     (< (length (string-trim text)) 5))
+                poll-option))))
+   timeline))
+
+;; Helper function to filter out group posts (only for timeline)
+(defun org-social-ui--filter-timeline-posts (timeline)
+  "Filter out reactions, poll votes, and group posts from TIMELINE.
+This combines reaction filtering, poll vote filtering, and group filtering
+specifically for the timeline view."
+  (seq-filter
+   (lambda (post)
+     (let ((text (or (alist-get 'text post) ""))
+           (mood (alist-get 'mood post))
+           (reply-to (alist-get 'reply_to post))
+           (group (alist-get 'group post))
+           (poll-option (alist-get 'poll_option post)))
+       ;; Exclude reactions: posts with reply_to + mood + short text
+       ;; Exclude poll votes: posts with poll_option
        ;; Exclude group posts: posts with group property
        (not (or (and reply-to
                      mood
                      (< (length (string-trim text)) 5))
+                poll-option
                 group))))
    timeline))
 
