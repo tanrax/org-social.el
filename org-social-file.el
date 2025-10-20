@@ -79,10 +79,15 @@
 (defun org-social-file--insert-post-template (&optional reply-url reply-id)
   "Insert a new post template at the current position.
 If REPLY-URL and REPLY-ID are provided, create a reply post."
-  (let ((timestamp (org-social-parser--generate-timestamp)))
+  (let ((timestamp (org-social-parser--generate-timestamp))
+        (lang-value (if (and (boundp 'org-social-default-lang)
+                             org-social-default-lang
+                             (not (string-empty-p org-social-default-lang)))
+                        org-social-default-lang
+                      "")))
     (insert "\n**\n:PROPERTIES:\n")
     (insert (format ":ID: %s\n" timestamp))
-    (insert ":LANG: \n")
+    (insert (format ":LANG: %s\n" lang-value))
     (insert ":TAGS: \n")
     (insert ":CLIENT: org-social.el\n")
     (when (and reply-url reply-id)
@@ -102,10 +107,15 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
   "Insert a new poll template at the current position.
 QUESTION is the poll question, OPTIONS is a list of poll options,
 and POLL-END is the RFC 3339 formatted end time."
-  (let ((timestamp (org-social-parser--generate-timestamp)))
+  (let ((timestamp (org-social-parser--generate-timestamp))
+        (lang-value (if (and (boundp 'org-social-default-lang)
+                             org-social-default-lang
+                             (not (string-empty-p org-social-default-lang)))
+                        org-social-default-lang
+                      "")))
     (insert "\n**\n:PROPERTIES:\n")
     (insert (format ":ID: %s\n" timestamp))
-    (insert ":LANG: \n")
+    (insert (format ":LANG: %s\n" lang-value))
     (insert ":TAGS: \n")
     (insert ":CLIENT: org-social.el\n")
     (insert (format ":POLL_END: %s\n" poll-end))
