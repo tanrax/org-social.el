@@ -15,14 +15,17 @@
 
 ;;; Code:
 
-;; Define the directory for org-social-ui before load-path manipulation
-(defconst org-social-ui--dir
-  (file-name-directory (or load-file-name buffer-file-name))
-  "Directory where org-social-ui.el is located.")
-
-;; Add ui directory to load path
-(add-to-list 'load-path (expand-file-name "ui" org-social-ui--dir))
-(add-to-list 'load-path (expand-file-name "ui/buffers" org-social-ui--dir))
+;; Setup load-path for UI modules
+(eval-and-compile
+  (let ((ui-dir (or (and load-file-name
+                         (file-name-directory load-file-name))
+                    (and (boundp 'byte-compile-current-file)
+                         byte-compile-current-file
+                         (file-name-directory byte-compile-current-file))
+                    default-directory)))
+    (add-to-list 'load-path ui-dir)  ; Root directory for org-social-variables, etc.
+    (add-to-list 'load-path (expand-file-name "ui" ui-dir))
+    (add-to-list 'load-path (expand-file-name "ui/buffers" ui-dir))))
 
 ;; Load all UI modules
 (require 'org-social-ui-core)
