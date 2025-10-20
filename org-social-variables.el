@@ -97,6 +97,16 @@ Images are downloaded and cached to avoid repeated network requests."
   :type 'directory
   :group 'org-social)
 
+(defcustom org-social-default-lang nil
+  "Default language code for new posts.
+When set, this value will be automatically inserted in the :LANG: property
+of new posts and polls.  Should be a two-letter ISO 639-1 language code
+\(e.g., \"en\", \"es\", \"fr\").
+When nil or empty string, the :LANG: field will be left empty."
+  :type '(choice (const :tag "No default language" nil)
+                 (string :tag "Language code (e.g., en, es, fr)"))
+  :group 'org-social)
+
 ;; Variables for state management
 
 (defvar org-social-variables--feeds nil
