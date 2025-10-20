@@ -200,26 +200,26 @@ Returns t if valid, nil if invalid (should be ignored)."
   (cond
    ;; REPLY_TO must be URL#timestamp format (accepts both +0200 and +02:00 timezone formats)
    ((string= prop-name "REPLY_TO")
-    (string-match-p "^https?://[^#]+#[0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}T[0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}[+-][0-9]\\{2\\}" value))
+    (not (null (string-match-p "^https?://[^#]+#[0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}T[0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}[+-][0-9]\\{2\\}" value))))
    ;; POLL_END must be RFC 3339 format
    ((string= prop-name "POLL_END")
-    (string-match-p "^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}" value))
+    (not (null (string-match-p "^[0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}T[0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}" value))))
    ;; GROUP must be: groupname relayurl format
    ;; Group name can have spaces, URL must be the last part
    ((string= prop-name "GROUP")
     (let ((parts (split-string value "\\s-+" t)))
       (and (>= (length parts) 2)
-           (string-match-p "^https?://" (car (last parts))))))
+           (not (null (string-match-p "^https?://" (car (last parts))))))))
    ;; LANG must be language code (2-5 chars, letters/hyphens only)
    ((string= prop-name "LANG")
-    (string-match-p "^[a-z]\{2,5\}\\(-[a-z]\{2,3\}\\)?$" value))
+    (not (null (string-match-p "^[a-z]\\{2,5\\}\\(-[a-z]\\{2,3\\}\\)?$" value))))
    ;; TAGS must be space-separated alphanumeric words
    ((string= prop-name "TAGS")
-    (string-match-p "^[a-zA-Z0-9_-]+\\(\\s-+[a-zA-Z0-9_-]+\\)*$" value))
+    (not (null (string-match-p "^[a-zA-Z0-9_-]+\\(\\s-+[a-zA-Z0-9_-]+\\)*$" value))))
    ;; CLIENT, POLL_OPTION, MOOD - just check they're reasonable text
    ((member prop-name '("CLIENT" "POLL_OPTION" "MOOD"))
     (and (< (length value) 200)  ; Reasonable length limit
-         (not (string-match-p "[\n\r]" value))))  ; No newlines
+         (null (string-match-p "[\n\r]" value))))  ; No newlines
    ;; Default: accept other properties
    (t t)))
 
