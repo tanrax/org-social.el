@@ -28,6 +28,7 @@
 (declare-function org-social-ui-notifications "org-social-ui-notifications" ())
 (declare-function org-social-ui-groups "org-social-ui-groups" ())
 (declare-function org-social--format-date "org-social" (timestamp))
+(declare-function org-social-polls--vote-on-poll "org-social-polls" (&optional author-url timestamp))
 
 ;; Thread tracking variables
 (defvar org-social-ui--posts-with-replies nil
@@ -162,8 +163,18 @@ Returns an alist of (emoji . list-of-authors)."
 
       ;; 5. Action buttons with mood at the end
       (let ((first-button t))
+        ;; Poll vote button (first, before other actions)
+        (when poll-end
+          (widget-create 'push-button
+                         :notify `(lambda (&rest _)
+                                    (require 'org-social-polls)
+                                    (org-social-polls--vote-on-poll ,author-url ,timestamp))
+                         " 🗳 Vote ")
+          (setq first-button nil))
+
         ;; Reply button (only for others' posts)
         (when (not is-my-post)
+          (unless first-button (org-social-ui--insert-formatted-text " "))
           (widget-create 'push-button
                          :notify `(lambda (&rest _)
                                     (org-social-file--new-post ,author-url ,timestamp))
@@ -211,14 +222,6 @@ Returns an alist of (emoji . list-of-authors)."
                                     (org-social-ui--open-live-preview ,author-url ,timestamp))
                          " 🔗 Share ")
           (setq first-button nil))
-
-        ;; Poll vote button
-        (when poll-end
-          (unless first-button (org-social-ui--insert-formatted-text " "))
-          (widget-create 'push-button
-                         :notify `(lambda (&rest _)
-                                    (message "Poll voting - to be implemented"))
-                         " 🗳 Vote "))
 
         ;; Mood at the end, aligned to the right
         (when (and mood (not (string-empty-p mood)))
