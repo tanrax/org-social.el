@@ -265,26 +265,27 @@ NOTIFICATION is an alist with keys: type, post, parent."
   (interactive)
   (setq org-social-ui--current-screen 'notifications)
 
+  ;; Show message in minibuffer
+  (message "Building notifications...")
+
   (let ((buffer-name org-social-ui--notifications-buffer-name))
-    (switch-to-buffer buffer-name)
-    (kill-all-local-variables)
+    ;; Prepare buffer in background
+    (with-current-buffer (get-buffer-create buffer-name)
+      (kill-all-local-variables)
 
-    ;; Disable read-only mode before modifying buffer
-    (setq buffer-read-only nil)
+      ;; Disable read-only mode before modifying buffer
+      (setq buffer-read-only nil)
 
-    (let ((inhibit-read-only t))
-      (erase-buffer))
-    (remove-overlays)
+      (let ((inhibit-read-only t))
+        (erase-buffer))
+      (remove-overlays)
 
-    ;; Insert header
-    (org-social-ui--insert-notifications-header)
+      ;; Insert header
+      (org-social-ui--insert-notifications-header)
 
-    ;; Show loading message
-    (org-social-ui--insert-formatted-text "Loading notifications...\n" nil "#4a90e2")
-
-    ;; Set up the buffer with centering
-    (org-social-ui--setup-centered-buffer)
-    (goto-char (point-min))
+      ;; Set up the buffer with centering
+      (org-social-ui--setup-centered-buffer)
+      (goto-char (point-min)))
 
     ;; Load notifications data
     (if (and (boundp 'org-social-relay)
@@ -294,44 +295,33 @@ NOTIFICATION is an alist with keys: type, post, parent."
              org-social-my-public-url
              (not (string-empty-p org-social-my-public-url)))
         ;; Use relay to fetch notifications
-        (progn
-          (message "Loading notifications from relay...")
-          (org-social-relay--fetch-notifications
-           (lambda (notifications)
-             (with-current-buffer org-social-ui--notifications-buffer-name
-               (let ((inhibit-read-only t)
-                     (buffer-read-only nil))
-                 ;; Remove loading message
-                 (goto-char (point-min))
-                 (when (search-forward "Loading notifications..." nil t)
-                   (beginning-of-line)
-                   (let ((line-start (point)))
-                     (forward-line 1)
-                     (delete-region line-start (point))))
-                 ;; Insert notifications
-                 (goto-char (point-max))
-                 (org-social-ui--insert-notifications-content notifications)
-                 ;; Enable read-only mode
-                 (setq buffer-read-only t)
-                 (widget-setup)
-                 (goto-char (point-min)))))))
+        (org-social-relay--fetch-notifications
+         (lambda (notifications)
+           (with-current-buffer org-social-ui--notifications-buffer-name
+             (let ((inhibit-read-only t)
+                   (buffer-read-only nil))
+               ;; Insert notifications
+               (goto-char (point-max))
+               (org-social-ui--insert-notifications-content notifications)
+               ;; Enable read-only mode
+               (setq buffer-read-only t)
+               (widget-setup)
+               (goto-char (point-min))))
+           ;; Switch to buffer now
+           (switch-to-buffer org-social-ui--notifications-buffer-name)
+           (message "Notifications ready")))
       ;; No relay configured
-      (progn
+      (with-current-buffer buffer-name
         (let ((inhibit-read-only t))
-          ;; Remove loading message
-          (goto-char (point-min))
-          (when (search-forward "Loading notifications..." nil t)
-            (beginning-of-line)
-            (let ((line-start (point)))
-              (forward-line 1)
-              (delete-region line-start (point))))
           ;; Show configuration message
           (goto-char (point-max))
           (org-social-ui--insert-formatted-text "Relay not configured.\n" nil "#ff6600")
           (org-social-ui--insert-formatted-text "To receive notifications, configure both:\n" nil "#666666")
           (org-social-ui--insert-formatted-text "- org-social-relay (relay server URL)\n" nil "#666666")
           (org-social-ui--insert-formatted-text "- org-social-my-public-url (your public social.org URL)\n" nil "#666666")
-          (setq buffer-read-only t))))))
+          (setq buffer-read-only t)))
+      (switch-to-buffer buffer-name)
+      (message "Relay not configured"))))
 
 (provide 'org-social-ui-notifications)
 ;;; org-social-ui-notifications.el ends here
