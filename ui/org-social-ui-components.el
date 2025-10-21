@@ -67,212 +67,208 @@ and opens it with `org-social-live-preview-url' base URL."
            (preview-url (concat org-social-live-preview-url encoded-url)))
       (browse-url preview-url))))
 
-(defun org-social-ui--get-post-reactions (post-url timeline-data)
-  "Get reactions for POST-URL from TIMELINE-DATA.
-Returns an alist of (emoji . list-of-authors)."
-  (when timeline-data
-    (let ((reactions '()))
-      (dolist (item timeline-data)
-        (let* ((reply-to (alist-get 'reply_to item))
-               (mood (alist-get 'mood item))
-               (text (or (alist-get 'text item) ""))
-               (author (or (alist-get 'author-nick item) "Unknown")))
-          ;; A reaction is a post with reply_to matching our URL, has mood, and empty/short text
-          (when (and reply-to
-                     mood
-                     (not (string-empty-p mood))
-                     (string= reply-to post-url)
-                     (or (string-empty-p text)
-                         (< (length (string-trim text)) 5)))
-            ;; Add this reaction
-            (let ((existing (assoc mood reactions)))
-              (if existing
-                  ;; Add author to existing emoji list
-                  (setcdr existing (cons author (cdr existing)))
-                ;; New emoji, create entry
-                (push (cons mood (list author)) reactions))))))
-      ;; Reverse author lists to maintain order
-      (mapcar (lambda (entry)
-                (cons (car entry) (nreverse (cdr entry))))
-              (nreverse reactions)))))
 
-(defun org-social-ui--post-component (post timeline-data)
-  "Insert a post component for POST with TIMELINE-DATA context."
-  (let* ((author (or (alist-get 'author-nick post)
-                     (alist-get 'nick post)
-                     "Unknown"))
-         (author-url (or (alist-get 'author-url post)
-                         (alist-get 'url post)
-                         ""))
-         (avatar (or (alist-get 'author-avatar post)
-                     (alist-get 'avatar post)
-                     (alist-get 'feed-avatar post)))
-         (timestamp (or (alist-get 'timestamp post)
-                        (alist-get 'id post)
-                        (alist-get 'date post)
-                        ""))
-         (text (or (alist-get 'text post)
-                   (alist-get 'content post)
-                   ""))
-         (poll-end (or (alist-get 'poll_end post)
-                       (alist-get 'poll-end post)))
-         (tags (or (alist-get 'tags post) ""))
-         (mood (or (alist-get 'mood post) ""))
-         (client (alist-get 'client post))
-         (my-nick (alist-get 'nick org-social-variables--my-profile))
-         (is-my-post (or (string= author my-nick)
-                         (string= author-url (alist-get 'url org-social-variables--my-profile)))))
+(defun org-social-ui--post-component (post &optional _timeline-data)
+  "Insert a post component for POST with optional TIMELINE-DATA (unused).
+Automatically fetches reactions from Relay if not present in POST."
+  ;; Ensure post has reactions (fetch if missing)
+  (let* ((author-url-temp (or (alist-get 'author-url post)
+                              (alist-get 'url post)))
+         (timestamp-temp (or (alist-get 'timestamp post)
+                             (alist-get 'id post)
+                             (alist-get 'date post)))
+         (post-url-temp (when (and author-url-temp timestamp-temp)
+                          (format "%s#%s" author-url-temp timestamp-temp)))
+         (post-with-reactions (if (and post-url-temp
+                                       (not (alist-get 'reactions post))
+                                       (fboundp 'org-social-ui--fetch-post-reactions-sync))
+                                  (org-social-ui--fetch-post-reactions-sync post-url-temp post)
+                                post)))
 
-    ;; 1. Add line break after separator before content
-    (org-social-ui--insert-formatted-text "\n")
+    ;; Now render the post (with reactions if available)
+    (let* ((author (or (alist-get 'author-nick post-with-reactions)
+                       (alist-get 'nick post-with-reactions)
+                       "Unknown"))
+           (author-url (or (alist-get 'author-url post-with-reactions)
+                           (alist-get 'url post-with-reactions)
+                           ""))
+           (avatar (or (alist-get 'author-avatar post-with-reactions)
+                       (alist-get 'avatar post-with-reactions)
+                       (alist-get 'feed-avatar post-with-reactions)))
+           (timestamp (or (alist-get 'timestamp post-with-reactions)
+                          (alist-get 'id post-with-reactions)
+                          (alist-get 'date post-with-reactions)
+                          ""))
+           (text (or (alist-get 'text post-with-reactions)
+                     (alist-get 'content post-with-reactions)
+                     ""))
+           (poll-end (or (alist-get 'poll_end post-with-reactions)
+                         (alist-get 'poll-end post-with-reactions)))
+           (tags (or (alist-get 'tags post-with-reactions) ""))
+           (mood (or (alist-get 'mood post-with-reactions) ""))
+           (client (alist-get 'client post-with-reactions))
+           (my-nick (alist-get 'nick org-social-variables--my-profile))
+           (is-my-post (or (string= author my-nick)
+                           (string= author-url (alist-get 'url org-social-variables--my-profile)))))
 
-    ;; Calculate post URL
-    (let* ((post-url (if (string-empty-p author-url)
-                         (format "%s#%s"
-                                 (alist-get 'url org-social-variables--my-profile)
-                                 timestamp)
-                       (format "%s#%s" author-url timestamp)))
-           (post-data-with-url (append post `((url . ,post-url)))))
+      ;; 1. Add line break after separator before content
+      (org-social-ui--insert-formatted-text "\n")
 
-      ;; Create invisible widget to store post data
-      (widget-create 'item
-                     :format ""  ; Invisible widget
-                     :value post-data-with-url)
+      ;; Calculate post URL
+      (let* ((post-url (if (string-empty-p author-url)
+                           (format "%s#%s"
+                                   (alist-get 'url org-social-variables--my-profile)
+                                   timestamp)
+			 (format "%s#%s" author-url timestamp)))
+             (post-data-with-url (append post `((url . ,post-url)))))
 
-      ;; 2. Post content
-      (when (and text (not (string-empty-p text)))
-        (let ((org-content-start (point))
-              (formatted-text (org-social-ui--format-org-headings text)))
-          (insert formatted-text)
-          (insert "\n")
-          ;; Apply 'org-mode' syntax highlighting to this region only
-          (org-social-ui--apply-org-mode-to-region org-content-start (point))))
+	;; Create invisible widget to store post data
+	(widget-create 'item
+                       :format ""  ; Invisible widget
+                       :value post-data-with-url)
 
-      ;; 3. Add line break between content and tags (only if tags exist)
-      (when (and tags (not (string-empty-p tags)))
-        (org-social-ui--insert-formatted-text "\n")
-        ;; 4. Tags only
-        (let ((tag-list (split-string tags "\\s-+" t)))
-          (dolist (tag tag-list)
-            (org-social-ui--insert-formatted-text (format "#%s" tag) nil org-social-hashtag-color)
-            (org-social-ui--insert-formatted-text " ")))
-        (org-social-ui--insert-formatted-text "\n"))
+	;; 2. Post content
+	(when (and text (not (string-empty-p text)))
+          (let ((org-content-start (point))
+		(formatted-text (org-social-ui--format-org-headings text)))
+            (insert formatted-text)
+            (insert "\n")
+            ;; Apply 'org-mode' syntax highlighting to this region only
+            (org-social-ui--apply-org-mode-to-region org-content-start (point))))
 
-      ;; Add line break before action buttons
-      (insert "\n")
+	;; 3. Add line break between content and tags (only if tags exist)
+	(when (and tags (not (string-empty-p tags)))
+          (org-social-ui--insert-formatted-text "\n")
+          ;; 4. Tags only
+          (let ((tag-list (split-string tags "\\s-+" t)))
+            (dolist (tag tag-list)
+              (org-social-ui--insert-formatted-text (format "#%s" tag) nil org-social-hashtag-color)
+              (org-social-ui--insert-formatted-text " ")))
+          (org-social-ui--insert-formatted-text "\n"))
 
-      ;; 5. Action buttons with mood at the end
-      (let ((first-button t))
-        ;; Poll vote button (first, before other actions)
-        (when poll-end
-          (widget-create 'push-button
-                         :notify `(lambda (&rest _)
-                                    (require 'org-social-polls)
-                                    (org-social-polls--vote-on-poll ,author-url ,timestamp))
-                         " 🗳 Vote ")
-          (setq first-button nil))
+	;; Add line break before action buttons
+	(insert "\n")
 
-        ;; Reply button (only for others' posts)
-        (when (not is-my-post)
-          (unless first-button (org-social-ui--insert-formatted-text " "))
-          (widget-create 'push-button
-                         :notify `(lambda (&rest _)
-                                    (org-social-file--new-post ,author-url ,timestamp))
-                         " ↳ Reply ")
-          (setq first-button nil))
+	;; 5. Action buttons with mood at the end
+	(let ((first-button t))
+          ;; Poll vote button (first, before other actions)
+          (when poll-end
+            (widget-create 'push-button
+                           :notify `(lambda (&rest _)
+                                      (require 'org-social-polls)
+                                      (org-social-polls--vote-on-poll ,author-url ,timestamp))
+                           " 🗳 Vote ")
+            (setq first-button nil))
 
-        ;; Thread button - show if post has reply_to OR has replies
-        (let* ((reply-to (alist-get 'reply_to post))
-               (has-reply-to (and reply-to (not (string-empty-p reply-to))))
-               (has-replies (org-social-ui--post-has-replies-p post-url))
-               (thread-url (if has-reply-to reply-to post-url)))
-          (when (or has-reply-to has-replies)
+          ;; Reply button (only for others' posts)
+          (when (not is-my-post)
             (unless first-button (org-social-ui--insert-formatted-text " "))
             (widget-create 'push-button
                            :notify `(lambda (&rest _)
-                                      (org-social-ui-thread ,thread-url))
-                           " 🧵 Thread ")
-            (setq first-button nil)))
+                                      (org-social-file--new-post ,author-url ,timestamp))
+                           " ↳ Reply ")
+            (setq first-button nil))
 
-        ;; Profile button (only for others' posts)
-        (when (not is-my-post)
-          (unless first-button (org-social-ui--insert-formatted-text " "))
-          (widget-create 'push-button
-                         :notify `(lambda (&rest _)
-                                    (org-social-ui-profile ,author-url))
-                         " 👤 Profile ")
-          (setq first-button nil))
+          ;; Thread button - show if post has reply_to OR has replies
+          (let* ((reply-to (alist-get 'reply_to post))
+		 (has-reply-to (and reply-to (not (string-empty-p reply-to))))
+		 (has-replies (org-social-ui--post-has-replies-p post-url))
+		 (thread-url (if has-reply-to reply-to post-url)))
+            (when (or has-reply-to has-replies)
+              (unless first-button (org-social-ui--insert-formatted-text " "))
+              (widget-create 'push-button
+                             :notify `(lambda (&rest _)
+					(org-social-ui-thread ,thread-url))
+                             " 🧵 Thread ")
+              (setq first-button nil)))
 
-        ;; Reaction button (only for others' posts)
-        (when (not is-my-post)
-          (unless first-button (org-social-ui--insert-formatted-text " "))
-          (widget-create 'push-button
-                         :notify `(lambda (&rest _)
-                                    (org-social-ui--add-reaction ,author-url ,timestamp))
-                         " 😊 React ")
-          (setq first-button nil))
+          ;; Profile button (only for others' posts)
+          (when (not is-my-post)
+            (unless first-button (org-social-ui--insert-formatted-text " "))
+            (widget-create 'push-button
+                           :notify `(lambda (&rest _)
+                                      (org-social-ui-profile ,author-url))
+                           " 👤 Profile ")
+            (setq first-button nil))
 
-        ;; Share button (if org-social-live-preview-url is set)
-        (when (and (boundp 'org-social-live-preview-url)
-                   org-social-live-preview-url
-                   (not (string-empty-p org-social-live-preview-url)))
-          (unless first-button (org-social-ui--insert-formatted-text " "))
-          (widget-create 'push-button
-                         :notify `(lambda (&rest _)
-                                    (org-social-ui--open-live-preview ,author-url ,timestamp))
-                         " 🔗 Share ")
-          (setq first-button nil))
+          ;; Reaction button (only for others' posts)
+          (when (not is-my-post)
+            (unless first-button (org-social-ui--insert-formatted-text " "))
+            (widget-create 'push-button
+                           :notify `(lambda (&rest _)
+                                      (org-social-ui--add-reaction ,author-url ,timestamp))
+                           " 😊 React ")
+            (setq first-button nil))
 
-        ;; Mood at the end, aligned to the right
-        (when (and mood (not (string-empty-p mood)))
-          (let* ((current-col (current-column))
-                 (target-col 70)
-                 (spaces-needed (max 2 (- target-col current-col))))
-            (org-social-ui--insert-formatted-text (make-string spaces-needed ?\s))
-            (org-social-ui--insert-formatted-text mood nil "#ffaa00"))))
+          ;; Share button (if org-social-live-preview-url is set)
+          (when (and (boundp 'org-social-live-preview-url)
+                     org-social-live-preview-url
+                     (not (string-empty-p org-social-live-preview-url)))
+            (unless first-button (org-social-ui--insert-formatted-text " "))
+            (widget-create 'push-button
+                           :notify `(lambda (&rest _)
+                                      (org-social-ui--open-live-preview ,author-url ,timestamp))
+                           " 🔗 Share ")
+            (setq first-button nil))
 
-      ;; 6. Display reactions if any
-      (let ((reactions (org-social-ui--get-post-reactions post-url timeline-data)))
-        (if reactions
+          ;; Mood at the end, aligned to the right
+          (when (and mood (not (string-empty-p mood)))
+            (let* ((current-col (current-column))
+                   (target-col 70)
+                   (spaces-needed (max 2 (- target-col current-col))))
+              (org-social-ui--insert-formatted-text (make-string spaces-needed ?\s))
+              (org-social-ui--insert-formatted-text mood nil "#ffaa00"))))
+
+	;; 6. Display reactions if any (from Relay)
+	(let ((reactions-data (alist-get 'reactions post-with-reactions)))
+          (if (and reactions-data (> (length reactions-data) 0))
+              (progn
+		(org-social-ui--insert-formatted-text "\n\n")
+		(let ((first-reaction t)
+                      (reactions-list (if (vectorp reactions-data)
+                                          (append reactions-data nil)
+					reactions-data)))
+                  (dolist (reaction reactions-list)
+                    (let* ((emoji (cdr (assoc 'emoji reaction)))
+                           (posts (cdr (assoc 'posts reaction)))
+                           (count (if (vectorp posts) (length posts) (length posts))))
+                      (when (and emoji (> count 0))
+			(unless first-reaction
+                          (org-social-ui--insert-formatted-text " | " nil "#888888"))
+			;; Show emoji and count
+			(org-social-ui--insert-formatted-text (format "%s %d" emoji count) nil "#ffaa00")
+			(setq first-reaction nil)))))
+		;; Add line break after reactions
+		(org-social-ui--insert-formatted-text "\n\n"))
+            ;; No reactions, just add one line break
+            (org-social-ui--insert-formatted-text "\n\n")))
+
+	;; 7. Post header with avatar, author name, timestamp, and client
+	;; Avatar image
+	(if (and avatar (not (string-empty-p avatar)))
             (progn
-              (org-social-ui--insert-formatted-text "\n\n")
-              (let ((first-reaction t))
-                (dolist (reaction reactions)
-                  (let ((emoji (car reaction))
-                        (count (length (cdr reaction))))
-                    (unless first-reaction
-                      (org-social-ui--insert-formatted-text " | " nil "#888888"))
-                    ;; Show emoji and count
-                    (org-social-ui--insert-formatted-text (format "%s %d" emoji count) nil "#ffaa00")
-                    (setq first-reaction nil))))
-              ;; Add line break after reactions
-              (org-social-ui--insert-formatted-text "\n\n"))
-          ;; No reactions, just add one line break
-          (org-social-ui--insert-formatted-text "\n\n")))
+              (org-social-ui--insert-formatted-text " ")
+              (org-social-ui--put-image-from-cache avatar (line-number-at-pos) 50)
+              (org-social-ui--insert-formatted-text " "))
+          ;; No avatar - show anonymous emoji
+          (org-social-ui--insert-formatted-text "👤 " nil "#4a90e2"))
 
-      ;; 7. Post header with avatar, author name, timestamp, and client
-      ;; Avatar image
-      (if (and avatar (not (string-empty-p avatar)))
-          (progn
-            (org-social-ui--insert-formatted-text " ")
-            (org-social-ui--put-image-from-cache avatar (line-number-at-pos) 50)
-            (org-social-ui--insert-formatted-text " "))
-        ;; No avatar - show anonymous emoji
-        (org-social-ui--insert-formatted-text "👤 " nil "#4a90e2"))
+	;; Author name
+	(org-social-ui--insert-formatted-text (format "@%s" author) 1.1 "#4a90e2")
+	(org-social-ui--insert-formatted-text " • ")
+	(org-social-ui--insert-formatted-text (org-social--format-date timestamp) nil "#666666")
+	(when (and client (not (string-empty-p client)))
+          (org-social-ui--insert-formatted-text " • ")
+          (org-social-ui--insert-formatted-text client nil "#ffaa00"))
 
-      ;; Author name
-      (org-social-ui--insert-formatted-text (format "@%s" author) 1.1 "#4a90e2")
-      (org-social-ui--insert-formatted-text " • ")
-      (org-social-ui--insert-formatted-text (org-social--format-date timestamp) nil "#666666")
-      (when (and client (not (string-empty-p client)))
-        (org-social-ui--insert-formatted-text " • ")
-        (org-social-ui--insert-formatted-text client nil "#ffaa00"))
+	;; 8. Add line break between user info and separator
+	(org-social-ui--insert-formatted-text "\n")
 
-      ;; 8. Add line break between user info and separator
-      (org-social-ui--insert-formatted-text "\n")
+	;; 9. Final separator
+	(org-social-ui--insert-separator)))))
 
-      ;; 9. Final separator
-      (org-social-ui--insert-separator))))
+;; Declare function for fetching reactions
+(declare-function org-social-ui--fetch-post-reactions-sync "org-social-ui-utils" (post-url post-data))
 
 ;;; Timeline Screen
 
