@@ -111,7 +111,7 @@
 
       (if post-data
           (progn
-            ;; Display the main post (parent)
+            ;; Display the main post (reactions fetched automatically by component)
             (org-social-ui--insert-formatted-text "━━━ Main Post ━━━\n\n" 1.2 "#4a90e2")
             (org-social-ui--post-component post-data nil)
 

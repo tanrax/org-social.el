@@ -798,16 +798,126 @@ Returns list of reply structures from relay data, or nil if failed."
                     (append replies-data nil)
                   replies-data)))))))))
 
+(defun org-social-ui--fetch-post-reactions-sync (post-url post-data)
+  "Fetch reactions for POST-URL and add them to POST-DATA synchronously.
+Returns POST-DATA with reactions added, or POST-DATA unchanged if failed."
+  (require 'org-social-relay)
+  (require 'json)
+  (if (and org-social-relay
+           (not (string-empty-p org-social-relay)))
+      (let* ((relay-url (string-trim-right org-social-relay "/"))
+             (reply-to (alist-get 'reply_to post-data))
+             (author-url (or (alist-get 'author-url post-data)
+                             (alist-get 'url post-data))))
+        (cond
+         ;; Case 1: Post has a parent, get reactions by querying parent's replies
+         (reply-to
+          (let* ((encoded-url (url-hexify-string reply-to))
+                 (url (format "%s/replies/?post=%s" relay-url encoded-url))
+                 (buffer (condition-case nil
+                             (url-retrieve-synchronously url t nil 10)
+                           (error nil))))
+            (if buffer
+                (with-current-buffer buffer
+                  (set-buffer-multibyte t)
+                  (goto-char (point-min))
+                  (if (re-search-forward "\n\n" nil t)
+                      (let* ((json-data (decode-coding-string
+                                         (buffer-substring-no-properties (point) (point-max))
+                                         'utf-8))
+                             (response (condition-case nil
+                                           (json-read-from-string json-data)
+                                         (error nil)))
+                             (response-type (when response (cdr (assoc 'type response))))
+                             (replies-data (when response (cdr (assoc 'data response)))))
+                        (kill-buffer buffer)
+                        (if (and response-type (string= response-type "Success") replies-data)
+                            ;; Find this post in the children and extract its moods
+                            (let ((replies-list (if (vectorp replies-data)
+                                                    (append replies-data nil)
+                                                  replies-data)))
+                              (catch 'found
+                                (dolist (reply-node replies-list)
+                                  (let ((node-post-url (cdr (assoc 'post reply-node)))
+                                        (node-moods (cdr (assoc 'moods reply-node))))
+                                    (when (string= node-post-url post-url)
+                                      (throw 'found
+                                             (if node-moods
+                                                 (append post-data `((reactions . ,node-moods)))
+                                               post-data)))))
+                                post-data))
+                          post-data))
+                    (progn (kill-buffer buffer) post-data)))
+              post-data)))
+         ;; Case 2: Post has no parent, get reactions from author's feed reactions
+         (author-url
+          (let* ((encoded-feed (url-hexify-string author-url))
+                 (url (format "%s/reactions/?feed=%s" relay-url encoded-feed))
+                 (buffer (condition-case nil
+                             (url-retrieve-synchronously url t nil 10)
+                           (error nil))))
+            (if buffer
+                (with-current-buffer buffer
+                  (set-buffer-multibyte t)
+                  (goto-char (point-min))
+                  (if (re-search-forward "\n\n" nil t)
+                      (let* ((json-data (decode-coding-string
+                                         (buffer-substring-no-properties (point) (point-max))
+                                         'utf-8))
+                             (response (condition-case nil
+                                           (json-read-from-string json-data)
+                                         (error nil)))
+                             (response-type (when response (cdr (assoc 'type response))))
+                             (reactions-data (when response (cdr (assoc 'data response)))))
+                        (kill-buffer buffer)
+                        (if (and response-type (string= response-type "Success") reactions-data)
+                            ;; Filter reactions for this specific post and group by emoji
+                            (let ((reactions-list (if (vectorp reactions-data)
+                                                      (append reactions-data nil)
+                                                    reactions-data))
+                                  (moods-by-emoji (make-hash-table :test 'equal)))
+                              (dolist (reaction reactions-list)
+                                (let ((parent (cdr (assoc 'parent reaction)))
+                                      (emoji (cdr (assoc 'emoji reaction)))
+                                      (reaction-post (cdr (assoc 'post reaction))))
+                                  (when (and parent emoji reaction-post
+                                             (string= parent post-url))
+                                    (let ((existing (gethash emoji moods-by-emoji)))
+                                      (puthash emoji
+                                               (vconcat (vector reaction-post)
+                                                        (if (vectorp existing) existing (vector)))
+                                               moods-by-emoji)))))
+                              ;; Convert hash table to alist format expected by component
+                              (let ((moods-list '()))
+                                (maphash (lambda (emoji posts)
+                                           (push `((emoji . ,emoji) (posts . ,posts))
+                                                 moods-list))
+                                         moods-by-emoji)
+                                (if moods-list
+                                    (append post-data `((reactions . ,moods-list)))
+                                  post-data)))
+                          post-data))
+                    (progn (kill-buffer buffer) post-data)))
+              post-data)))
+         ;; Case 3: No way to get reactions
+         (t post-data)))
+    ;; No relay configured
+    post-data))
+
 (defun org-social-ui--display-thread-tree (replies-tree)
   "Display REPLIES-TREE structure from relay.
-Each element in REPLIES-TREE is an alist with \\='post and \\='children keys."
+Each element in REPLIES-TREE is an alist with \\='post, \\='children, and \\='moods keys."
   (dolist (reply-node replies-tree)
     (let ((post-url (cdr (assoc 'post reply-node)))
-          (children (cdr (assoc 'children reply-node))))
+          (children (cdr (assoc 'children reply-node)))
+          (moods (cdr (assoc 'moods reply-node))))
       ;; Fetch and display the reply post
       (when post-url
         (let ((post-data (org-social-ui--fetch-post-sync post-url)))
           (when post-data
+            ;; Add reactions (moods) from Relay to post data
+            (when moods
+              (setq post-data (append post-data `((reactions . ,moods)))))
             (org-social-ui--post-component post-data nil))))
       ;; Recursively display children (if any)
       (when (and children (> (length children) 0))

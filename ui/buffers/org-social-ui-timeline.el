@@ -524,6 +524,7 @@ Only checks posts that will be visible on the current page."
       (setq org-social-ui--refresh-timer nil))
     (let ((timeline (when (fboundp 'org-social-feed--get-timeline)
                       (org-social-feed--get-timeline))))
+      ;; Display timeline (reactions will be fetched automatically by post component)
       (org-social-ui--check-replies-and-display-timeline timeline)
       (message "Timeline loaded with %d posts" (if timeline (length timeline) 0)))))
 
