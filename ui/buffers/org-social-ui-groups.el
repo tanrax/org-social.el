@@ -134,9 +134,9 @@ Fetches posts from relay and displays them like timeline."
     (switch-to-buffer buffer-name)
     (kill-all-local-variables)
 
-    ;; Set group context for posting
-    (setq org-social-ui--current-group-context `((name . ,group-name)
-                                                 (relay-url . ,relay-url)))
+    ;; Set group context for posting (buffer-local)
+    (setq-local org-social-ui--current-group-context `((name . ,group-name)
+                                                       (relay-url . ,relay-url)))
     (setq org-social-ui--current-screen 'group-posts)
 
     ;; Disable read-only mode before modifying buffer
