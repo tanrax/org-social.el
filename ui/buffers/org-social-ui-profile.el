@@ -32,26 +32,25 @@
   (interactive "sUser URL: ")
   (setq org-social-ui--current-screen 'profile)
 
+  ;; Show message in minibuffer
+  (message "Building profile...")
+
   (let ((buffer-name org-social-ui--profile-buffer-name))
-    (switch-to-buffer buffer-name)
-    (kill-all-local-variables)
+    ;; Prepare buffer in background
+    (with-current-buffer (get-buffer-create buffer-name)
+      (kill-all-local-variables)
 
-    ;; Disable read-only mode before modifying buffer
-    (setq buffer-read-only nil)
+      ;; Disable read-only mode before modifying buffer
+      (setq buffer-read-only nil)
 
-    (let ((inhibit-read-only t))
-      (erase-buffer))
-    (remove-overlays)
+      (let ((inhibit-read-only t))
+        (erase-buffer))
+      (remove-overlays)
 
-    ;; Insert header (but don't activate special-mode yet)
-    (org-social-ui--insert-profile-header)
+      ;; Insert header
+      (org-social-ui--insert-profile-header)
 
-    ;; Show loading message
-    (org-social-ui--insert-formatted-text
-     (format "Loading profile for %s...\n" user-url) nil "#4a90e2")
-
-    ;; Don't set up special-mode yet - let the async fetch complete first
-    (goto-char (point-min))
+      (goto-char (point-min)))
 
     ;; Fetch and display profile
     (org-social-ui--fetch-and-display-profile user-url)))
@@ -100,11 +99,6 @@
     (let ((inhibit-read-only t))
       (setq buffer-read-only nil)
 
-      ;; Remove loading message
-      (goto-char (point-min))
-      (when (re-search-forward "Loading profile.*\n" nil t)
-        (replace-match ""))
-
       ;; Insert profile info
       (goto-char (point-max))
 
@@ -126,18 +120,16 @@
       ;; Setup buffer with special mode and centering
       (org-social-ui--setup-centered-buffer)
       (goto-char (point-min))
-      (setq buffer-read-only t))))
+      (setq buffer-read-only t)))
+  ;; Switch to buffer now that everything is ready
+  (switch-to-buffer org-social-ui--profile-buffer-name)
+  (message "Profile ready"))
 
 (defun org-social-ui--display-profile-error (user-url error)
   "Display ERROR message for failed profile fetch of USER-URL."
   (with-current-buffer org-social-ui--profile-buffer-name
     (let ((inhibit-read-only t))
       (setq buffer-read-only nil)
-
-      ;; Remove loading message
-      (goto-char (point-min))
-      (when (re-search-forward "Loading profile.*\n" nil t)
-        (replace-match ""))
 
       ;; Insert error message
       (goto-char (point-max))
@@ -154,7 +146,10 @@
       ;; Setup buffer with special mode and centering
       (org-social-ui--setup-centered-buffer)
       (goto-char (point-min))
-      (setq buffer-read-only t))))
+      (setq buffer-read-only t)))
+  ;; Switch to buffer now
+  (switch-to-buffer org-social-ui--profile-buffer-name)
+  (message "Profile error"))
 
 (defun org-social-ui--parse-and-display-profile (data user-url)
   "Parse and display profile DATA from USER-URL."

@@ -318,39 +318,36 @@ specifically for the timeline view."
   ;; Clear replies cache on timeline refresh
   (clrhash org-social-ui--replies-cache)
 
+  ;; Show message in minibuffer
+  (message "Building timeline...")
+
   (let ((buffer-name org-social-ui--timeline-buffer-name))
-    (switch-to-buffer buffer-name)
-    (kill-all-local-variables)
+    ;; Prepare buffer in background (don't switch yet)
+    (with-current-buffer (get-buffer-create buffer-name)
+      (kill-all-local-variables)
 
-    ;; Disable read-only mode before modifying buffer
-    (setq buffer-read-only nil)
+      ;; Disable read-only mode before modifying buffer
+      (setq buffer-read-only nil)
 
-    (let ((inhibit-read-only t))
-      (erase-buffer))
-    (remove-overlays)
+      (let ((inhibit-read-only t))
+        (erase-buffer))
+      (remove-overlays)
 
-    ;; Insert header
-    (org-social-ui--insert-timeline-header)
+      ;; Insert header
+      (org-social-ui--insert-timeline-header)
 
-    ;; Show loading message
-    (org-social-ui--insert-formatted-text "Loading timeline...\n" nil "#4a90e2")
-
-    ;; Set up the buffer with centering
-    (org-social-ui--setup-centered-buffer)
-    (goto-char (point-min))
+      ;; Set up the buffer with centering
+      (org-social-ui--setup-centered-buffer)
+      (goto-char (point-min)))
 
     ;; Load timeline data
     (if (and (boundp 'org-social-relay)
              org-social-relay
              (not (string-empty-p org-social-relay)))
         ;; Use relay-first approach
-        (progn
-          (message "Loading timeline from relay...")
-          (org-social-ui--load-timeline-from-relay))
+        (org-social-ui--load-timeline-from-relay)
       ;; Fallback to local feeds
-      (progn
-        (message "Loading timeline from local feeds...")
-        (org-social-ui--load-timeline-from-feeds)))))
+      (org-social-ui--load-timeline-from-feeds))))
 
 (defun org-social-ui--load-timeline-from-relay ()
   "Load timeline from relay server."
@@ -393,7 +390,9 @@ specifically for the timeline view."
          (goto-char (point-max))
          (org-social-ui--insert-formatted-text
           (format "Error loading timeline: %s\n" (error-message-string err))
-          nil "#ff0000"))))))
+          nil "#ff0000")))
+     ;; Switch to buffer to show the error
+     (switch-to-buffer org-social-ui--timeline-buffer-name))))
 
 (defun org-social-ui--check-replies-and-display-timeline (timeline)
   "Check which posts have replies and then display TIMELINE.
@@ -480,18 +479,10 @@ Only checks posts that will be visible on the current page."
     (funcall callback)))
 
 (defun org-social-ui--display-timeline (timeline)
-  "Display TIMELINE in the timeline buffer."
+  "Display TIMELINE in the timeline buffer and switch to it."
   (with-current-buffer org-social-ui--timeline-buffer-name
     (let ((inhibit-read-only t)
           (buffer-read-only nil))
-      (goto-char (point-max))
-      ;; Remove loading message
-      (goto-char (point-min))
-      (when (search-forward "Loading timeline..." nil t)
-        (beginning-of-line)
-        (let ((line-start (point)))
-          (forward-line 1)
-          (delete-region line-start (point))))
       ;; Insert posts
       (goto-char (point-max))
       (if (and timeline (> (length timeline) 0))
@@ -501,7 +492,9 @@ Only checks posts that will be visible on the current page."
          nil "#888888"))
       ;; Enable read-only mode
       (setq buffer-read-only t)
-      (goto-char (point-min)))))
+      (goto-char (point-min))))
+  ;; Now switch to the buffer (only after everything is ready)
+  (switch-to-buffer org-social-ui--timeline-buffer-name))
 
 (defvar org-social-ui--refresh-timer nil
   "Timer for refreshing timeline content.")
@@ -526,7 +519,7 @@ Only checks posts that will be visible on the current page."
                       (org-social-feed--get-timeline))))
       ;; Display timeline (reactions will be fetched automatically by post component)
       (org-social-ui--check-replies-and-display-timeline timeline)
-      (message "Timeline loaded with %d posts" (if timeline (length timeline) 0)))))
+      (message "Timeline ready with %d posts" (if timeline (length timeline) 0)))))
 
 (defun org-social-ui--timeline-next-page ()
   "Load and append next page of posts (infinite scroll)."
