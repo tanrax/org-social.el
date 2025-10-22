@@ -265,7 +265,7 @@ For example, to automatically upload your social file to a remote server after s
 7. **Create polls**: Use `M-x org-social-new-poll` or `C-c C-p`
 8. **Save and sync**: Use `C-x C-s` to save with hooks
 
-## 🔌 Compatibility with extensions
+## 🔌 Compatibility
 
 | Name | Status |
 |------|--------|
