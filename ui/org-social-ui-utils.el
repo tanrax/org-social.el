@@ -28,6 +28,10 @@
 (declare-function org-social-parser--get-value "org-social-parser" (feed key))
 (declare-function org-social-ui-thread "org-social-ui-thread" (post-url))
 (declare-function org-social-ui--post-component "org-social-ui-components" (post &optional full-timeline))
+(declare-function json-read-from-string "json" (string))
+(declare-function org-ctrl-c-ctrl-c "org" (&optional arg))
+(declare-function org-table-recalculate "org-table" (&optional all noalign))
+(declare-function org-babel-execute-src-block "ob-core" (&optional arg info params executor-type))
 
 ;; Thread tracking variables (defined in org-social-ui-thread.el)
 (defvar org-social-ui--thread-stack)
@@ -36,6 +40,176 @@
 ;; Image Constants
 (defconst org-social-ui--regex-image "\\bhttps?:\\/\\/[^][()[:space:]]+\\.\\(?:png\\|jpe?g\\|gif\\)\\b"
   "Regex pattern to match image URLs (PNG, JPG, JPEG, GIF).")
+
+;;; Interactive Org Mode Content
+
+(defvar org-social-ui--org-content-keymap
+  (let ((map (make-sparse-keymap)))
+    ;; Table commands
+    (define-key map (kbd "C-c C-c") 'org-social-ui--org-ctrl-c-ctrl-c)
+    (define-key map (kbd "C-c *") 'org-social-ui--org-table-recalculate)
+    (define-key map (kbd "TAB") 'org-social-ui--org-cycle)
+    (define-key map (kbd "<tab>") 'org-social-ui--org-cycle)
+    (define-key map (kbd "S-TAB") 'org-social-ui--org-shifttab)
+    (define-key map (kbd "<S-tab>") 'org-social-ui--org-shifttab)
+    (define-key map (kbd "<backtab>") 'org-social-ui--org-shifttab)
+    ;; Source block commands
+    (define-key map (kbd "C-c C-v C-e") 'org-social-ui--org-babel-execute)
+    map)
+  "Keymap for interactive Org mode content regions in posts.")
+
+(defun org-social-ui--get-org-content-region ()
+  "Get the bounds of the Org content region at point.
+Returns (START . END) or nil if not in an Org content region."
+  (let ((start (point))
+        (region-start nil)
+        (region-end nil))
+    ;; Search backward for region start
+    (save-excursion
+      (while (and (not region-start) (> (point) (point-min)))
+        (if (get-text-property (point) 'org-social-org-content)
+            (backward-char)
+          (setq region-start (1+ (point)))))
+      (when (and (not region-start) (get-text-property (point-min) 'org-social-org-content))
+        (setq region-start (point-min))))
+    ;; Search forward for region end
+    (save-excursion
+      (goto-char start)
+      (while (and (not region-end) (< (point) (point-max)))
+        (if (get-text-property (point) 'org-social-org-content)
+            (forward-char)
+          (setq region-end (point))))
+      (when (and (not region-end) (get-text-property (point-max) 'org-social-org-content))
+        (setq region-end (point-max))))
+    (when (and region-start region-end)
+      (cons region-start region-end))))
+
+(defun org-social-ui--execute-in-org-buffer (content-text callback)
+  "Execute CALLBACK in a temporary `org-mode' buffer with CONTENT-TEXT.
+CALLBACK is called with no arguments in the `org-mode' buffer.
+Returns the buffer content after execution."
+  (with-temp-buffer
+    (insert content-text)
+    (org-mode)
+    (goto-char (point-min))
+    (funcall callback)
+    (buffer-string)))
+
+(defun org-social-ui--refresh-org-content-region (region-start region-end)
+  "Refresh the Org content region from REGION-START to REGION-END.
+Reapplies overlays and formatting after content changes."
+  (let ((inhibit-read-only t))
+    ;; Remove old overlays (except keymap overlay)
+    (dolist (overlay (overlays-in region-start region-end))
+      (when (and (overlay-get overlay 'org-social-overlay)
+                 (not (overlay-get overlay 'org-social-keymap-overlay)))
+        (delete-overlay overlay)))
+    ;; Create keymap overlay if it doesn't exist
+    (unless (cl-some (lambda (ov) (overlay-get ov 'org-social-keymap-overlay))
+                     (overlays-in region-start region-end))
+      (let ((keymap-overlay (make-overlay region-start region-end)))
+        (overlay-put keymap-overlay 'keymap org-social-ui--org-content-keymap)
+        (overlay-put keymap-overlay 'priority 50)
+        (overlay-put keymap-overlay 'org-social-keymap-overlay t)))
+    ;; Reapply org-mode styling
+    (org-social-ui--apply-org-mode-to-region region-start region-end)))
+
+(defun org-social-ui--org-ctrl-c-ctrl-c ()
+  "Execute org-ctrl-c-ctrl-c in the Org content region at point."
+  (interactive)
+  (let ((region (org-social-ui--get-org-content-region)))
+    (if region
+        (let* ((region-start (car region))
+               (region-end (cdr region))
+               (content-text (buffer-substring-no-properties region-start region-end))
+               (relative-point (- (point) region-start))
+               (inhibit-read-only t)
+               (new-content (org-social-ui--execute-in-org-buffer
+                             content-text
+                             (lambda ()
+                               (goto-char (+ (point-min) relative-point))
+                               (org-ctrl-c-ctrl-c)))))
+          ;; Replace content
+          (delete-region region-start region-end)
+          (goto-char region-start)
+          (insert new-content)
+          ;; Restore text property
+          (put-text-property region-start (point) 'org-social-org-content t)
+          ;; Refresh styling (this will restore keymap overlay)
+          (org-social-ui--refresh-org-content-region region-start (point))
+          (goto-char (+ region-start relative-point))
+          (message "Org command executed"))
+      (message "Not in an Org content region"))))
+
+(defun org-social-ui--org-table-recalculate ()
+  "Recalculate table in the Org content region at point."
+  (interactive)
+  (let ((region (org-social-ui--get-org-content-region)))
+    (if region
+        (let* ((region-start (car region))
+               (region-end (cdr region))
+               (content-text (buffer-substring-no-properties region-start region-end))
+               (relative-point (- (point) region-start))
+               (inhibit-read-only t)
+               (new-content (org-social-ui--execute-in-org-buffer
+                             content-text
+                             (lambda ()
+                               (goto-char (+ (point-min) relative-point))
+                               (org-table-recalculate 'all)))))
+          ;; Replace content
+          (delete-region region-start region-end)
+          (goto-char region-start)
+          (insert new-content)
+          ;; Restore text property
+          (put-text-property region-start (point) 'org-social-org-content t)
+          ;; Refresh styling (this will restore keymap overlay)
+          (org-social-ui--refresh-org-content-region region-start (point))
+          (goto-char (+ region-start relative-point))
+          (message "Table recalculated"))
+      (message "Not in an Org content region"))))
+
+(defun org-social-ui--org-cycle ()
+  "Cycle visibility in the Org content region at point."
+  (interactive)
+  (let ((region (org-social-ui--get-org-content-region)))
+    (if region
+        (progn
+          ;; For now, just show a message
+          ;; Full cycling would require tracking fold state
+          (message "Org cycling (folding) in posts not yet fully implemented"))
+      (message "Not in an Org content region"))))
+
+(defun org-social-ui--org-shifttab ()
+  "Global cycle visibility in the Org content region."
+  (interactive)
+  (message "Global Org cycling in posts not yet implemented"))
+
+(defun org-social-ui--org-babel-execute ()
+  "Execute source block in the Org content region at point."
+  (interactive)
+  (let ((region (org-social-ui--get-org-content-region)))
+    (if region
+        (let* ((region-start (car region))
+               (region-end (cdr region))
+               (content-text (buffer-substring-no-properties region-start region-end))
+               (relative-point (- (point) region-start))
+               (inhibit-read-only t)
+               (new-content (org-social-ui--execute-in-org-buffer
+                             content-text
+                             (lambda ()
+                               (goto-char (+ (point-min) relative-point))
+                               (org-babel-execute-src-block)))))
+          ;; Replace content
+          (delete-region region-start region-end)
+          (goto-char region-start)
+          (insert new-content)
+          ;; Restore text property
+          (put-text-property region-start (point) 'org-social-org-content t)
+          ;; Refresh styling (this will restore keymap overlay)
+          (org-social-ui--refresh-org-content-region region-start (point))
+          (goto-char (+ region-start relative-point))
+          (message "Source block executed"))
+      (message "Not in an Org content region"))))
 
 (defun org-social-ui--format-org-headings (text)
   "Format `org-mode' headings in TEXT to be more visually appealing.

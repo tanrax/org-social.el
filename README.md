@@ -240,6 +240,86 @@ Save the current Org-social file and run associated hooks.
 | `b`        | Kill buffer | Close the current buffer |
 | `q`        | Quit | Quit Org Social UI |
 
+### In post content (Interactive Org Mode)
+
+When your cursor is positioned in the content area of a post, you can use Org mode commands:
+
+| Keybinding    | Function | Description |
+|---------------|----------|-------------|
+| `C-c C-c`     | org-ctrl-c-ctrl-c | Context-aware Org command (recalculate tables, execute code) |
+| `C-c *`       | org-table-recalculate | Force recalculation of table formulas |
+| `C-c C-v C-e` | org-babel-execute-src-block | Execute source code block |
+
+## 🧮 Interactive Org Mode Content
+
+Posts in org-social.el support **interactive Org mode features**, allowing tables with formulas, executable code blocks, and other dynamic content to work directly in the timeline and thread views.
+
+### Supported Features
+
+#### Tables with Formulas
+
+Create posts with Org mode tables and formulas that can be recalculated:
+
+```org
+**
+:PROPERTIES:
+:ID: 2025-01-15T10:00:00+0100
+:END:
+
+Monthly budget:
+
+| Category  | Amount | Percentage |
+|-----------+--------+------------|
+| Rent      |   1200 |      48.00 |
+| Food      |    400 |      16.00 |
+| Transport |    200 |       8.00 |
+| Savings   |    400 |      16.00 |
+|-----------+--------+------------|
+| Total     |   2200 |     100.00 |
+#+TBLFM: @2$3=100*$2/@6$2;%.2f::@3$3=100*$2/@6$2;%.2f::@4$3=100*$2/@6$2;%.2f::@5$3=100*$2/@6$2;%.2f::@6$2=vsum(@2..@5)::@6$3=vsum(@2..@5)
+```
+
+**How to use:** Position your cursor on any table cell and press `C-c C-c` to recalculate all formulas.
+
+#### Executable Code Blocks
+
+Share code that others can execute directly in the timeline:
+
+```org
+**
+:PROPERTIES:
+:ID: 2025-01-15T11:00:00+0100
+:END:
+
+Quick Fibonacci calculator:
+
+#+BEGIN_SRC python :results output
+def fibonacci(n):
+    if n <= 1:
+        return n
+    return fibonacci(n-1) + fibonacci(n-2)
+
+for i in range(10):
+    print(f"F({i}) = {fibonacci(i)}")
+#+END_SRC
+```
+
+**How to use:** Position your cursor inside the code block and press `C-c C-c` to execute it.
+
+#### Rich Formatting
+
+All standard Org mode formatting works in posts:
+- **Bold**: `**text**`
+- *Italic*: `/text/`
+- `Code`: `=text=` or `~text~`
+- Links: `[[url][description]]`
+- Lists, checkboxes, and more
+
+### Current Limitations
+
+- TAB-based folding is not fully implemented yet
+- Some advanced Org features may not work perfectly in the widget context
+
 ## 🪝 Hooks
 
 You can use the following hooks to perform additional actions automatically:

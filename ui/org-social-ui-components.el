@@ -30,6 +30,9 @@
 (declare-function org-social--format-date "org-social" (timestamp))
 (declare-function org-social-polls--vote-on-poll "org-social-polls" (&optional author-url timestamp))
 
+;; Variable declarations for interactive Org content
+(defvar org-social-ui--org-content-keymap)
+
 ;; Thread tracking variables
 (defvar org-social-ui--posts-with-replies nil
   "Hash table of post URLs that have replies according to relay.")
@@ -133,8 +136,18 @@ Automatically fetches reactions from Relay if not present in POST."
 		(formatted-text (org-social-ui--format-org-headings text)))
             (insert formatted-text)
             (insert "\n")
-            ;; Apply 'org-mode' syntax highlighting to this region only
-            (org-social-ui--apply-org-mode-to-region org-content-start (point))))
+            ;; Mark region as interactive Org content
+            (let ((org-content-end (point)))
+              ;; Use text properties to mark the region
+              (put-text-property org-content-start org-content-end
+                                 'org-social-org-content t)
+              ;; Create overlay with keymap for higher priority in read-only buffers
+              (let ((keymap-overlay (make-overlay org-content-start org-content-end)))
+                (overlay-put keymap-overlay 'keymap org-social-ui--org-content-keymap)
+                (overlay-put keymap-overlay 'priority 50)
+                (overlay-put keymap-overlay 'org-social-keymap-overlay t))
+              ;; Apply 'org-mode' syntax highlighting to this region only
+              (org-social-ui--apply-org-mode-to-region org-content-start org-content-end))))
 
 	;; 3. Add line break between content and tags (only if tags exist)
 	(when (and tags (not (string-empty-p tags)))
