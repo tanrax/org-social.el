@@ -1,5 +1,27 @@
 # 📝 Changelog
 
+## 2.3
+
+- Discover Buffer: New "🌍 Discover" buffer to browse and follow users from the relay
+- Edit Button: Added "✏ Edit" button for your own posts
+- Interactive Org Mode Support: Full interactive Org mode functionality within posts
+  - Execute code blocks with `C-c C-c` (Python, Emacs Lisp, etc.)
+  - Recalculate tables with formulas using `C-c C-c` or `C-c *`
+  - Context-aware Org commands work directly in timeline and thread views
+- My Profile Button: Added "👤 My Profile" button in timeline header
+- UI Improvements:
+  - Renamed "Notifications" to "Notices" throughout the interface
+  - Removed "@" prefix from usernames for cleaner display
+  - Better button layout and spacing
+- Poll Enhancements:
+  - Added "🗳 Vote" button for polls
+  - Polls now hidden from timeline view (visible in threads and profiles)
+- Bug Fixes:
+  - Fixed org headings promotion relative to posts (#18)
+  - Fixed duplicate posts in group views
+  - Improved reaction handling and display
+  - Corrected keyboard shortcuts in documentation
+
 ## 2.2
 
 - New notification system.
