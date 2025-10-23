@@ -195,6 +195,15 @@ Insert a mention of a user in your post.
 
 Check and display mentions from the relay server in a separate buffer. Only works when relay is configured.
 
+### `org-social-discover`
+
+Browse and follow users from the relay server. Opens a buffer showing all users registered in the relay with their avatars, descriptions, and follow/unfollow buttons. Allows you to:
+- View all users from the relay with their profile information
+- Follow new users with the "+ Follow" button
+- Unfollow existing users with the "− Unfollow" button
+- View user profiles with the "👤 Profile" button
+- Automatically updates your social.org file when you follow/unfollow users
+
 ### `org-social-validate-file`
 
 Verifies that your file has the correct structure.
@@ -233,8 +242,9 @@ Save the current Org-social file and run associated hooks.
 | `p`        | Previous post | Navigate to the previous post |
 | `t`        | View thread | View thread for current post |
 | `P`        | View profile | View the profile of the post author |
-| `N`        | Notifications | View notifications and mentions |
+| `N`        | Notices | View notices and mentions |
 | `G`        | Groups | View groups |
+| `D`        | Discover | Browse and follow users from the relay |
 | `T`        | Timeline | Go back to timeline |
 | `g`        | Refresh | Refresh the current view |
 | `b`        | Kill buffer | Close the current buffer |
@@ -249,6 +259,36 @@ When your cursor is positioned in the content area of a post, you can use Org mo
 | `C-c C-c`     | org-ctrl-c-ctrl-c | Context-aware Org command (recalculate tables, execute code) |
 | `C-c *`       | org-table-recalculate | Force recalculation of table formulas |
 | `C-c C-v C-e` | org-babel-execute-src-block | Execute source code block |
+
+## 🎨 UI Features
+
+### Edit Your Posts
+
+When viewing your own posts in the timeline or threads, you'll see an **"✏ Edit"** button. Clicking this button:
+- Opens your `social.org` file
+- Automatically positions the cursor at the beginning of that post's content
+- Allows you to edit the post directly in your file
+
+This makes it easy to quickly fix typos or update content without manually searching through your file.
+
+### My Profile Button
+
+The timeline header includes a **"👤 My Profile"** button that provides quick access to view your own profile. This is useful for:
+- Checking how your profile appears to others
+- Reviewing your recent posts
+- Verifying your profile information
+
+### Discover Users
+
+The **"🌍 Discover"** buffer allows you to explore and follow users from the relay server:
+
+1. Click the "🌍 Discover" button in the timeline header or press `D`
+2. Browse all users registered in the relay with their avatars and descriptions
+3. Use **"+ Follow"** button to follow new users
+4. Use **"− Unfollow"** button to stop following users
+5. Click **"👤 Profile"** to view a user's full profile
+
+Your `social.org` file is automatically updated when you follow or unfollow users.
 
 ## 🧮 Interactive Org Mode Content
 

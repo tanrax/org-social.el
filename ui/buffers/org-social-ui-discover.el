@@ -120,7 +120,8 @@
       (org-social-ui-discover))))
 
 (defun org-social-ui--unfollow-user (feed-url nick)
-  "Remove FEED-URL from follows in social.org."
+  "Remove FEED-URL from follows in social.org.
+NICK is the user's nickname."
   (when (file-exists-p org-social-file)
     (with-current-buffer (find-file-noselect org-social-file)
       (save-excursion
@@ -260,7 +261,7 @@
                    ;; Sort users by nick
                    (setq users (sort users (lambda (a b)
                                              (string< (alist-get 'nick a)
-                                                     (alist-get 'nick b)))))
+                                                      (alist-get 'nick b)))))
                    (setq org-social-ui--discover-users users)
                    ;; Display users
                    (with-current-buffer buffer-name
