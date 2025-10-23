@@ -67,6 +67,7 @@ specifically for the timeline view."
 (declare-function org-social-ui-notifications "org-social-ui-notifications" ())
 (declare-function org-social-ui-groups "org-social-ui-groups" ())
 (declare-function org-social-ui-search "org-social-ui-search" ())
+(declare-function org-social-ui-discover "org-social-ui-discover" ())
 (declare-function org-social-ui-profile "org-social-ui-profile" (user-url))
 
 ;; Refresh timer variable
@@ -88,7 +89,7 @@ specifically for the timeline view."
   (widget-create 'push-button
                  :notify (lambda (&rest _) (org-social-ui-notifications))
                  :help-echo "View notifications"
-                 " 🔔 Notifications ")
+                 " 🔔 Notices ")
 
   (org-social-ui--insert-formatted-text " ")
 
@@ -103,6 +104,13 @@ specifically for the timeline view."
                  :notify (lambda (&rest _) (org-social-ui-search))
                  :help-echo "Search posts"
                  " 🔍 Search ")
+
+  (org-social-ui--insert-formatted-text " ")
+
+  (widget-create 'push-button
+                 :notify (lambda (&rest _) (org-social-ui-discover))
+                 :help-echo "Discover users"
+                 " 🌍 Discover ")
 
   (org-social-ui--insert-formatted-text "\n\n")
 
@@ -142,7 +150,7 @@ specifically for the timeline view."
   ;; Help text
   (org-social-ui--insert-formatted-text "Navigation: (n) Next | (p) Previous | (t) Thread | (P) Profile\n" nil "#666666")
   (org-social-ui--insert-formatted-text "Post: (c) New Post | (l) New Poll | (r) Reply | (R) React\n" nil "#666666")
-  (org-social-ui--insert-formatted-text "Actions: (N) Notifications | (G) Groups | (S) Search\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Actions: (N) Notices | (G) Groups | (S) Search\n" nil "#666666")
   (org-social-ui--insert-formatted-text "Other: (g) Refresh | (q) Quit\n" nil "#666666")
 
   (org-social-ui--insert-separator))
@@ -199,7 +207,7 @@ specifically for the timeline view."
   (widget-create 'push-button
                  :notify (lambda (&rest _) (org-social-ui-notifications))
                  :help-echo "View notifications"
-                 " 🔔 Notifications ")
+                 " 🔔 Notices ")
 
   (org-social-ui--insert-formatted-text " ")
 
