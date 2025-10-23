@@ -277,7 +277,7 @@ Automatically fetches reactions from Relay if not present in POST."
           (org-social-ui--insert-formatted-text "👤 " nil "#4a90e2"))
 
 	;; Author name
-	(org-social-ui--insert-formatted-text (format "@%s" author) 1.1 "#4a90e2")
+	(org-social-ui--insert-formatted-text (format "%s" author) 1.1 "#4a90e2")
 	(org-social-ui--insert-formatted-text " • ")
 	(org-social-ui--insert-formatted-text (org-social--format-date timestamp) nil "#666666")
 	(when (and client (not (string-empty-p client)))
@@ -310,7 +310,7 @@ Automatically fetches reactions from Relay if not present in POST."
   (widget-create 'push-button
                  :notify (lambda (&rest _) (org-social-ui-notifications))
                  :help-echo "View notifications"
-                 " 🔔 Notifications ")
+                 " 🔔 Notices ")
 
   (org-social-ui--insert-formatted-text " ")
 
@@ -346,7 +346,7 @@ Automatically fetches reactions from Relay if not present in POST."
   ;; Help text
   (org-social-ui--insert-formatted-text "Navigation: (n) Next | (p) Previous | (t) Thread | (P) Profile\n" nil "#666666")
   (org-social-ui--insert-formatted-text "Post: (c) New Post | (l) New Poll | (r) Reply | (R) React\n" nil "#666666")
-  (org-social-ui--insert-formatted-text "Actions: (N) Notifications | (G) Groups\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Actions: (N) Notices | (G) Groups\n" nil "#666666")
   (org-social-ui--insert-formatted-text "Other: (g) Refresh | (q) Quit\n" nil "#666666")
 
   (org-social-ui--insert-separator))
@@ -390,7 +390,7 @@ Automatically fetches reactions from Relay if not present in POST."
   (widget-create 'push-button
                  :notify (lambda (&rest _) (org-social-ui-notifications))
                  :help-echo "View notifications"
-                 " 🔔 Notifications ")
+                 " 🔔 Notices ")
 
   (org-social-ui--insert-formatted-text " ")
 

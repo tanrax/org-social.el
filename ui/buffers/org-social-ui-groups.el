@@ -42,7 +42,7 @@
   (widget-create 'push-button
                  :notify (lambda (&rest _) (org-social-ui-notifications))
                  :help-echo "View notifications"
-                 " 🔔 Notifications ")
+                 " 🔔 Notices ")
 
   (org-social-ui--insert-formatted-text " ")
 

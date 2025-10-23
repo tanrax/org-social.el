@@ -39,6 +39,7 @@
 (require 'org-social-ui-profile)
 (require 'org-social-ui-groups)
 (require 'org-social-ui-search)
+(require 'org-social-ui-discover)
 
 (provide 'org-social-ui)
 ;;; org-social-ui.el ends here

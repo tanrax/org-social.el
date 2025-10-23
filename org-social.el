@@ -293,7 +293,16 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
     (org-social--ensure-loaded)
     (if (fboundp 'org-social-ui-groups)
         (org-social-ui-groups)
-      (error "Groups UI not available.  Please check if org-social-ui module is loaded correctly"))))
+      (error "Groups UI not available.  Please check if org-social-ui module is loaded correctly")))
+
+;;;###autoload
+  (defun org-social-discover ()
+    "Discover and follow users from the relay."
+    (interactive)
+    (org-social--ensure-loaded)
+    (if (fboundp 'org-social-ui-discover)
+        (org-social-ui-discover)
+      (error "Discover UI not available.  Please check if org-social-ui module is loaded correctly"))))
 
 (provide 'org-social)
 ;;; org-social.el ends here
