@@ -151,8 +151,12 @@ Argument NEW-RESPONSE"
                          (cons 'url url)
                          (cons 'posts posts))))
                     org-social-variables--queue))
-      ;; Add own profile
-      (when org-social-variables--my-profile
+      ;; Add own profile only if not already in feeds (relay might have already included it)
+      (when (and org-social-variables--my-profile
+                 (not (seq-find (lambda (feed)
+                                  (string= (alist-get 'url feed)
+                                           (alist-get 'url org-social-variables--my-profile)))
+                                org-social-variables--feeds)))
         (setq org-social-variables--feeds (cons org-social-variables--my-profile org-social-variables--feeds)))
       (message "All feeds downloaded!")
       (run-hooks 'org-social-after-fetch-posts-hook))))
