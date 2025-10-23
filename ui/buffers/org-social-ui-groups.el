@@ -175,7 +175,7 @@ Fetches posts from relay and displays them like timeline."
       (widget-create 'push-button
                      :notify (lambda (&rest _) (org-social-file--new-post))
                      :help-echo "Create a new post in this group"
-                     " ✍ New Post ")
+                     " + New Post ")
 
       (org-social-ui--insert-formatted-text " ")
 
