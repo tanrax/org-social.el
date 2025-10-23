@@ -17,10 +17,10 @@
   - Added "🗳 Vote" button for polls
   - Polls now hidden from timeline view (visible in threads and profiles)
 - Bug Fixes:
-  - Fixed org headings promotion relative to posts (#18)
+  - Fixed org headings promotion relative to posts ([#18](https://github.com/tanrax/org-social.el/pull/18))
   - Fixed duplicate posts in group views
   - Improved reaction handling and display
-  - Corrected keyboard shortcuts in documentation
+  - Corrected keyboard shortcuts in documentation ([#14](https://github.com/tanrax/org-social.el/pull/14))
 
 ## 2.2
 
