@@ -67,6 +67,7 @@ specifically for the timeline view."
 (declare-function org-social-ui-notifications "org-social-ui-notifications" ())
 (declare-function org-social-ui-groups "org-social-ui-groups" ())
 (declare-function org-social-ui-search "org-social-ui-search" ())
+(declare-function org-social-ui-profile "org-social-ui-profile" (user-url))
 
 ;; Refresh timer variable
 (defvar org-social-ui--refresh-timer nil
@@ -117,6 +118,17 @@ specifically for the timeline view."
                  :notify (lambda (&rest _) (org-social-file--new-poll))
                  :help-echo "Create a new poll"
                  " 📊 New Poll ")
+
+  (org-social-ui--insert-formatted-text " ")
+
+  (widget-create 'push-button
+                 :notify (lambda (&rest _)
+                           (when org-social-variables--my-profile
+                             (let ((my-url (alist-get 'url org-social-variables--my-profile)))
+                               (when my-url
+                                 (org-social-ui-profile my-url)))))
+                 :help-echo "View your profile"
+                 " 👤 My Profile ")
 
   (org-social-ui--insert-formatted-text " ")
 
@@ -367,9 +379,14 @@ specifically for the timeline view."
         (setq org-social-variables--queue nil)
         (message "Cache cleared, loading fresh data from relay...")
 
-        ;; Load my profile first to get followers list
+        ;; Load my profile first to get followers list AND set org-social-variables--my-profile
         (when (fboundp 'org-social-file--read-my-profile)
           (org-social-file--read-my-profile))
+
+        ;; CRITICAL: Load my profile into org-social-variables--my-profile
+        (when (fboundp 'org-social-parser--get-my-profile)
+          (require 'org-social-parser)
+          (setq org-social-variables--my-profile (org-social-parser--get-my-profile)))
 
         ;; Initialize feeds from relay if available, otherwise from local followers
         (if (and (boundp 'org-social-relay)

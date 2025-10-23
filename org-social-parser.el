@@ -102,7 +102,7 @@ Argument GROUP-LINE text."
          (cons 'title (org-social-parser--get-value feed "TITLE"))
          (cons 'description (org-social-parser--get-value feed "DESCRIPTION"))
          (cons 'avatar (org-social-parser--get-value feed "AVATAR"))
-         (cons 'url org-social-file)  ; Add URL for replies
+         (cons 'url (or org-social-my-public-url org-social-file))  ; Use public URL if available, fallback to file path
          (cons 'follow (mapcar #'org-social-parser--parse-follow (delq nil follows-list)))
          (cons 'group (mapcar #'org-social-parser--parse-group (delq nil groups-list)))
          (cons 'posts (org-social-parser--get-posts-from-feed feed)))))))

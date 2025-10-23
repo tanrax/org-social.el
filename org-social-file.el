@@ -400,6 +400,39 @@ Optional REPLY-URL and REPLY-ID are passed to create a reply post."
     (require 'org-social))
   (org-social-new-poll))
 
+(defun org-social-file--edit-post (timestamp)
+  "Open social.org and position cursor at the post with TIMESTAMP.
+TIMESTAMP is the post ID (e.g., '2025-04-28T12:00:00+0100')."
+  (interactive)
+  ;; Open the social.org file
+  (if (file-exists-p org-social-file)
+      (progn
+        (find-file org-social-file)
+        (org-social-mode 1)
+        ;; Search for the post with the given timestamp
+        (goto-char (point-min))
+        (let ((search-pattern (format "^:ID:\\s-*%s" (regexp-quote timestamp))))
+          (if (re-search-forward search-pattern nil t)
+              (progn
+                ;; Found the ID line, now navigate to the post content
+                (beginning-of-line)
+                ;; Search forward for :END: to skip the properties drawer
+                (if (re-search-forward "^:END:\\s-*$" nil t)
+                    (progn
+                      ;; Move to the line after :END:
+                      (forward-line 1)
+                      ;; Skip any blank lines
+                      (while (and (not (eobp))
+                                  (looking-at "^\\s-*$"))
+                        (forward-line 1))
+                      ;; Now we should be at the content
+                      (message "Editing post from %s" timestamp))
+                  ;; If :END: not found, just position after the ID
+                  (message "Warning: Could not find :END: for post %s" timestamp)))
+            (message "Post with timestamp %s not found" timestamp)
+            (goto-char (point-max)))))
+    (message "Social file not found: %s" org-social-file)))
+
 ;; Interactive functions with proper naming
 (defalias 'org-social-save-file #'org-social-file--save)
 (defalias 'org-social-mention-user #'org-social-file--mention-user)

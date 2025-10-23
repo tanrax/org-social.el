@@ -24,6 +24,7 @@
 (declare-function org-social-ui-profile "org-social-ui-profile" (user-url))
 (declare-function org-social-file--new-post "org-social-file" (&optional reply-url reply-id))
 (declare-function org-social-file--new-poll "org-social-file" ())
+(declare-function org-social-file--edit-post "org-social-file" (timestamp))
 (declare-function org-social-ui-timeline "org-social-ui-timeline" ())
 (declare-function org-social-ui-notifications "org-social-ui-notifications" ())
 (declare-function org-social-ui-groups "org-social-ui-groups" ())
@@ -171,6 +172,15 @@ Automatically fetches reactions from Relay if not present in POST."
                                       (require 'org-social-polls)
                                       (org-social-polls--vote-on-poll ,author-url ,timestamp))
                            " 🗳 Vote ")
+            (setq first-button nil))
+
+          ;; Edit button (only for my posts)
+          (when is-my-post
+            (unless first-button (org-social-ui--insert-formatted-text " "))
+            (widget-create 'push-button
+                           :notify `(lambda (&rest _)
+                                      (org-social-file--edit-post ,timestamp))
+                           " ✏ Edit ")
             (setq first-button nil))
 
           ;; Reply button (only for others' posts)
