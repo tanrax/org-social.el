@@ -180,7 +180,7 @@ Automatically fetches reactions from Relay if not present in POST."
             (widget-create 'push-button
                            :notify `(lambda (&rest _)
                                       (org-social-file--edit-post ,timestamp))
-                           " ✏ Edit ")
+                           " ✏️ Edit ")
             (setq first-button nil))
 
           ;; Reply button (only for others' posts)

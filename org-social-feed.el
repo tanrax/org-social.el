@@ -46,8 +46,13 @@
 ;; Declare functions from org-social-relay
 (declare-function org-social-relay--fetch-feeds "org-social-relay" (callback))
 
-;; Declare variable to avoid compilation warning
+;; Declare variables to avoid compilation warnings
 (defvar org-social-max-post-age-days)
+(defvar org-social-max-concurrent-downloads)
+
+;; Concurrency control
+(defvar org-social-feed--active-workers 0
+  "Number of currently active download workers.")
 
 (defun org-social-feed--initialize-queue ()
   "Initialize the download queue with follower feeds."
@@ -123,9 +128,12 @@ Calls ERROR-CALLBACK on error."
                        (condition-case _err
                            (with-current-buffer
                                (url-retrieve-synchronously url t t 10)
+                             (set-buffer-multibyte t)
                              (goto-char (point-min))
                              (if (re-search-forward "\r\n\r\n\|\n\n" nil t)
-                                 (buffer-substring-no-properties (point) (point-max))
+                                 (decode-coding-string
+                                  (buffer-substring-no-properties (point) (point-max))
+                                  'utf-8)
                                nil))
                          (error
                           (message "Error downloading %s" url)
@@ -136,27 +144,50 @@ Calls ERROR-CALLBACK on error."
      (format "org-social-feed-%s" (url-host (url-generic-parse-url url))))))
 
 
+(defun org-social-feed--process-next-pending ()
+  "Process the next pending item in the queue if worker slots available."
+  (when (< org-social-feed--active-workers org-social-max-concurrent-downloads)
+    (let ((pending-item (seq-find (lambda (item) (eq (alist-get :status item) :pending))
+                                  org-social-variables--queue)))
+      (when pending-item
+        (let ((url (alist-get :url pending-item)))
+          ;; Mark as processing and increment active workers
+          (setq org-social-variables--queue
+                (org-social-feed--queue-update-status-by-url org-social-variables--queue url :processing))
+          (setq org-social-feed--active-workers (1+ org-social-feed--active-workers))
+
+          ;; Start the download
+          (org-social-feed--fetch-feed-optimized
+           url
+           ;; Success callback
+           (lambda (data)
+             (setq org-social-variables--queue
+                   (org-social-feed--queue-update-status-by-url org-social-variables--queue url :done))
+             (setq org-social-variables--queue
+                   (org-social-feed--queue-update-response-by-url org-social-variables--queue url data))
+             (setq org-social-feed--active-workers (1- org-social-feed--active-workers))
+             ;; Process next pending item
+             (org-social-feed--process-next-pending)
+             (org-social-feed--check-queue))
+           ;; Error callback
+           (lambda ()
+             (setq org-social-variables--queue
+                   (org-social-feed--queue-update-status-by-url org-social-variables--queue url :error))
+             (setq org-social-feed--active-workers (1- org-social-feed--active-workers))
+             ;; Process next pending item
+             (org-social-feed--process-next-pending)
+             (org-social-feed--check-queue))))))))
+
 (defun org-social-feed--process-queue ()
-  "Process the download queue asynchronously.
-This function launches all feed downloads in parallel using async requests.
-Each request processes independently and calls callbacks when complete,
-maintaining Emacs responsiveness during downloads."
-  (dolist (item org-social-variables--queue)
-    (let ((url (alist-get :url item)))
-      (org-social-feed--fetch-feed-optimized
-       url
-       ;; Success callback
-       (lambda (data)
-         (setq org-social-variables--queue
-               (org-social-feed--queue-update-status-by-url org-social-variables--queue url :done))
-         (setq org-social-variables--queue
-               (org-social-feed--queue-update-response-by-url org-social-variables--queue url data))
-         (org-social-feed--check-queue))
-       ;; Error callback
-       (lambda ()
-         (setq org-social-variables--queue
-               (org-social-feed--queue-update-status-by-url org-social-variables--queue url :error))
-         (org-social-feed--check-queue))))))
+  "Process the download queue asynchronously with limited concurrency.
+Launches up to `org-social-max-concurrent-downloads' downloads in parallel.
+When a download completes, the next pending item is automatically started."
+  ;; Reset active workers counter
+  (setq org-social-feed--active-workers 0)
+
+  ;; Launch initial batch (up to max concurrent)
+  (dotimes (_ org-social-max-concurrent-downloads)
+    (org-social-feed--process-next-pending)))
 
 (defun org-social-feed--fetch-all-feeds-async ()
   "Fetch all follower feeds asynchronously."

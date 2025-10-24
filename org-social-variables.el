@@ -120,6 +120,16 @@ Default: 14 days (2 weeks)."
                  (const :tag "No limit (download all posts)" nil))
   :group 'org-social)
 
+(defcustom org-social-max-concurrent-downloads 20
+  "Maximum number of concurrent feed downloads.
+When loading the timeline, feeds are downloaded in parallel to improve speed.
+This setting limits how many downloads can run simultaneously to avoid
+overwhelming system resources or triggering rate limits on remote servers.
+Recommended range: 10-30.  Higher values = faster but more resource intensive.
+Default: 20."
+  :type 'integer
+  :group 'org-social)
+
 ;; Variables for state management
 
 (defvar org-social-variables--feeds nil
