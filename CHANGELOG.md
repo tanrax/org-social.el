@@ -3,7 +3,7 @@
 ## 2.3
 
 - Discover Buffer: New "🌍 Discover" buffer to browse and follow users from the relay
-- Edit Button: Added "✏ Edit" button for your own posts
+- Edit Button: Added "✏️ Edit" button for your own posts
 - Interactive Org Mode Support: Full interactive Org mode functionality within posts
   - Execute code blocks with `C-c C-c` (Python, Emacs Lisp, etc.)
   - Recalculate tables with formulas using `C-c C-c` or `C-c *`

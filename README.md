@@ -135,6 +135,11 @@ To use the old version 1, you need to use the `v1` branch:
 ;; Set to nil to download all posts without filtering (default: 14 days)
 (setq org-social-max-post-age-days 14)  ; or 7, 30, nil, etc.
 
+;; Maximum number of concurrent feed downloads
+;; Limits parallel downloads to avoid overwhelming system resources
+;; Recommended range: 10-30 (default: 20)
+(setq org-social-max-concurrent-downloads 20)  ; or 10, 30, etc.
+
 ;; Optionally, configure global keybindings
 (keymap-global-set "C-c s t" #'org-social-timeline)
 (keymap-global-set "C-c s n" #'org-social-new-post)
@@ -142,6 +147,26 @@ To use the old version 1, you need to use the `v1` branch:
 (keymap-global-set "C-c s p" #'org-social-new-poll)
 (keymap-global-set "C-c s m" #'org-social-mention-user)
 ```
+
+### ⚠️ Known Limitations with hosting platforms
+
+The optimized partial download feature (`org-social-max-post-age-days`) works best with traditional web servers. Some hosting platforms have limitations:
+
+**Cloudflare CDN**
+- Does not provide `Content-Length` or `Content-Range` headers
+- **Fallback**: Automatically downloads full feed and filters client-side
+- **Impact**: No bandwidth savings, but still works correctly
+
+**Codeberg.org**
+- Implements aggressive rate limiting (HTTP 429) when multiple feeds are downloaded simultaneously
+- **Fallback**: Automatically downloads full feed without filtering when rate limit is detected
+- **Impact**: May download older posts than configured `org-social-max-post-age-days`
+
+**GitHub Raw Content**
+- Provides proper HTTP Range support
+- Works optimally with partial downloads
+
+For best performance with partial downloads, host your `social.org` file on a traditional web server (Apache, Nginx, etc.) or GitHub/GitLab raw content URLs. The client handles all cases gracefully with automatic fallbacks.
 
 ## Customization Variables
 
@@ -155,6 +180,7 @@ To use the old version 1, you need to use the `v1` branch:
 | `org-social-only-relay-followers-p` | When non-nil, use only feeds from the relay server. Requires relay configuration. | `nil` | ❌ | `boolean` |
 | `org-social-default-lang` | Default language code for new posts and polls. When set, automatically fills the `:LANG:` property with a two-letter ISO 639-1 language code (e.g., "en", "es", "fr"). When `nil` or empty string, the `:LANG:` field remains empty. | `nil` | ❌ | `string` |
 | `org-social-max-post-age-days` | Maximum age of posts to fetch from feeds, in days. Uses optimized partial downloads with HTTP Range requests (saves up to 89% bandwidth). Each feed is downloaded in a separate thread for parallel execution without blocking Emacs. For servers supporting Range requests (87.5%), only recent posts are downloaded. For others, the full feed is downloaded and filtered. Set to `nil` to disable filtering and download all posts. | `14` | ❌ | `integer` or `nil` |
+| `org-social-max-concurrent-downloads` | Maximum number of concurrent feed downloads. When loading the timeline, feeds are downloaded in parallel. This setting limits simultaneous downloads to avoid overwhelming system resources or triggering rate limits on remote servers. Recommended range: 10-30. Higher values = faster but more resource intensive. | `20` | ❌ | `integer` |
 
 You can customize these variables through Emacs' customization interface:
 
@@ -269,7 +295,7 @@ When your cursor is positioned in the content area of a post, you can use Org mo
 
 ### Edit Your Posts
 
-When viewing your own posts in the timeline or threads, you'll see an **"✏ Edit"** button. Clicking this button:
+When viewing your own posts in the timeline or threads, you'll see an **"✏️ Edit"** button. Clicking this button:
 - Opens your `social.org` file
 - Automatically positions the cursor at the beginning of that post's content
 - Allows you to edit the post directly in your file
