@@ -107,6 +107,19 @@ When nil or empty string, the :LANG: field will be left empty."
                  (string :tag "Language code (e.g., en, es, fr)"))
   :group 'org-social)
 
+(defcustom org-social-max-post-age-days 14
+  "Maximum age of posts to fetch from feeds, in days.
+When fetching feeds, only posts newer than this many days will be downloaded
+using optimized partial downloads with HTTP Range requests.  Each feed is
+downloaded in a separate thread for parallel execution without blocking Emacs.
+For servers supporting Range requests, this can save up bandwidth.
+For servers without Range support, the full feed is downloaded
+and filtered.  Set to nil to disable filtering and download all posts.
+Default: 14 days (2 weeks)."
+  :type '(choice (integer :tag "Days (e.g., 7, 14, 30)")
+                 (const :tag "No limit (download all posts)" nil))
+  :group 'org-social)
+
 ;; Variables for state management
 
 (defvar org-social-variables--feeds nil
