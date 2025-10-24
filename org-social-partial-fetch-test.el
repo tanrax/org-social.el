@@ -65,7 +65,7 @@ If START-DATE is provided, filter posts by that date."
         nil))))
 
 (defun org-social-partial-fetch-test--run-all ()
-  "Run all tests for partial fetch functionality."
+  "Run test suite for partial fetch functionality."
   (interactive)
   (message "\n")
   (message "╔════════════════════════════════════════════════════════╗")
@@ -166,9 +166,119 @@ If START-DATE is provided, filter posts by that date."
    "Andros' feed - With date filter"
    "2025-10-01T00:00:00+00:00"))
 
+(defun org-social-partial-fetch-test--header-levels-test ()
+  "Test that posts with level 3, 4, and 5 headers are parsed correctly.
+This tests the bugfix for headers inside posts being mistaken
+for post boundaries."
+  (interactive)
+  (let ((test-text "#+TITLE: Test Feed
+#+NICK: tester
+
+* Posts
+**
+:PROPERTIES:
+:ID: 2025-10-24T10:00:00+0200
+:END:
+
+Post with nested headers:
+
+*** Level 3 Section
+Content in level 3.
+
+**** Level 4 Subsection
+Content in level 4.
+
+***** Level 5 Deep Section
+Content in level 5.
+
+*** Another Level 3
+More content.
+
+**
+:PROPERTIES:
+:ID: 2025-10-24T11:00:00+0200
+:END:
+
+Second post.
+
+**
+:PROPERTIES:
+:ID: 2025-10-24T12:00:00+0200
+:END:
+
+Third post with more headers:
+
+*** Config
+**** Details
+***** More details
+
+**
+:PROPERTIES:
+:ID: 2025-10-24T13:00:00+0200
+:END:
+
+Fourth post.
+"))
+
+    (message "\n╔════════════════════════════════════════════════════════╗")
+    (message "║   TEST: Header Levels 3-5 Inside Posts                ║")
+    (message "╚════════════════════════════════════════════════════════╝\n")
+
+    (let* ((posts-start (string-match "^\\* Posts" test-text))
+           (posts-section (substring test-text (+ posts-start 7)))
+           (posts (org-social-partial-fetch--extract-posts-from-text posts-section nil))
+           (all-passed t))
+
+      (message "Expected: 4 posts")
+      (message "Found: %d posts\n" (length posts))
+
+      (if (= (length posts) 4)
+          (message "✓ Correct number of posts")
+        (progn
+          (message "✗ FAILED: Expected 4 posts, found %d" (length posts))
+          (setq all-passed nil)))
+
+      ;; Check first post contains nested headers
+      (when (>= (length posts) 1)
+        (let* ((first-post (nth 0 posts))
+               (has-level3 (string-match "\\*\\*\\* Level 3 Section" first-post))
+               (has-level4 (string-match "\\*\\*\\*\\* Level 4 Subsection" first-post))
+               (has-level5 (string-match "\\*\\*\\*\\*\\* Level 5 Deep Section" first-post)))
+
+          (if (and has-level3 has-level4 has-level5)
+              (message "✓ First post contains all nested header levels")
+            (progn
+              (message "✗ FAILED: First post missing some header levels")
+              (setq all-passed nil)))))
+
+      ;; Check all posts have correct IDs
+      (let ((found-ids '()))
+        (dotimes (i (length posts))
+          (let ((id (org-social-partial-fetch--parse-post-id (nth i posts))))
+            (when id (push id found-ids))))
+        (setq found-ids (nreverse found-ids))
+
+        (if (= (length found-ids) 4)
+            (message "✓ All posts have valid IDs")
+          (progn
+            (message "✗ FAILED: Some posts missing IDs")
+            (setq all-passed nil))))
+
+      (message "\n")
+      (if all-passed
+          (message "✓ Header levels test PASSED\n")
+        (progn
+          (message "✗ Header levels test FAILED\n")
+          (message "Dumping posts for debugging:")
+          (dotimes (i (length posts))
+            (message "\n--- Post %d ---\n%s" (1+ i) (nth i posts)))))
+
+      all-passed)))
+
 ;; Interactive command aliases
 (defalias 'test-org-social-partial-fetch #'org-social-partial-fetch-test--run-all)
 (defalias 'test-org-social-partial-fetch-quick #'org-social-partial-fetch-test--quick-test)
+(defalias 'test-org-social-partial-fetch-headers #'org-social-partial-fetch-test--header-levels-test)
 
 (provide 'org-social-partial-fetch-test)
 ;;; org-social-partial-fetch-test.el ends here

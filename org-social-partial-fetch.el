@@ -189,11 +189,12 @@ Returns a list of post strings."
   (let ((posts '())
         (current-pos 0))
 
-    ;; Split by "**" (post markers)
-    (while (string-match "^\\*\\*" text current-pos)
+    ;; Split by "**" (post markers) - match exactly 2 asterisks followed by end of line or whitespace
+    ;; This prevents matching level 3+ headers (***) inside posts
+    (while (string-match "^\\*\\*[[:space:]]*$" text current-pos)
       (let ((post-start (match-beginning 0)))
         ;; Find the next post or end of text
-        (let ((next-post (string-match "^\\*\\*" text (1+ post-start))))
+        (let ((next-post (string-match "^\\*\\*[[:space:]]*$" text (1+ post-start))))
           (let* ((post-end (or next-post (length text)))
                  (post-text (substring text post-start post-end))
                  (post-id (org-social-partial-fetch--parse-post-id post-text)))
@@ -206,7 +207,8 @@ Returns a list of post strings."
                 ;; No start-date filter, include all posts
                 (push post-text posts)))
 
-            (setq current-pos (if next-post (1+ next-post) (length text)))))))
+            ;; Move to the end of the current post (which is the start of the next post or end of text)
+            (setq current-pos post-end)))))
 
     (nreverse posts)))
 
