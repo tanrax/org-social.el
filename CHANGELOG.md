@@ -16,11 +16,15 @@
 - Poll Enhancements:
   - Added "🗳 Vote" button for polls
   - Polls now hidden from timeline view (visible in threads and profiles)
+- Performance Optimizations: New `org-social-partial-fetch.el` module with HTTP Range requests. Downloads only recent posts (configurable via `org-social-max-post-age-days`, default: 14 days)
+- Concurrent Download Control: New `org-social-max-concurrent-downloads` variable (default: 20)
+- UTF-8 Fix: Properly decode emojis and Unicode characters in partial downloads
 - Bug Fixes:
   - Fixed org headings promotion relative to posts ([#18](https://github.com/tanrax/org-social.el/pull/18))
   - Fixed duplicate posts in group views
   - Improved reaction handling and display
   - Corrected keyboard shortcuts in documentation ([#14](https://github.com/tanrax/org-social.el/pull/14))
+  - Fixed MOOD emoji displaying as octal sequences instead of proper emoji rendering
 
 ## 2.2
 
