@@ -30,6 +30,7 @@
 
 (require 'org-social-variables)
 (require 'org-social-parser)
+(require 'org-social-partial-fetch)
 (require 'seq)
 (require 'cl-lib)
 
@@ -44,6 +45,9 @@
 
 ;; Declare functions from org-social-relay
 (declare-function org-social-relay--fetch-feeds "org-social-relay" (callback))
+
+;; Declare variable to avoid compilation warning
+(defvar org-social-max-post-age-days)
 
 (defun org-social-feed--initialize-queue ()
   "Initialize the download queue with follower feeds."
@@ -95,23 +99,64 @@ Argument NEW-RESPONSE"
               item))
           (copy-tree queue)))
 
+(defun org-social-feed--calculate-start-date ()
+  "Calculate start date for fetching posts based on `org-social-max-post-age-days'.
+Returns an RFC 3339 formatted date string, or nil if filtering is disabled."
+  (when org-social-max-post-age-days
+    (let ((days-ago (time-subtract (current-time)
+                                   (days-to-time org-social-max-post-age-days))))
+      (format-time-string "%Y-%m-%dT%H:%M:%S%z" days-ago))))
+
+(defun org-social-feed--fetch-feed-optimized (url callback error-callback)
+  "Fetch feed from URL using optimized partial download in a separate thread.
+Uses `org-social-partial-fetch-by-date' with HTTP Range requests when available.
+Executes in a separate thread to maintain parallelism without blocking Emacs.
+Calls CALLBACK with the downloaded content on success.
+Calls ERROR-CALLBACK on error."
+  (let ((start-date (org-social-feed--calculate-start-date)))
+    (make-thread
+     (lambda ()
+       (let ((result (if start-date
+                         ;; Use optimized partial fetch with date filtering
+                         (org-social-partial-fetch-by-date url start-date)
+                       ;; No filtering - download full feed
+                       (condition-case _err
+                           (with-current-buffer
+                               (url-retrieve-synchronously url t t 10)
+                             (goto-char (point-min))
+                             (if (re-search-forward "\r\n\r\n\|\n\n" nil t)
+                                 (buffer-substring-no-properties (point) (point-max))
+                               nil))
+                         (error
+                          (message "Error downloading %s" url)
+                          nil)))))
+         (if result
+             (funcall callback result)
+           (funcall error-callback))))
+     (format "org-social-feed-%s" (url-host (url-generic-parse-url url))))))
+
+
 (defun org-social-feed--process-queue ()
-  "Process the download queue asynchronously."
+  "Process the download queue asynchronously.
+This function launches all feed downloads in parallel using async requests.
+Each request processes independently and calls callbacks when complete,
+maintaining Emacs responsiveness during downloads."
   (dolist (item org-social-variables--queue)
     (let ((url (alist-get :url item)))
-      (request url
-               :timeout 10
-               :success (cl-function
-                         (lambda (&key data &allow-other-keys)
-                           (setq org-social-variables--queue
-                                 (org-social-feed--queue-update-status-by-url org-social-variables--queue url :done))
-                           (setq org-social-variables--queue
-                                 (org-social-feed--queue-update-response-by-url org-social-variables--queue url data))
-                           (org-social-feed--check-queue)))
-               :error (lambda (&rest _)
-                        (setq org-social-variables--queue
-                              (org-social-feed--queue-update-status-by-url org-social-variables--queue url :error))
-                        (org-social-feed--check-queue))))))
+      (org-social-feed--fetch-feed-optimized
+       url
+       ;; Success callback
+       (lambda (data)
+         (setq org-social-variables--queue
+               (org-social-feed--queue-update-status-by-url org-social-variables--queue url :done))
+         (setq org-social-variables--queue
+               (org-social-feed--queue-update-response-by-url org-social-variables--queue url data))
+         (org-social-feed--check-queue))
+       ;; Error callback
+       (lambda ()
+         (setq org-social-variables--queue
+               (org-social-feed--queue-update-status-by-url org-social-variables--queue url :error))
+         (org-social-feed--check-queue))))))
 
 (defun org-social-feed--fetch-all-feeds-async ()
   "Fetch all follower feeds asynchronously."

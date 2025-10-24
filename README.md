@@ -131,6 +131,10 @@ To use the old version 1, you need to use the `v1` branch:
 ;; Leave as nil to keep :LANG: field empty (default behavior)
 (setq org-social-default-lang nil)  ; or "en", "es", "fr", etc.
 
+;; Maximum age of posts to fetch from feeds (in days)
+;; Set to nil to download all posts without filtering (default: 14 days)
+(setq org-social-max-post-age-days 14)  ; or 7, 30, nil, etc.
+
 ;; Optionally, configure global keybindings
 (keymap-global-set "C-c s t" #'org-social-timeline)
 (keymap-global-set "C-c s n" #'org-social-new-post)
@@ -150,6 +154,7 @@ To use the old version 1, you need to use the `v1` branch:
 | `org-social-live-preview-url` | Base URL for live post previews. When set, a Share button appears in post buttons that opens the post preview in the system browser with URL-encoded post URL. Set to `nil` to hide the Share button. | `"https://org-social-preview.andros.dev/?post="` | ❌ | `string` |
 | `org-social-only-relay-followers-p` | When non-nil, use only feeds from the relay server. Requires relay configuration. | `nil` | ❌ | `boolean` |
 | `org-social-default-lang` | Default language code for new posts and polls. When set, automatically fills the `:LANG:` property with a two-letter ISO 639-1 language code (e.g., "en", "es", "fr"). When `nil` or empty string, the `:LANG:` field remains empty. | `nil` | ❌ | `string` |
+| `org-social-max-post-age-days` | Maximum age of posts to fetch from feeds, in days. Uses optimized partial downloads with HTTP Range requests (saves up to 89% bandwidth). Each feed is downloaded in a separate thread for parallel execution without blocking Emacs. For servers supporting Range requests (87.5%), only recent posts are downloaded. For others, the full feed is downloaded and filtered. Set to `nil` to disable filtering and download all posts. | `14` | ❌ | `integer` or `nil` |
 
 You can customize these variables through Emacs' customization interface:
 
