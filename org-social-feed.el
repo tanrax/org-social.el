@@ -110,7 +110,7 @@ Returns an RFC 3339 formatted date string, or nil if filtering is disabled."
   (when org-social-max-post-age-days
     (let ((days-ago (time-subtract (current-time)
                                    (days-to-time org-social-max-post-age-days))))
-      (format-time-string "%Y-%m-%dT%H:%M:%S%z" days-ago))))
+      (format-time-string "%FT%T%z" days-ago))))
 
 (defun org-social-feed--fetch-feed-optimized (url callback error-callback)
   "Fetch feed from URL using optimized partial download in a separate thread.

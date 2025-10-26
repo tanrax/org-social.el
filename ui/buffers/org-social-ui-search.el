@@ -284,7 +284,7 @@ QUERY is the search query used."
         (goto-char (point-max))
         (when (search-backward "Show more" nil t)
           (beginning-of-line)
-          (when (and (> (point) (point-min))
+          (when (and (not (bobp))
                      (eq (char-before) ?\n))
             (backward-char))
           (let ((start (point)))

@@ -569,7 +569,7 @@ Only checks posts that will be visible on the current page."
                  (when (search-backward "Show more" nil t)
                    (beginning-of-line)
                    ;; Delete the newline before the button too
-                   (when (and (> (point) (point-min))
+                   (when (and (not (bobp))
                               (eq (char-before) ?\n))
                      (backward-char))
                    (let ((start (point)))
