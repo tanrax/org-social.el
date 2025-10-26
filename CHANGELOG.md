@@ -2,6 +2,7 @@
 
 ## 2.3
 
+- Option to install with MELPA
 - Discover Buffer: New "🌍 Discover" buffer to browse and follow users from the relay
 - Edit Button: Added "✏️ Edit" button for your own posts
 - Interactive Org Mode Support: Full interactive Org mode functionality within posts
