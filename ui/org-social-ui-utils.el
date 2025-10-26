@@ -66,7 +66,7 @@ Returns (START . END) or nil if not in an Org content region."
         (region-end nil))
     ;; Search backward for region start
     (save-excursion
-      (while (and (not region-start) (> (point) (point-min)))
+      (while (and (not region-start) (not (bobp)))
         (if (get-text-property (point) 'org-social-org-content)
             (backward-char)
           (setq region-start (1+ (point)))))
@@ -75,7 +75,7 @@ Returns (START . END) or nil if not in an Org content region."
     ;; Search forward for region end
     (save-excursion
       (goto-char start)
-      (while (and (not region-end) (< (point) (point-max)))
+      (while (and (not region-end) (not (eobp)))
         (if (get-text-property (point) 'org-social-org-content)
             (forward-char)
           (setq region-end (point))))
@@ -692,7 +692,7 @@ Optional CALLBACK is called with success status when download completes."
           (goto-char widget-end))))
 
     ;; Search forward for next "View Posts" button
-    (while (and (not found) (< (point) (point-max)))
+    (while (and (not found) (not (eobp)))
       (forward-char 1)
       (let ((widget (widget-at (point))))
         (when (and widget (eq (widget-type widget) 'push-button))
@@ -725,7 +725,7 @@ Optional CALLBACK is called with success status when download completes."
           (goto-char widget-start))))
 
     ;; Search backward for previous "View Posts" button
-    (while (and (not found) (> (point) (point-min)))
+    (while (and (not found) (not (bobp)))
       (backward-char 1)
       (let ((widget (widget-at (point))))
         (when (and widget (eq (widget-type widget) 'push-button))

@@ -321,8 +321,8 @@ RELAY-GROUPS is a list of alists with \\='name, \\='href, and \\='method from th
       (switch-to-buffer buffer-name)
       (message "Relay not configured"))))
 
-(defun org-social-ui--process-and-display-group-posts (posts-data group-name buffer-name)
-  "Process POSTS-DATA from relay and display them in GROUP-NAME buffer.
+(defun org-social-ui--process-and-display-group-posts (posts-data _group-name buffer-name)
+  "Process POSTS-DATA from relay and display them in _GROUP-NAME buffer.
 BUFFER-NAME is the target buffer for display."
   (if (and posts-data (> (length posts-data) 0))
       (let ((all-post-urls '())

@@ -320,7 +320,7 @@ Returns the complete filtered content (header + filtered posts)."
                                            (org-social-partial-fetch--extract-posts-from-text
                                             posts-section nil)))
                          (posts-text (if filtered-posts
-                                         (concat "* Posts\n" (mapconcat 'identity filtered-posts "\n"))
+                                         (concat "* Posts\n" (mapconcat #'identity filtered-posts "\n"))
                                        "* Posts\n")))
                     (concat head posts-text))
                 (progn
@@ -363,7 +363,7 @@ Returns the complete filtered content (header + filtered posts)."
                                   (1- content-length)
                                   start-date))
                      (posts-text (if posts-list
-                                     (concat "* Posts\n" (mapconcat 'identity posts-list "\n"))
+                                     (concat "* Posts\n" (mapconcat #'identity posts-list "\n"))
                                    "* Posts\n")))
 
                 ;; Return head + filtered posts
