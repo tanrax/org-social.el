@@ -1,6 +1,7 @@
 ;;; org-social-raw.el --- Raw Org format output for Org Social -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2024-2025 Andros Fenollosa
+;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <andros@fenollosa.email>
 ;; Created: 2025

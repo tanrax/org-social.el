@@ -34,13 +34,13 @@ You can use the [public Relay server](https://org-social-relay.andros.dev/) or c
 
 ## 📦 Installation
 
+### MELPA
+
+```
+M-x package-install RET org-social RET
+```
+
 ### use-package
-
-#### Update version
-
-```
-M-x package-reinstall RET org-social RET restart-emacs RET
-```
 
 #### Stable release
 
@@ -77,23 +77,11 @@ To use the old version 1, you need to use the `v1` branch:
         :rev "v1"))
 ```
 
-### Git
+#### Update version
 
-1. Clone the repository
-2. Install dependencies manually:
-
-```elisp
-;; Install required dependencies
-(use-package request :ensure t)
-(use-package visual-fill-column :ensure t)  ; Optional but recommended
-(use-package emojify :ensure t)  ; Optional but recommended
-
-;; Load org-social from local directory
-(add-to-list 'load-path "/path/to/org-social.el")
-(require 'org-social)
 ```
-
-**Note:** When using local installation (`:load-path`), dependencies listed in `Package-Requires` are NOT automatically installed. You must install them manually as shown above.
+M-x package-reinstall RET org-social RET restart-emacs RET
+```
 
 ## ⚙️ Configuration
 
