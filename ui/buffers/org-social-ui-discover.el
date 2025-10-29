@@ -13,6 +13,7 @@
 (require 'org-social-variables)
 (require 'org-social-ui-core)
 (require 'org-social-ui-utils)
+(require 'org-social-user-queue)
 (require 'widget)
 (require 'wid-edit)
 
@@ -243,32 +244,25 @@ NICK is the user's nickname."
           (org-social-relay--fetch-feeds
            (lambda (feeds-list)
              (if feeds-list
-                 (let ((users nil))
-                   ;; Fetch user info for each feed
-                   (dolist (feed-url feeds-list)
-                     (condition-case nil
-                         (with-temp-buffer
-                           (url-insert-file-contents feed-url)
-                           (let ((content (buffer-string)))
-                             (require 'org-social-parser)
-                             (push (list
-                                    (cons 'nick (or (org-social-parser--get-value content "NICK") "Unknown"))
-                                    (cons 'url feed-url)
-                                    (cons 'avatar (org-social-parser--get-value content "AVATAR"))
-                                    (cons 'description (org-social-parser--get-value content "DESCRIPTION")))
-                                   users)))
-                       (error nil)))
-                   ;; Sort users by nick
-                   (setq users (sort users (lambda (a b)
-                                             (string< (alist-get 'nick a)
-                                                      (alist-get 'nick b)))))
-                   (setq org-social-ui--discover-users users)
-                   ;; Display users
-                   (with-current-buffer buffer-name
-                     (let ((inhibit-read-only t))
-                       (goto-char (point-max))
-                       (org-social-ui--insert-discover-users users))
-                     (goto-char (point-min))))
+                 ;; Use the user queue system to fetch user info in parallel
+                 (org-social-user-queue-fetch-users
+                  feeds-list
+                  (lambda (users)
+                    (if users
+                        (progn
+                          (setq org-social-ui--discover-users users)
+                          ;; Display users
+                          (with-current-buffer buffer-name
+                            (let ((inhibit-read-only t))
+                              (goto-char (point-max))
+                              (org-social-ui--insert-discover-users users))
+                            (goto-char (point-min))))
+                      ;; No users fetched
+                      (with-current-buffer buffer-name
+                        (let ((inhibit-read-only t))
+                          (goto-char (point-max))
+                          (org-social-ui--insert-formatted-text "No users could be fetched.\n" nil "#ff6600"))))))
+               ;; Failed to get feed list from relay
                (with-current-buffer buffer-name
                  (let ((inhibit-read-only t))
                    (goto-char (point-max))

@@ -30,6 +30,7 @@
 
 (require 'org-social-variables)
 (require 'org-social-parser)
+(require 'org-social-user-queue)
 (require 'org)
 (require 'org-id)
 (require 'url)
@@ -316,19 +317,19 @@ CALLBACK is called with a list of cons cells (NICK . URL)."
   (org-social-relay--fetch-feeds
    (lambda (feeds-list)
      (if feeds-list
-         (let ((users nil)
-               (processed 0)
-               (total (length feeds-list)))
-           (message "Fetching user information from %d feeds..." total)
-           (dolist (feed-url feeds-list)
-             (let ((nick (org-social-file--extract-nick-from-url feed-url)))
-               (setq processed (1+ processed))
-               (when nick
-                 (push (cons nick feed-url) users))
-               (when (= processed total)
-                 ;; All feeds processed
-                 (message "Loaded %d users from relay" (length users))
-                 (funcall callback (nreverse users))))))
+         ;; Use the user queue system to fetch user info in parallel
+         (org-social-user-queue-fetch-users
+          feeds-list
+          (lambda (users)
+            (if users
+                ;; Convert from alist format to cons cell format (NICK . URL)
+                (let ((user-list (mapcar (lambda (user)
+                                           (cons (alist-get 'nick user)
+                                                 (alist-get 'url user)))
+                                         users)))
+                  (funcall callback user-list))
+              (message "No users could be fetched from relay")
+              (funcall callback nil))))
        (message "Failed to fetch feeds from relay")
        (funcall callback nil)))))
 
@@ -344,17 +345,20 @@ CALLBACK is called with a list of cons cells (NICK . URL)."
       (org-social-file--get-relay-users
        (lambda (users)
          (if users
-             (let* ((user-alist (mapcar (lambda (user)
-                                          (cons (car user) user))
-                                        users))
-                    (selected-nick (completing-read "Mention user: "
-                                                    (mapcar #'car user-alist)
-                                                    nil t))
-                    (selected-user (cdr (assoc selected-nick user-alist))))
-               (when selected-user
-                 (org-social-file--insert-mention (car selected-user)
-                                                  (cdr selected-user))
-                 (message "Mentioned user: %s" (car selected-user))))
+             ;; Run completing-read in the main thread context
+             (run-at-time 0 nil
+                          (lambda ()
+                            (let* ((user-alist (mapcar (lambda (user)
+                                                         (cons (car user) user))
+                                                       users))
+                                   (selected-nick (completing-read "Mention user: "
+                                                                   (mapcar #'car user-alist)
+                                                                   nil t))
+                                   (selected-user (cdr (assoc selected-nick user-alist))))
+                              (when selected-user
+                                (org-social-file--insert-mention (car selected-user)
+                                                                 (cdr selected-user))
+                                (message "Mentioned user: %s" (car selected-user))))))
            (message "No users found in relay"))))
     ;; Use local followers
     (let ((followed-users (org-social-file--get-followed-users)))
