@@ -126,14 +126,14 @@ Optional SUGGESTION provides a hint to fix the error."
   '("TITLE" "NICK" "DESCRIPTION" "AVATAR" "LINK" "FOLLOW" "GROUP" "CONTACT")
   "List of known Org Social keywords that will be validated.
 Keywords not in this list will be ignored (not validated), allowing
-integration with other org-mode tools and export features.")
+integration with other `org-mode' tools and export features.")
 
 (defconst org-social-validator--known-properties
   '("ID" "LANG" "TAGS" "CLIENT" "REPLY_TO" "POLL_END" "POLL_OPTION" "GROUP" "MOOD"
     "TITLE" "CATEGORY" "URL")
   "List of known Org Social properties that will be validated.
 Properties not in this list will be ignored (not validated), allowing
-integration with other org-mode tools and features.")
+integration with other `org-mode' tools and features.")
 
 (defconst org-social-validator--required-properties
   '("ID")
