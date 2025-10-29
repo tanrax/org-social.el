@@ -231,11 +231,11 @@ Optional SUGGESTION provides a hint to fix the error."
 
    ;; CONTACT validation
    ((string= keyword "CONTACT")
-    (unless (string-match-p "^\\(mailto:\\|xmpp:\\|https?://\\)" value)
+    (unless (string-match-p "^[a-zA-Z][a-zA-Z0-9+.-]*://" value)
       (org-social-validator--error
        line 1
-       "CONTACT must start with mailto:, xmpp:, http:// or https://"
-       "Example: #+CONTACT: mailto:user@example.com")))))
+       "CONTACT must be a valid URI with a scheme (e.g., scheme://...)"
+       "Examples: mailto:user@example.com, xmpp:user@server.org, irc://irc.libera.chat/user")))))
 
 (defun org-social-validator--validate-property (property value post-line)
   "Validate PROPERTY with VALUE at POST-LINE."
