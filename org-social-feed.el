@@ -256,15 +256,20 @@ When a download completes, the next pending item is automatically started."
                                        posts)))
                            org-social-variables--feeds))
          (timeline-filtered (seq-filter (lambda (post)
-                                          ;; Keep posts with text (reactions are kept in data for display under posts)
+                                          ;; Keep posts with text (reactions are filtered out)
                                           ;; Exclude group posts (posts with GROUP property)
+                                          ;; Exclude reactions (posts with reply_to + mood)
                                           (let ((text (alist-get 'text post))
-                                                (group (alist-get 'group post)))
+                                                (group (alist-get 'group post))
+                                                (mood (alist-get 'mood post))
+                                                (reply-to (alist-get 'reply_to post)))
                                             ;; Exclude posts with GROUP property from timeline
+                                            ;; Exclude reactions (reply_to + mood)
                                             (and (not group)
-                                                 ;; Must have text or mood
-                                                 (or text
-                                                     (alist-get 'mood post)))))
+                                                 (not (and reply-to mood))
+                                                 ;; Must have text
+                                                 text
+                                                 (not (string-empty-p (string-trim text))))))
                                         timeline))
          (timeline-sorted (sort timeline-filtered
                                 (lambda (a b)

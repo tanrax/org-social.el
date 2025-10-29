@@ -18,19 +18,16 @@
 ;; Helper function to filter out reactions
 (defun org-social-ui--filter-reactions (timeline)
   "Filter out reactions and poll votes from TIMELINE.
-Reactions are posts with reply_to, mood, and empty/short text.
+Reactions are posts with reply_to and mood (regardless of text content).
 Poll votes are posts with poll_option property."
   (seq-filter
    (lambda (post)
-     (let ((text (or (alist-get 'text post) ""))
-           (mood (alist-get 'mood post))
+     (let ((mood (alist-get 'mood post))
            (reply-to (alist-get 'reply_to post))
            (poll-option (alist-get 'poll_option post)))
-       ;; Exclude reactions: posts with reply_to + mood + short text
+       ;; Exclude reactions: posts with reply_to + mood (any text or empty)
        ;; Exclude poll votes: posts with poll_option
-       (not (or (and reply-to
-                     mood
-                     (< (length (string-trim text)) 5))
+       (not (or (and reply-to mood)
                 poll-option))))
    timeline))
 
@@ -41,17 +38,14 @@ This combines reaction filtering, poll vote filtering, and group filtering
 specifically for the timeline view."
   (seq-filter
    (lambda (post)
-     (let ((text (or (alist-get 'text post) ""))
-           (mood (alist-get 'mood post))
+     (let ((mood (alist-get 'mood post))
            (reply-to (alist-get 'reply_to post))
            (group (alist-get 'group post))
            (poll-option (alist-get 'poll_option post)))
-       ;; Exclude reactions: posts with reply_to + mood + short text
+       ;; Exclude reactions: posts with reply_to + mood (any text or empty)
        ;; Exclude poll votes: posts with poll_option
        ;; Exclude group posts: posts with group property
-       (not (or (and reply-to
-                     mood
-                     (< (length (string-trim text)) 5))
+       (not (or (and reply-to mood)
                 poll-option
                 group))))
    timeline))
