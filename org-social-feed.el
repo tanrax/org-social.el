@@ -50,9 +50,9 @@
 (defvar org-social-max-post-age-days)
 (defvar org-social-max-concurrent-downloads)
 
-;; Concurrency control
-(defvar org-social-feed--active-workers 0
-  "Number of currently active download workers.")
+;; Concurrency control - tracks number of in-flight requests
+(defvar org-social-feed--active-downloads 0
+  "Number of currently active download requests.")
 
 (defun org-social-feed--initialize-queue ()
   "Initialize the download queue with follower feeds."
@@ -112,51 +112,103 @@ Returns an RFC 3339 formatted date string, or nil if filtering is disabled."
                                    (days-to-time org-social-max-post-age-days))))
       (format-time-string "%FT%T%z" days-ago))))
 
+(defun org-social-feed--filter-by-date (content start-date)
+  "Filter CONTENT to only include posts newer than START-DATE.
+Returns filtered content with header + filtered posts.
+If START-DATE is nil, returns CONTENT unchanged."
+  (if (not start-date)
+      content
+    ;; Use org-social-partial-fetch for filtering logic
+    (condition-case _err
+        (with-temp-buffer
+          (insert content)
+          (goto-char (point-min))
+          ;; Extract header (everything before * Posts)
+          (let ((header-end (or (re-search-forward "^\\* Posts" nil t)
+				(point-max))))
+            (goto-char (point-min))
+            (let ((header (buffer-substring-no-properties (point-min) header-end)))
+              ;; Parse and filter posts
+              (goto-char header-end)
+              (let ((filtered-posts '()))
+                (while (re-search-forward "^\\*\\* " nil t)
+                  (let ((post-start (line-beginning-position)))
+                    ;; Find post ID
+                    (when (re-search-forward ":ID:\\s-*\\(.+\\)$" nil t)
+                      (let ((post-id (match-string 1)))
+                        ;; Compare dates (RFC 3339 strings are lexicographically comparable)
+                        (when (not (string< post-id start-date))
+                          ;; Find post end (next ** or end of buffer)
+                          (let ((post-end (save-excursion
+                                            (if (re-search-forward "^\\*\\* " nil t)
+						(line-beginning-position)
+                                              (point-max)))))
+                            (push (buffer-substring-no-properties post-start post-end)
+                                  filtered-posts)))))))
+                ;; Rebuild content
+                (if filtered-posts
+                    (concat header "\n" (mapconcat #'identity (nreverse filtered-posts) ""))
+                  (concat header "\n"))))))
+      (error
+       ;; If filtering fails, return original content
+       content))))
+
 (defun org-social-feed--fetch-feed-optimized (url callback error-callback)
-  "Fetch feed from URL using optimized partial download in a separate thread.
+  "Fetch feed from URL using optimized partial download asynchronously.
 Uses `org-social-partial-fetch-by-date' with HTTP Range requests when available.
-Executes in a separate thread to maintain parallelism without blocking Emacs.
+Executes asynchronously using `url-retrieve' without blocking Emacs.
 Calls CALLBACK with the downloaded content on success.
 Calls ERROR-CALLBACK on error."
   (let ((start-date (org-social-feed--calculate-start-date)))
-    (make-thread
-     (lambda ()
-       (let ((result (if start-date
-                         ;; Use optimized partial fetch with date filtering
-                         (org-social-partial-fetch-by-date url start-date)
-                       ;; No filtering - download full feed
-                       (condition-case _err
-                           (with-current-buffer
-                               (url-retrieve-synchronously url t t 10)
-                             (set-buffer-multibyte t)
-                             (goto-char (point-min))
-                             (if (re-search-forward "\r\n\r\n\|\n\n" nil t)
-                                 (decode-coding-string
-                                  (buffer-substring-no-properties (point) (point-max))
-                                  'utf-8)
-                               nil))
-                         (error
-                          (message "Error downloading %s" url)
-                          nil)))))
+    (url-retrieve
+     url
+     (lambda (status)
+       ;; This callback is executed in the main thread (no race conditions)
+       (let ((result nil))
+         (condition-case err
+             (progn
+               ;; Check for errors first
+               (when (plist-get status :error)
+                 (error "Download failed: %S" (plist-get status :error)))
+
+               ;; Extract content from buffer
+               (goto-char (point-min))
+               (when (re-search-forward "\r\n\r\n\\|\n\n" nil t)
+                 (let ((content (decode-coding-string
+                                 (buffer-substring-no-properties (point) (point-max))
+                                 'utf-8)))
+                   ;; Apply date filtering if needed
+                   (setq result
+                         (if start-date
+                             (org-social-feed--filter-by-date content start-date)
+                           content)))))
+           (error
+            (message "Error downloading %s: %s" url (error-message-string err))
+            (setq result nil)))
+
+         ;; Kill buffer to avoid accumulation
+         (kill-buffer (current-buffer))
+
+         ;; Call appropriate callback
          (if result
              (funcall callback result)
            (funcall error-callback))))
-     (format "org-social-feed-%s" (url-host (url-generic-parse-url url))))))
+     nil t)))
 
 
 (defun org-social-feed--process-next-pending ()
-  "Process the next pending item in the queue if worker slots available."
-  (when (< org-social-feed--active-workers org-social-max-concurrent-downloads)
+  "Process the next pending item in the queue if download slots available."
+  (when (< org-social-feed--active-downloads org-social-max-concurrent-downloads)
     (let ((pending-item (seq-find (lambda (item) (eq (alist-get :status item) :pending))
                                   org-social-variables--queue)))
       (when pending-item
         (let ((url (alist-get :url pending-item)))
-          ;; Mark as processing and increment active workers
+          ;; Mark as processing and increment counter
           (setq org-social-variables--queue
                 (org-social-feed--queue-update-status-by-url org-social-variables--queue url :processing))
-          (setq org-social-feed--active-workers (1+ org-social-feed--active-workers))
+          (setq org-social-feed--active-downloads (1+ org-social-feed--active-downloads))
 
-          ;; Start the download
+          ;; Start the async download
           (org-social-feed--fetch-feed-optimized
            url
            ;; Success callback
@@ -165,7 +217,7 @@ Calls ERROR-CALLBACK on error."
                    (org-social-feed--queue-update-status-by-url org-social-variables--queue url :done))
              (setq org-social-variables--queue
                    (org-social-feed--queue-update-response-by-url org-social-variables--queue url data))
-             (setq org-social-feed--active-workers (1- org-social-feed--active-workers))
+             (setq org-social-feed--active-downloads (1- org-social-feed--active-downloads))
              ;; Process next pending item
              (org-social-feed--process-next-pending)
              (org-social-feed--check-queue))
@@ -173,7 +225,7 @@ Calls ERROR-CALLBACK on error."
            (lambda ()
              (setq org-social-variables--queue
                    (org-social-feed--queue-update-status-by-url org-social-variables--queue url :error))
-             (setq org-social-feed--active-workers (1- org-social-feed--active-workers))
+             (setq org-social-feed--active-downloads (1- org-social-feed--active-downloads))
              ;; Process next pending item
              (org-social-feed--process-next-pending)
              (org-social-feed--check-queue))))))))
@@ -181,9 +233,10 @@ Calls ERROR-CALLBACK on error."
 (defun org-social-feed--process-queue ()
   "Process the download queue asynchronously with limited concurrency.
 Launches up to `org-social-max-concurrent-downloads' downloads in parallel.
+All downloads execute asynchronously in the main thread using `url-retrieve'.
 When a download completes, the next pending item is automatically started."
-  ;; Reset active workers counter
-  (setq org-social-feed--active-workers 0)
+  ;; Reset active downloads counter
+  (setq org-social-feed--active-downloads 0)
 
   ;; Launch initial batch (up to max concurrent)
   (dotimes (_ org-social-max-concurrent-downloads)
