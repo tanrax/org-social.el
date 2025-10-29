@@ -50,8 +50,27 @@
   (if org-social-mode
       (progn
         (org-mode)
+        (add-hook 'before-save-hook #'org-social-file--before-save nil t)
         (add-hook 'after-save-hook #'org-social-file--auto-save nil t))
+    (remove-hook 'before-save-hook #'org-social-file--before-save t)
     (remove-hook 'after-save-hook #'org-social-file--auto-save t)))
+
+(defun org-social-file--normalize-empty-headers ()
+  "Add a space after empty ** headers in the current buffer.
+This ensures that lines containing only '**' become '** '.
+Does NOT save the buffer - modifications happen in memory only."
+  (save-excursion
+    (goto-char (point-min))
+    (while (re-search-forward "^\\*\\*$" nil t)
+      ;; Found a line with only **
+      (end-of-line)
+      (insert " "))))
+
+(defun org-social-file--before-save ()
+  "Normalize empty headers before saving."
+  (when (and (buffer-file-name)
+             (file-equal-p (buffer-file-name) org-social-file))
+    (org-social-file--normalize-empty-headers)))
 
 (defun org-social-file--auto-save ()
   "Auto-save handler for Org-social files."
@@ -85,10 +104,12 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
                              org-social-default-lang
                              (not (string-empty-p org-social-default-lang)))
                         org-social-default-lang
-                      "")))
-    (insert "\n**\n:PROPERTIES:\n")
+                      nil)))
+    (insert "\n** \n:PROPERTIES:\n")
     (insert (format ":ID: %s\n" timestamp))
-    (insert (format ":LANG: %s\n" lang-value))
+    ;; Only insert LANG if it has a value (optional field)
+    (when lang-value
+      (insert (format ":LANG: %s\n" lang-value)))
     (insert ":TAGS: \n")
     (insert ":CLIENT: org-social.el\n")
     (when (and reply-url reply-id)
@@ -113,10 +134,12 @@ and POLL-END is the RFC 3339 formatted end time."
                              org-social-default-lang
                              (not (string-empty-p org-social-default-lang)))
                         org-social-default-lang
-                      "")))
-    (insert "\n**\n:PROPERTIES:\n")
+                      nil)))
+    (insert "\n** \n:PROPERTIES:\n")
     (insert (format ":ID: %s\n" timestamp))
-    (insert (format ":LANG: %s\n" lang-value))
+    ;; Only insert LANG if it has a value (optional field)
+    (when lang-value
+      (insert (format ":LANG: %s\n" lang-value)))
     (insert ":TAGS: \n")
     (insert ":CLIENT: org-social.el\n")
     (insert (format ":POLL_END: %s\n" poll-end))
@@ -254,7 +277,7 @@ REPLY-URL is the URL of the post being reacted to.
 REPLY-ID is the timestamp ID of the post being reacted to.
 EMOJI is the reaction emoji."
   (let ((timestamp (org-social-parser--generate-timestamp)))
-    (insert "\n**\n:PROPERTIES:\n")
+    (insert "\n** \n:PROPERTIES:\n")
     (insert (format ":ID: %s\n" timestamp))
     (insert ":CLIENT: org-social.el\n")
     (insert (format ":REPLY_TO: %s#%s\n" reply-url reply-id))

@@ -115,7 +115,7 @@ Reapplies overlays and formatting after content changes."
     (org-social-ui--apply-org-mode-to-region region-start region-end)))
 
 (defun org-social-ui--org-ctrl-c-ctrl-c ()
-  "Execute org-ctrl-c-ctrl-c in the Org content region at point."
+  "Execute `org-ctrl-c-ctrl-c' in the Org content region at point."
   (interactive)
   (let ((region (org-social-ui--get-org-content-region)))
     (if region
