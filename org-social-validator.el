@@ -122,14 +122,18 @@ Optional SUGGESTION provides a hint to fix the error."
   '("TITLE" "NICK")
   "List of required keywords in Org Social files.")
 
-(defconst org-social-validator--valid-keywords
+(defconst org-social-validator--known-keywords
   '("TITLE" "NICK" "DESCRIPTION" "AVATAR" "LINK" "FOLLOW" "GROUP" "CONTACT")
-  "List of valid global keywords in Org Social files.")
+  "List of known Org Social keywords that will be validated.
+Keywords not in this list will be ignored (not validated), allowing
+integration with other org-mode tools and export features.")
 
-(defconst org-social-validator--valid-properties
+(defconst org-social-validator--known-properties
   '("ID" "LANG" "TAGS" "CLIENT" "REPLY_TO" "POLL_END" "POLL_OPTION" "GROUP" "MOOD"
     "TITLE" "CATEGORY" "URL")
-  "List of valid properties in Org Social posts.")
+  "List of known Org Social properties that will be validated.
+Properties not in this list will be ignored (not validated), allowing
+integration with other org-mode tools and features.")
 
 (defconst org-social-validator--required-properties
   '("ID")
@@ -231,11 +235,11 @@ Optional SUGGESTION provides a hint to fix the error."
 
    ;; CONTACT validation
    ((string= keyword "CONTACT")
-    (unless (string-match-p "^[a-zA-Z][a-zA-Z0-9+.-]*://" value)
+    (unless (string-match-p "^[a-zA-Z][a-zA-Z0-9+.-]*:" value)
       (org-social-validator--error
        line 1
-       "CONTACT must be a valid URI with a scheme (e.g., scheme://...)"
-       "Examples: mailto:user@example.com, xmpp:user@server.org, irc://irc.libera.chat/user")))))
+       "CONTACT must be a valid URI with a scheme"
+       "Examples: mailto:user@example.com, xmpp:user@server.org, https://mastodon.social/@user")))))
 
 (defun org-social-validator--validate-property (property value post-line)
   "Validate PROPERTY with VALUE at POST-LINE."
@@ -314,22 +318,17 @@ Optional SUGGESTION provides a hint to fix the error."
         (let ((keyword (match-string 1))
               (value (match-string 2))
               (line (line-number-at-pos)))
-          ;; Check if keyword is valid
-          (unless (member keyword org-social-validator--valid-keywords)
-            (org-social-validator--error
-             line 1
-             (format "Unknown keyword: %s" keyword)
-             (format "Valid keywords are: %s"
-                     (mapconcat #'identity org-social-validator--valid-keywords ", "))))
-
-          ;; Validate keyword
-          (org-social-validator--validate-keyword keyword value line)
+          ;; Only validate known Org Social keywords
+          ;; Unknown keywords are silently ignored (allows org-mode export keywords, etc.)
+          (when (member keyword org-social-validator--known-keywords)
+            ;; Validate keyword
+            (org-social-validator--validate-keyword keyword value line))
 
           ;; Track required keywords
           (when (member keyword org-social-validator--required-keywords)
             (push keyword found-required))
 
-          ;; Store keyword
+          ;; Store keyword (even if unknown, for completeness)
           (push (cons keyword value) keywords))))
 
     ;; Check for missing required keywords
@@ -364,22 +363,17 @@ Optional SUGGESTION provides a hint to fix the error."
             (while (re-search-forward "^:\\([A-Z_]+\\):\\s-*\\(.+\\)$" props-end t)
               (let ((prop (match-string 1))
                     (value (match-string 2)))
-                ;; Check if property is valid
-                (unless (member prop org-social-validator--valid-properties)
-                  (org-social-validator--error
-                   (line-number-at-pos) 1
-                   (format "Unknown property: %s" prop)
-                   (format "Valid properties are: %s"
-                           (mapconcat #'identity org-social-validator--valid-properties ", "))))
-
-                ;; Validate property
-                (org-social-validator--validate-property prop value post-line)
+                ;; Only validate known Org Social properties
+                ;; Unknown properties are silently ignored (allows org-mode export properties, etc.)
+                (when (member prop org-social-validator--known-properties)
+                  ;; Validate property
+                  (org-social-validator--validate-property prop value post-line))
 
                 ;; Track found properties
                 (when (member prop org-social-validator--required-properties)
                   (push prop found-properties))
 
-                ;; Store property
+                ;; Store property (even if unknown, for completeness)
                 (push (cons prop value) post-data)))))))
 
     ;; Check for missing required properties
