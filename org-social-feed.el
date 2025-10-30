@@ -137,7 +137,9 @@ If START-DATE is nil, returns CONTENT unchanged."
                     (when (re-search-forward ":ID:\\s-*\\(.+\\)$" nil t)
                       (let ((post-id (match-string 1)))
                         ;; Compare dates (RFC 3339 strings are lexicographically comparable)
-                        (when (not (string< post-id start-date))
+                        ;; Include posts that are not too old AND not in the future
+                        (when (and (not (string< post-id start-date))
+                                   (string< post-id (format-time-string "%FT%T%z")))
                           ;; Find post end (next ** or end of buffer)
                           (let ((post-end (save-excursion
                                             (if (re-search-forward "^\\*\\* " nil t)
