@@ -1,5 +1,22 @@
 # 📝 Changelog
 
+## 2.4
+
+- Performance Improvements:
+  - New async user queue system (`org-social-user-queue.el`) for parallel user info fetching
+  - Improved feed downloading with better concurrency control (uses `url-retrieve` instead of blocking threads)
+  - Better performance for Discover and user profile loading
+  - Reduced concurrent download limit for user fetches to avoid rate limiting (3 concurrent requests)
+- Validator Enhancements:
+  - Optional properties support: Properties not in the known list are now ignored instead of causing validation errors
+  - CONTACT field now accepts any valid URI scheme (not just mailto, xmpp, http/https)
+  - Better integration with other org-mode tools and export features
+- File Structure:
+  - Optional properties in org-social file format
+  - Automatic space added after h2 headings in generated content
+- Documentation:
+  - Fixed documentation errors and improved clarity
+
 ## 2.3
 
 - Option to install with MELPA
