@@ -36,6 +36,7 @@
 (declare-function org-fold-show-entry "org-fold" ())
 (declare-function org-social-feed--get-timeline "org-social-feed" ())
 (declare-function org-social-file--new-post "org-social-file" (&optional reply-url reply-id))
+(declare-function org-social-relay--fetch-poll-votes "org-social-relay" (post-url callback))
 
 (defun org-social-polls--is-poll-post (post)
   "Check if POST is a poll post.
@@ -340,6 +341,96 @@ Returns a list of notification objects for poll results."
                    (cons 'results results)) notifications)))))
     (reverse notifications)))
 
+(defun org-social-polls--show-poll-results (author-url timestamp)
+  "Show poll results in a temporary buffer.
+Display results for poll identified by AUTHOR-URL and TIMESTAMP.
+Uses relay API to fetch real-time vote counts."
+  (interactive)
+  (let ((poll-post nil)
+        (post-url (format "%s#%s" author-url timestamp)))
+    ;; Find the poll post in timeline
+    (dolist (post (org-social-feed--get-timeline))
+      (when (and (string= (alist-get 'timestamp post) timestamp)
+                 (string= (alist-get 'author-url post) author-url))
+        (setq poll-post post)))
+
+    (if poll-post
+        (if (org-social-polls--is-poll-post poll-post)
+            (progn
+              (message "Fetching poll results from relay...")
+              ;; Fetch votes from relay
+              (require 'org-social-relay)
+              (org-social-relay--fetch-poll-votes
+               post-url
+               (lambda (votes-data)
+                 (if votes-data
+                     (let* ((options (org-social-polls--extract-poll-options
+                                      (alist-get 'text poll-post)))
+                            (vote-counts (make-hash-table :test 'equal))
+                            (total-votes 0)
+                            (text (alist-get 'text poll-post))
+                            (first-line (car (split-string text "\n" t)))
+                            (buffer-name "*Poll Results*"))
+                       ;; Initialize counts for all options
+                       (dolist (option options)
+                         (puthash option 0 vote-counts))
+                       ;; Count votes from relay data
+                       (dolist (vote votes-data)
+                         (let ((option (if (listp vote)
+                                           (alist-get 'poll_option vote)
+                                         vote)))
+                           (when option
+                             (let ((current-count (gethash option vote-counts 0)))
+                               (puthash option (1+ current-count) vote-counts))
+                             (setq total-votes (1+ total-votes)))))
+
+                       ;; Create and display results buffer
+                       (let ((results-buffer (get-buffer-create buffer-name)))
+                         (with-current-buffer results-buffer
+                           (let ((inhibit-read-only t))
+                             (erase-buffer)
+                             ;; Insert header
+                             (insert (propertize "POLL RESULTS\n" 'face 'bold))
+                             (insert (propertize (make-string 70 ?─) 'face 'shadow))
+                             (insert "\n\n")
+                             ;; Insert poll question
+                             (insert (propertize "Question:\n" 'face 'bold))
+                             (insert (format "%s\n\n" (string-trim first-line)))
+                             ;; Insert total votes
+                             (insert (propertize (format "Total votes: %d\n\n" total-votes) 'face 'bold))
+                             (insert (propertize (make-string 70 ?─) 'face 'shadow))
+                             (insert "\n\n")
+                             ;; Insert each option with results
+                             (dolist (option options)
+                               (let* ((votes (gethash option vote-counts 0))
+                                      (percentage (if (> total-votes 0)
+                                                      (/ (* votes 100.0) total-votes)
+                                                    0))
+                                      (bar-width (floor (/ percentage 2.0)))
+                                      (bar (make-string bar-width ?█)))
+                                 (insert (propertize option 'face 'bold))
+                                 (insert "\n")
+                                 (insert (format "%d vote%s (%.1f%%) %s\n\n"
+                                                 votes
+                                                 (if (= votes 1) "" "s")
+                                                 percentage
+                                                 bar))))
+                             ;; Insert footer
+                             (insert (propertize (make-string 70 ?─) 'face 'shadow))
+                             (insert "\n")
+                             (insert (propertize "Press 'q' to close this window\n" 'face 'italic)))
+                           ;; Set up special mode
+                           (special-mode)
+                           (local-set-key (kbd "q") 'quit-window)
+                           (goto-char (point-min)))
+
+                         ;; Display buffer in split window
+                         (let ((window (split-window-below -10)))
+                           (set-window-buffer window results-buffer)
+                           (select-window window))))
+                   (message "No votes found for this poll")))))
+          (message "This post is not a poll"))
+      (message "Poll not found"))))
 
 (provide 'org-social-polls)
 ;;; org-social-polls.el ends here
