@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 2.4
+;; Version: 2.5
 ;; URL: https://github.com/tanrax/org-social.el
 
 ;; This file is NOT part of GNU Emacs.
@@ -102,9 +102,12 @@ Calls CALLBACK with user alist on success, ERROR-CALLBACK on failure."
                            (if (and (>= status-code 200) (< status-code 300))
                                (progn
                                  ;; Success - parse content
+                                 (set-buffer-multibyte t)
                                  (goto-char (point-min))
                                  (re-search-forward "\r?\n\r?\n" nil t)
-                                 (let* ((content (buffer-substring-no-properties (point) (point-max)))
+                                 (let* ((content (decode-coding-string
+                                                  (buffer-substring-no-properties (point) (point-max))
+                                                  'utf-8))
                                         (nick (or (org-social-parser--get-value content "NICK") "Unknown"))
                                         (avatar (org-social-parser--get-value content "AVATAR"))
                                         (description (org-social-parser--get-value content "DESCRIPTION"))

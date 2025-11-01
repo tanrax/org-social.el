@@ -10,6 +10,7 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'org-social-variables)
 (require 'org-social-ui-core)
 (require 'org-social-ui-utils)
@@ -34,6 +35,19 @@
 ;; Cache for user data
 (defvar org-social-ui--discover-users nil
   "List of users fetched from relay for discover view.")
+
+;; Pagination variables for discover
+(defvar org-social-ui--discover-current-page 1
+  "Current page number in discover view.")
+
+(defvar org-social-ui--discover-users-per-page 10
+  "Number of users to show per page in discover view.")
+
+(defvar org-social-ui--discover-display-list nil
+  "Randomized and filtered list of users for display in discover view.")
+
+(defvar org-social-ui--discover-loading-in-progress nil
+  "Flag to prevent multiple simultaneous page loads in discover view.")
 
 (defun org-social-ui--insert-discover-header ()
   "Insert discover header with navigation."
@@ -189,23 +203,116 @@ NICK is the user's nickname."
     (org-social-ui--insert-formatted-text "\n")
     (org-social-ui--insert-separator)))
 
+(defun org-social-ui--randomize-users (users)
+  "Return a randomized copy of USERS list."
+  (let ((shuffled (copy-sequence users)))
+    ;; Fisher-Yates shuffle algorithm
+    (dotimes (i (1- (length shuffled)))
+      (let* ((j (+ i (random (- (length shuffled) i))))
+             (temp (nth i shuffled)))
+        (setf (nth i shuffled) (nth j shuffled))
+        (setf (nth j shuffled) temp)))
+    shuffled))
+
 (defun org-social-ui--insert-discover-users (users)
-  "Insert all USERS in discover view."
-  (if users
-      (progn
-        (org-social-ui--insert-formatted-text (format "Found %d user%s:\n\n"
-                                                      (length users)
-                                                      (if (= (length users) 1) "" "s"))
-                                              nil "#4a90e2")
-        (dolist (user users)
-          (org-social-ui--insert-discover-user user)))
-    (org-social-ui--insert-formatted-text "No users found.\n" nil "#666666")))
+  "Insert USERS in discover view with infinite scroll pagination."
+  (when users
+    ;; Store all users and create randomized display list
+    (setq org-social-ui--discover-users users)
+    (setq org-social-ui--discover-display-list (org-social-ui--randomize-users users))
+
+    (let* ((total-users (length org-social-ui--discover-display-list))
+           (users-shown (* org-social-ui--discover-current-page org-social-ui--discover-users-per-page)))
+
+      ;; Show total count
+      (org-social-ui--insert-formatted-text (format "Found %d user%s:\n\n"
+                                                    total-users
+                                                    (if (= total-users 1) "" "s"))
+                                            nil "#4a90e2")
+
+      ;; Insert users for current page
+      (org-social-ui--insert-discover-users-paginated)
+
+      ;; Insert "Show more" button if there are more users
+      (when (< users-shown total-users)
+        (org-social-ui--insert-formatted-text "\n")
+        (widget-create 'push-button
+                       :notify (lambda (&rest _) (org-social-ui--discover-next-page))
+                       :help-echo "Load more users"
+                       " Show more ")
+        (org-social-ui--insert-formatted-text "\n")))))
+
+(defun org-social-ui--insert-discover-users-paginated ()
+  "Insert the current page of discover users."
+  (when org-social-ui--discover-display-list
+    (let* ((start-idx (* (- org-social-ui--discover-current-page 1) org-social-ui--discover-users-per-page))
+           (end-idx (* org-social-ui--discover-current-page org-social-ui--discover-users-per-page))
+           (users-to-show (cl-subseq org-social-ui--discover-display-list
+                                     start-idx
+                                     (min end-idx (length org-social-ui--discover-display-list)))))
+      (dolist (user users-to-show)
+        (org-social-ui--insert-discover-user user)))))
+
+(defun org-social-ui--discover-next-page ()
+  "Load and append next page of users (infinite scroll)."
+  (interactive)
+  (when (and org-social-ui--discover-display-list
+             (not org-social-ui--discover-loading-in-progress))
+    (let* ((total-users (length org-social-ui--discover-display-list))
+           (users-shown (* org-social-ui--discover-current-page org-social-ui--discover-users-per-page)))
+      (when (< users-shown total-users)
+        (setq org-social-ui--discover-loading-in-progress t)
+        (setq org-social-ui--discover-current-page (1+ org-social-ui--discover-current-page))
+
+        ;; Append new users without clearing existing content
+        (let ((inhibit-read-only t)
+              (buffer-read-only nil))
+          (with-current-buffer org-social-ui--discover-buffer-name
+            ;; Find and remove the "Show more" button
+            (goto-char (point-max))
+            (let ((new-users-start nil))
+              (when (search-backward "Show more" nil t)
+                (beginning-of-line)
+                ;; Delete the newline before the button too
+                (when (and (not (bobp))
+                           (eq (char-before) ?\n))
+                  (backward-char))
+                (let ((start (point)))
+                  (search-forward "Show more")
+                  (forward-line 1)
+                  (delete-region start (point))))
+              ;; Save position where new users will be inserted
+              (setq new-users-start (point))
+              ;; Insert new page of users at current position
+              (let* ((start-idx (* (- org-social-ui--discover-current-page 1) org-social-ui--discover-users-per-page))
+                     (end-idx (* org-social-ui--discover-current-page org-social-ui--discover-users-per-page))
+                     (users-to-show (cl-subseq org-social-ui--discover-display-list
+                                               start-idx
+                                               (min end-idx total-users))))
+                (dolist (user users-to-show)
+                  (org-social-ui--insert-discover-user user)))
+              ;; Add new "Show more" button if there are more users
+              (when (< (* org-social-ui--discover-current-page org-social-ui--discover-users-per-page) total-users)
+                (org-social-ui--insert-formatted-text "\n")
+                (widget-create 'push-button
+                               :notify (lambda (&rest _) (org-social-ui--discover-next-page))
+                               :help-echo "Load more users"
+                               " Show more ")
+                (org-social-ui--insert-formatted-text "\n"))
+              (setq buffer-read-only t)
+              (widget-setup)
+              ;; Move cursor to the first new user
+              (when new-users-start
+                (goto-char new-users-start))
+              ;; Clear loading flag
+              (setq org-social-ui--discover-loading-in-progress nil))))))))
 
 ;;;###autoload
 (defun org-social-ui-discover ()
   "Display discover buffer with users from relay."
   (interactive)
   (setq org-social-ui--current-screen 'discover)
+  (setq org-social-ui--discover-current-page 1)
 
   (message "Loading users from relay...")
 

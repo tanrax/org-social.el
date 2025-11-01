@@ -1,5 +1,14 @@
 # 📝 Changelog
 
+## 2.5
+
+- Discover Buffer Improvements:
+  - Infinite scroll pagination: Discover now shows 10 users at a time with "Show more" button
+  - Random order: Users are displayed in random order on each view for better discoverability
+- Bug Fixes:
+  - Fixed emoji and special character display in user descriptions
+  - Emojis now render correctly instead of showing octal sequences (e.g., `\360\237...`)
+
 ## 2.4
 
 - Performance Improvements:
