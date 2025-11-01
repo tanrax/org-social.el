@@ -172,7 +172,14 @@ Automatically fetches reactions from Relay if not present in POST."
                                       (require 'org-social-polls)
                                       (org-social-polls--vote-on-poll ,author-url ,timestamp))
                            " 🗳 Vote ")
-            (setq first-button nil))
+            (setq first-button nil)
+            ;; Poll results button (right after vote button)
+            (org-social-ui--insert-formatted-text " ")
+            (widget-create 'push-button
+                           :notify `(lambda (&rest _)
+                                      (require 'org-social-polls)
+                                      (org-social-polls--show-poll-results ,author-url ,timestamp))
+                           " 📊 Results "))
 
           ;; Edit button (only for my posts)
           (when is-my-post

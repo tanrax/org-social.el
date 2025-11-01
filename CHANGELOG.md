@@ -2,11 +2,11 @@
 
 ## 2.5
 
-- Discover Buffer Improvements:
-  - Infinite scroll pagination: Discover now shows 10 users at a time with "Show more" button
-  - Random order: Users are displayed in random order on each view for better discoverability
+- Poll Improvements:
+  - Added "📊 Results" button next to "🗳 Vote" button to view poll results: Poll results displayed in a temporary split-window buffer with visual progress bars
+  - Results fetched in real-time from Relay API
+- Discover Buffer Improvements: Infinite scroll pagination and random order.
 - Bug Fixes:
-  - Fixed emoji and special character display in user descriptions
   - Emojis now render correctly instead of showing octal sequences (e.g., `\360\237...`)
 
 ## 2.4
