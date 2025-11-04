@@ -375,14 +375,16 @@ Uses relay API to fetch real-time vote counts."
                        (dolist (option options)
                          (puthash option 0 vote-counts))
                        ;; Count votes from relay data
-                       (dolist (vote votes-data)
-                         (let ((option (if (listp vote)
-                                           (alist-get 'poll_option vote)
-                                         vote)))
+                       ;; votes-data format: ((option . "text") (votes . ["url1" "url2"]))
+                       (dolist (vote-entry votes-data)
+                         (let* ((option (alist-get 'option vote-entry))
+                                (votes-list (alist-get 'votes vote-entry))
+                                (vote-count (if (vectorp votes-list)
+                                                (length votes-list)
+                                              (length votes-list))))
                            (when option
-                             (let ((current-count (gethash option vote-counts 0)))
-                               (puthash option (1+ current-count) vote-counts))
-                             (setq total-votes (1+ total-votes)))))
+                             (puthash option vote-count vote-counts)
+                             (setq total-votes (+ total-votes vote-count)))))
 
                        ;; Create and display results buffer
                        (let ((results-buffer (get-buffer-create buffer-name)))
@@ -421,7 +423,12 @@ Uses relay API to fetch real-time vote counts."
                              (insert (propertize "Press 'q' to close this window\n" 'face 'italic)))
                            ;; Set up special mode
                            (special-mode)
-                           (local-set-key (kbd "q") 'quit-window)
+                           (local-set-key (kbd "q") (lambda ()
+                                                       (interactive)
+                                                       (let ((win (selected-window)))
+                                                         (kill-buffer (current-buffer))
+                                                         (when (window-live-p win)
+                                                           (delete-window win)))))
                            (goto-char (point-min)))
 
                          ;; Display buffer in split window
