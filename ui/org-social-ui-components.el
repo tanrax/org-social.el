@@ -179,7 +179,8 @@ Automatically fetches reactions from Relay if not present in POST."
                            :notify `(lambda (&rest _)
                                       (require 'org-social-polls)
                                       (org-social-polls--show-poll-results ,author-url ,timestamp))
-                           " 📊 Results "))
+                           " 📊 Results ")
+            (setq first-button nil))
 
           ;; Edit button (only for my posts)
           (when is-my-post
