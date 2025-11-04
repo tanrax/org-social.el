@@ -19,11 +19,11 @@ An Emacs client for [Org Social](https://github.com/tanrax/org-social), a decent
 
 ```elisp
 (setq org-social-file "~/social.org")  ;; Path to your local file
-(setq org-social-relay "https://org-social-relay.andros.dev/")  ;; Relay server
+(setq org-social-relay "https://relay.org-social.org/")  ;; Relay server
 (setq org-social-my-public-url "https://example.com/social.org")  ;; Your public URL
 ```
 
-You can use the [public Relay server](https://org-social-relay.andros.dev/) or check the [public Relay list](https://github.com/tanrax/org-social/blob/main/org-social-relay-list.txt) for other options.
+You can use the [public Relay server](https://relay.org-social.org/) or check the [public Relay list](https://github.com/tanrax/org-social/blob/main/org-social-relay-list.txt) for other options.
 
 ### Basic Usage
 
@@ -93,7 +93,7 @@ M-x package-reinstall RET org-social RET restart-emacs RET
 
 ;; Required: Configure Org Social Relay server
 ;; See public relay list: https://github.com/tanrax/org-social/blob/main/org-social-relay-list.txt
-(setq org-social-relay "https://org-social-relay.andros.dev/")
+(setq org-social-relay "https://relay.org-social.org/")
 
 ;; Required: Set your public social.org URL (where others can access your feed)
 (setq org-social-my-public-url "https://example.com/social.org")
@@ -107,8 +107,8 @@ M-x package-reinstall RET org-social RET restart-emacs RET
 
 ;; Set base URL for live post previews. When configured, a Share button will appear in post buttons
 ;; that opens the post preview in the system browser with URL-encoded post URL
-;; Example: (setq org-social-live-preview-url "https://org-social-preview.andros.dev/?post=")
-(setq org-social-live-preview-url "https://org-social-preview.andros.dev/?post=")
+;; Example: (setq org-social-live-preview-url "https://preview.org-social.org/?post=")
+(setq org-social-live-preview-url "https://preview.org-social.org/?post=")
 
 ;; Use only relay followers instead of local follow list
 (setq org-social-only-relay-followers-p nil)
@@ -161,10 +161,10 @@ For best performance with partial downloads, host your `social.org` file on a tr
 | Variable | Description | Default | Required | Type |
 |----------|-------------|---------|----------|------|
 | `org-social-file` | Path to your Org-social feed file | `"~/social.org"` | ✅ | `file` |
-| `org-social-relay` | URL of the Org Social Relay server for registering your feed and discovering mentions, replies, and social interactions. | `"https://org-social-relay.andros.dev"` | ✅ | `string` |
+| `org-social-relay` | URL of the Org Social Relay server for registering your feed and discovering mentions, replies, and social interactions. | `"https://relay.org-social.org"` | ✅ | `string` |
 | `org-social-my-public-url` | Public URL of your social.org file where others can access your feed. | `nil` | ✅ | `string` |
 | `org-social-hide-post-buttons` | Hide Reply, Vote, and Profile buttons from timeline posts for a cleaner view. Keyboard shortcuts still work. | `nil` | ❌ | `boolean` |
-| `org-social-live-preview-url` | Base URL for live post previews. When set, a Share button appears in post buttons that opens the post preview in the system browser with URL-encoded post URL. Set to `nil` to hide the Share button. | `"https://org-social-preview.andros.dev/?post="` | ❌ | `string` |
+| `org-social-live-preview-url` | Base URL for live post previews. When set, a Share button appears in post buttons that opens the post preview in the system browser with URL-encoded post URL. Set to `nil` to hide the Share button. | `"https://preview.org-social.org/?post="` | ❌ | `string` |
 | `org-social-only-relay-followers-p` | When non-nil, use only feeds from the relay server. Requires relay configuration. | `nil` | ❌ | `boolean` |
 | `org-social-default-lang` | Default language code for new posts and polls. When set, automatically fills the `:LANG:` property with a two-letter ISO 639-1 language code (e.g., "en", "es", "fr"). When `nil` or empty string, the `:LANG:` field remains empty. | `nil` | ❌ | `string` |
 | `org-social-max-post-age-days` | Maximum age of posts to fetch from feeds, in days. Uses optimized partial downloads with HTTP Range requests (saves up to 89% bandwidth). Each feed is downloaded in a separate thread for parallel execution without blocking Emacs. For servers supporting Range requests (87.5%), only recent posts are downloaded. For others, the full feed is downloaded and filtered. Set to `nil` to disable filtering and download all posts. | `14` | ❌ | `integer` or `nil` |

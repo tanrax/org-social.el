@@ -311,7 +311,7 @@ specifically for the timeline view."
   (unless (and (boundp 'org-social-relay)
                org-social-relay
                (not (string-empty-p org-social-relay)))
-    (error "Org-social-relay is not configured.  Please set it to a relay server URL (e.g., \"https://org-social-relay.andros.dev/\")"))
+    (error "Org-social-relay is not configured.  Please set it to a relay server URL (e.g., \"https://relay.org-social.org/\")"))
 
   (unless (and (boundp 'org-social-my-public-url)
                org-social-my-public-url
