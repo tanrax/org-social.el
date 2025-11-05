@@ -42,22 +42,39 @@
   "Cache for replies check results to avoid redundant relay queries.")
 
 ;; Helper function
-(defun org-social-ui--post-has-replies-p (post-url)
-  "Check if POST-URL has replies.
-Uses relay to check for replies and caches the result."
+(defun org-social-ui--post-has-real-replies-p (post-url)
+  "Check if POST-URL has real replies (excluding simple votes).
+A simple vote is a reply with POLL_OPTION but no text content.
+A vote with content is considered a real reply.
+Uses relay synchronously and caches the result."
+  (require 'org-social-ui-utils)
   (when (and (boundp 'org-social-relay)
              org-social-relay
              (not (string-empty-p org-social-relay)))
     (let ((cached-result (gethash post-url org-social-ui--replies-cache)))
       (if cached-result
           (eq cached-result 'yes)
-        (let ((result nil))
-          (org-social-relay--check-post-has-replies
-           post-url
-           (lambda (has-replies)
-             (puthash post-url (if has-replies 'yes 'no) org-social-ui--replies-cache)
-             (setq result has-replies)))
-          result)))))
+        ;; Fetch replies synchronously
+        (let* ((replies-data (org-social-ui--fetch-replies-sync post-url))
+               (has-real-replies nil))
+          (when replies-data
+            ;; Check each reply to see if it's a real reply or just a simple vote
+            (dolist (reply-entry replies-data)
+              (let* ((reply-url (cdr (assoc 'post reply-entry)))
+                     (reply-post (when reply-url
+                                   (org-social-ui--fetch-post-sync reply-url))))
+                (when reply-post
+                  (let ((poll-option (alist-get 'poll_option reply-post))
+                        (text (alist-get 'text reply-post)))
+                    ;; Consider it a real reply if:
+                    ;; 1. It has no POLL_OPTION (normal reply), OR
+                    ;; 2. It has POLL_OPTION but also has text content (vote with comment)
+                    (when (or (not poll-option)
+                              (and poll-option text (not (string-empty-p (string-trim text)))))
+                      (setq has-real-replies t)))))))
+          ;; Cache the result
+          (puthash post-url (if has-real-replies 'yes 'no) org-social-ui--replies-cache)
+          has-real-replies)))))
 
 (defun org-social-ui--open-live-preview (author-url timestamp)
   "Open live preview of post in system browser.
@@ -320,12 +337,12 @@ Automatically fetches reactions from Relay if not present in POST."
                            " ↳ Reply ")
             (setq first-button nil))
 
-          ;; Thread button - show if post has reply_to OR has replies
+          ;; Thread button - show if post has reply_to OR has real replies
           (let* ((reply-to (alist-get 'reply_to post))
 		 (has-reply-to (and reply-to (not (string-empty-p reply-to))))
-		 (has-replies (org-social-ui--post-has-replies-p post-url))
+		 (has-real-replies (org-social-ui--post-has-real-replies-p post-url))
 		 (thread-url (if has-reply-to reply-to post-url)))
-            (when (or has-reply-to has-replies)
+            (when (or has-reply-to has-real-replies)
               (unless first-button (org-social-ui--insert-formatted-text " "))
               (widget-create 'push-button
                              :notify `(lambda (&rest _)
