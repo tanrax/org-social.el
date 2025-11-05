@@ -3,11 +3,14 @@
 ## 2.5
 
 - Poll Improvements:
-  - Added "📊 Results" button next to "🗳 Vote" button to view poll results: Poll results displayed in a temporary split-window buffer with visual progress bars
-  - Results fetched in real-time from Relay API
+  - Interactive radio button UI for voting on polls directly within posts
+  - Added "📊 Results" button to view poll results with visual progress bars
+  - "Thread" button now correctly appears only when polls have real replies (filters out simple votes)
 - Discover Buffer Improvements: Infinite scroll pagination and random order.
 - Bug Fixes:
-  - Emojis now render correctly instead of showing octal sequences (e.g., `\360\237...`)
+  - Emojis now render correctly instead of showing octal sequences (e.g., `\360\203...`)
+  - Fixed vote counting in poll results (now correctly parses relay response format)
+  - Fixed Reply and Thread buttons not appearing on poll posts
 
 ## 2.4
 
