@@ -131,7 +131,7 @@ If START-DATE is nil, returns CONTENT unchanged."
               ;; Parse and filter posts
               (goto-char header-end)
               (let ((filtered-posts '()))
-                (while (re-search-forward "^\\*\\*\\s-*$" nil t)
+                (while (re-search-forward "^\\*\\*.*$" nil t)
                   (let ((post-start (line-beginning-position)))
                     ;; Find post ID
                     (when (re-search-forward ":ID:\\s-*\\(.+\\)$" nil t)
@@ -142,7 +142,7 @@ If START-DATE is nil, returns CONTENT unchanged."
                                    (string< post-id (format-time-string "%FT%T%z")))
                           ;; Find post end (next ** or end of buffer)
                           (let ((post-end (save-excursion
-                                            (if (re-search-forward "^\\*\\*\\s-*$" nil t)
+                                            (if (re-search-forward "^\\*\\*.*$" nil t)
 						(line-beginning-position)
                                               (point-max)))))
                             (push (buffer-substring-no-properties post-start post-end)
