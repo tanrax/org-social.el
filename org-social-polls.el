@@ -424,11 +424,11 @@ Uses relay API to fetch real-time vote counts."
                            ;; Set up special mode
                            (special-mode)
                            (local-set-key (kbd "q") (lambda ()
-                                                       (interactive)
-                                                       (let ((win (selected-window)))
-                                                         (kill-buffer (current-buffer))
-                                                         (when (window-live-p win)
-                                                           (delete-window win)))))
+                                                      (interactive)
+                                                      (let ((win (selected-window)))
+                                                        (kill-buffer (current-buffer))
+                                                        (when (window-live-p win)
+                                                          (delete-window win)))))
                            (goto-char (point-min)))
 
                          ;; Display buffer in split window
