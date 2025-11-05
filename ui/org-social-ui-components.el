@@ -71,6 +71,130 @@ and opens it with `org-social-live-preview-url' base URL."
            (preview-url (concat org-social-live-preview-url encoded-url)))
       (browse-url preview-url))))
 
+(defun org-social-ui--create-poll-vote (author-url timestamp poll-option)
+  "Create a minimal vote post for a poll.
+AUTHOR-URL and TIMESTAMP identify the poll.
+POLL-OPTION is the selected option."
+  (require 'org-social-file)
+  (require 'org-social-parser)
+  ;; Open social.org file
+  (unless (and (buffer-file-name)
+               (string= (expand-file-name (buffer-file-name))
+                        (expand-file-name org-social-file)))
+    (find-file org-social-file))
+  ;; Find posts section
+  (goto-char (point-min))
+  (unless (re-search-forward "^\\* Posts" nil t)
+    (user-error "No '* Posts' section found in %s" org-social-file))
+  ;; Go to end of buffer to insert new post
+  (goto-char (point-max))
+  ;; Insert minimal vote template
+  (let ((vote-timestamp (org-social-parser--generate-timestamp)))
+    (insert "\n** \n:PROPERTIES:\n")
+    (insert (format ":ID: %s\n" vote-timestamp))
+    (insert ":CLIENT: org-social.el\n")
+    (insert (format ":REPLY_TO: %s#%s\n" author-url timestamp))
+    (insert (format ":POLL_OPTION: %s\n" poll-option))
+    (insert ":END:\n\n")
+    (message "Vote created for option: %s" poll-option))
+  ;; Move cursor to end and recenter
+  (goto-char (point-max))
+  (recenter -3)
+  ;; Validate file after adding vote
+  (when (fboundp 'org-social-validator-validate-and-display)
+    (require 'org-social-validator)
+    (org-social-validator-validate-and-display)))
+
+(defun org-social-ui--render-poll-content (text poll-end author-url timestamp _is-my-post)
+  "Render poll content with interactive radio buttons.
+TEXT is the poll text containing question and options.
+POLL-END is the poll end time.
+AUTHOR-URL and TIMESTAMP identify the poll.
+_IS-MY-POST indicates if this is the current user's poll (unused for now)."
+  (require 'org-social-polls)
+  (let* ((lines (split-string text "\n" t))
+         (question-lines '())
+         (options '())
+         (in-options nil))
+
+    ;; Separate question from options
+    (dolist (line lines)
+      (let ((trimmed-line (string-trim line)))
+        (if (string-match "^- \\[ \\] \\(.+\\)$" trimmed-line)
+            (progn
+              (setq in-options t)
+              (push (string-trim (match-string 1 trimmed-line)) options))
+          (unless in-options
+            (unless (string-empty-p trimmed-line)
+              (push line question-lines))))))
+
+    (setq options (reverse options))
+    (setq question-lines (reverse question-lines))
+
+    ;; Render question
+    (let ((org-content-start (point))
+          (question-text (mapconcat 'identity question-lines "\n")))
+      (insert question-text)
+      (insert "\n\n")
+      (let ((org-content-end (point)))
+        (put-text-property org-content-start org-content-end 'org-social-org-content t)
+        (let ((keymap-overlay (make-overlay org-content-start org-content-end)))
+          (overlay-put keymap-overlay 'keymap org-social-ui--org-content-keymap)
+          (overlay-put keymap-overlay 'priority 50)
+          (overlay-put keymap-overlay 'org-social-keymap-overlay t))
+        (org-social-ui--apply-org-mode-to-region org-content-start org-content-end)))
+
+    ;; Check if poll is active
+    (let ((poll-active (condition-case nil
+                           (let ((end-time (date-to-time poll-end))
+                                 (current-time (current-time)))
+                             (time-less-p current-time end-time))
+                         (error nil))))
+
+      (if poll-active
+          ;; Render interactive radio buttons for active polls
+          (let ((selected-option-var (make-symbol "selected-option"))
+                (radio-widgets '()))
+            ;; Initialize selected option
+            (set selected-option-var (car options))
+
+            ;; Create individual radio buttons
+            (dolist (option options)
+              (let* ((is-first (equal option (car options)))
+                     (widget (widget-create 'radio-button
+                                            :value is-first
+                                            :notify `(lambda (widget &rest _)
+                                                       (when (widget-value widget)
+                                                         ;; Uncheck all other radio buttons
+                                                         (dolist (w ',radio-widgets)
+                                                           (unless (eq w widget)
+                                                             (widget-value-set w nil)))
+                                                         ;; Update selected option
+                                                         (set ',selected-option-var ,option)
+                                                         (widget-setup))))))
+                (push widget radio-widgets)
+                (insert " ")
+                (insert (propertize option 'face 'default))
+                (insert "\n")))
+
+            (insert "\n")
+            ;; Add vote button
+            (widget-create 'push-button
+                           :notify `(lambda (&rest _)
+                                      (let ((selected-option (symbol-value ',selected-option-var)))
+                                        (when selected-option
+                                          (org-social-ui--create-poll-vote ,author-url ,timestamp selected-option))))
+                           " 🗳️ Submit Vote ")
+            (insert "\n"))
+
+        ;; For closed polls or my own polls, show as plain text
+        (dolist (option options)
+          (insert (propertize (format "  • %s" option) 'face 'shadow))
+          (insert "\n"))
+        (when (not poll-active)
+          (insert "\n")
+          (insert (propertize "Poll has ended" 'face '(:foreground "#888888" :slant italic)))
+          (insert "\n"))))))
 
 (defun org-social-ui--post-component (post &optional _timeline-data)
   "Insert a post component for POST with optional TIMELINE-DATA (unused).
@@ -133,22 +257,26 @@ Automatically fetches reactions from Relay if not present in POST."
 
 	;; 2. Post content
 	(when (and text (not (string-empty-p text)))
-          (let ((org-content-start (point))
-		(formatted-text (org-social-ui--format-org-headings text)))
-            (insert formatted-text)
-            (insert "\n")
-            ;; Mark region as interactive Org content
-            (let ((org-content-end (point)))
-              ;; Use text properties to mark the region
-              (put-text-property org-content-start org-content-end
-                                 'org-social-org-content t)
-              ;; Create overlay with keymap for higher priority in read-only buffers
-              (let ((keymap-overlay (make-overlay org-content-start org-content-end)))
-                (overlay-put keymap-overlay 'keymap org-social-ui--org-content-keymap)
-                (overlay-put keymap-overlay 'priority 50)
-                (overlay-put keymap-overlay 'org-social-keymap-overlay t))
-              ;; Apply 'org-mode' syntax highlighting to this region only
-              (org-social-ui--apply-org-mode-to-region org-content-start org-content-end))))
+          (if poll-end
+              ;; For polls, render with interactive radio buttons
+              (org-social-ui--render-poll-content text poll-end author-url timestamp is-my-post)
+            ;; For regular posts, render as before
+            (let ((org-content-start (point))
+                  (formatted-text (org-social-ui--format-org-headings text)))
+              (insert formatted-text)
+              (insert "\n")
+              ;; Mark region as interactive Org content
+              (let ((org-content-end (point)))
+                ;; Use text properties to mark the region
+                (put-text-property org-content-start org-content-end
+                                   'org-social-org-content t)
+                ;; Create overlay with keymap for higher priority in read-only buffers
+                (let ((keymap-overlay (make-overlay org-content-start org-content-end)))
+                  (overlay-put keymap-overlay 'keymap org-social-ui--org-content-keymap)
+                  (overlay-put keymap-overlay 'priority 50)
+                  (overlay-put keymap-overlay 'org-social-keymap-overlay t))
+                ;; Apply 'org-mode' syntax highlighting to this region only
+                (org-social-ui--apply-org-mode-to-region org-content-start org-content-end)))))
 
 	;; 3. Add line break between content and tags (only if tags exist)
 	(when (and tags (not (string-empty-p tags)))
@@ -165,16 +293,8 @@ Automatically fetches reactions from Relay if not present in POST."
 
 	;; 5. Action buttons with mood at the end
 	(let ((first-button t))
-          ;; Poll vote button (first, before other actions)
+          ;; Poll results button (for polls only)
           (when poll-end
-            (widget-create 'push-button
-                           :notify `(lambda (&rest _)
-                                      (require 'org-social-polls)
-                                      (org-social-polls--vote-on-poll ,author-url ,timestamp))
-                           " 🗳 Vote ")
-            (setq first-button nil)
-            ;; Poll results button (right after vote button)
-            (org-social-ui--insert-formatted-text " ")
             (widget-create 'push-button
                            :notify `(lambda (&rest _)
                                       (require 'org-social-polls)
