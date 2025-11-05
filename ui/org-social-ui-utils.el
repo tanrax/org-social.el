@@ -1093,7 +1093,13 @@ Each element in REPLIES-TREE is an alist with \\='post, \\='children, and \\='mo
             ;; Add reactions (moods) from Relay to post data
             (when moods
               (setq post-data (append post-data `((reactions . ,moods)))))
-            (org-social-ui--post-component post-data nil))))
+            ;; Filter out simple votes (poll_option without text content)
+            (let ((poll-option (alist-get 'poll_option post-data))
+                  (text (alist-get 'text post-data)))
+              (when (or (not poll-option)
+                        (and poll-option text (not (string-empty-p (string-trim text)))))
+                ;; Only render if not a simple vote
+                (org-social-ui--post-component post-data nil))))))
       ;; Recursively display children (if any)
       (when (and children (> (length children) 0))
         (org-social-ui--display-thread-tree (if (vectorp children)
