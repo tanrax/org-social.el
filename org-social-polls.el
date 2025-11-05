@@ -368,8 +368,6 @@ Uses relay API to fetch real-time vote counts."
                                       (alist-get 'text poll-post)))
                             (vote-counts (make-hash-table :test 'equal))
                             (total-votes 0)
-                            (text (alist-get 'text poll-post))
-                            (first-line (car (split-string text "\n" t)))
                             (buffer-name "*Poll Results*"))
                        ;; Initialize counts for all options
                        (dolist (option options)
@@ -391,18 +389,7 @@ Uses relay API to fetch real-time vote counts."
                          (with-current-buffer results-buffer
                            (let ((inhibit-read-only t))
                              (erase-buffer)
-                             ;; Insert header
-                             (insert (propertize "POLL RESULTS\n" 'face 'bold))
-                             (insert (propertize (make-string 70 ?─) 'face 'shadow))
-                             (insert "\n\n")
-                             ;; Insert poll question
-                             (insert (propertize "Question:\n" 'face 'bold))
-                             (insert (format "%s\n\n" (string-trim first-line)))
-                             ;; Insert total votes
-                             (insert (propertize (format "Total votes: %d\n\n" total-votes) 'face 'bold))
-                             (insert (propertize (make-string 70 ?─) 'face 'shadow))
-                             (insert "\n\n")
-                             ;; Insert each option with results
+                             ;; Insert each option with results (no header)
                              (dolist (option options)
                                (let* ((votes (gethash option vote-counts 0))
                                       (percentage (if (> total-votes 0)
@@ -418,9 +405,7 @@ Uses relay API to fetch real-time vote counts."
                                                  percentage
                                                  bar))))
                              ;; Insert footer
-                             (insert (propertize (make-string 70 ?─) 'face 'shadow))
-                             (insert "\n")
-                             (insert (propertize "Press 'q' to close this window\n" 'face 'italic)))
+                             (insert (propertize "Press 'q' to close\n" 'face 'italic)))
                            ;; Set up special mode
                            (special-mode)
                            (local-set-key (kbd "q") (lambda ()
