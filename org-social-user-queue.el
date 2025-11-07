@@ -83,56 +83,57 @@ CALLBACK will be called with a list of user alists when complete."
                 org-social-user-queue--queue)))
 
 (defun org-social-user-queue--fetch-user-info (url callback error-callback)
-  "Fetch user info from URL in a separate thread.
-Calls CALLBACK with user alist on success, ERROR-CALLBACK on failure."
-  (make-thread
-   (lambda ()
-     (condition-case err
-         (let ((url-automatic-caching nil)
-               (url-max-redirections 5))  ; Follow up to 5 redirects
-           (with-temp-buffer
-             ;; Use url-retrieve-synchronously for better error handling
-             (let ((buffer (url-retrieve-synchronously url t nil 10)))
-               (if buffer
-                   (with-current-buffer buffer
-                     ;; Check HTTP status
-                     (goto-char (point-min))
-                     (if (re-search-forward "^HTTP/[0-9]\\.[0-9] \\([0-9]\\{3\\}\\)" nil t)
-                         (let ((status-code (string-to-number (match-string 1))))
-                           (if (and (>= status-code 200) (< status-code 300))
-                               (progn
-                                 ;; Success - parse content
-                                 (set-buffer-multibyte t)
-                                 (goto-char (point-min))
-                                 (re-search-forward "\r?\n\r?\n" nil t)
-                                 (let* ((content (decode-coding-string
-                                                  (buffer-substring-no-properties (point) (point-max))
-                                                  'utf-8))
-                                        (nick (or (org-social-parser--get-value content "NICK") "Unknown"))
-                                        (avatar (org-social-parser--get-value content "AVATAR"))
-                                        (description (org-social-parser--get-value content "DESCRIPTION"))
-                                        (user-data (list
-                                                    (cons 'nick nick)
-                                                    (cons 'url url)
-                                                    (cons 'avatar avatar)
-                                                    (cons 'description description))))
-                                   (kill-buffer buffer)
-                                   (funcall callback user-data)))
-                             ;; HTTP error
-                             (kill-buffer buffer)
-                             (message "HTTP %d error fetching user from %s" status-code url)
-                             (funcall error-callback)))
-                       ;; No HTTP status found
-                       (kill-buffer buffer)
-                       (message "Invalid HTTP response from %s" url)
-                       (funcall error-callback)))
-                 ;; Buffer is nil - fetch failed
-                 (message "Failed to fetch user from %s (timeout or network error)" url)
-                 (funcall error-callback)))))
-       (error
-        (message "Error fetching user from %s: %s" url (error-message-string err))
-        (funcall error-callback))))
-   (format "org-social-user-%s" (url-host (url-generic-parse-url url)))))
+  "Fetch user info from URL asynchronously using `url-retrieve'.
+Calls CALLBACK with user alist on success, ERROR-CALLBACK on failure.
+This uses `url-retrieve' instead of threads to avoid blocking Emacs."
+  (url-retrieve
+   url
+   (lambda (status)
+     (let ((result nil))
+       (condition-case err
+           (progn
+             ;; Check for errors first
+             (when (plist-get status :error)
+               (error "Download failed: %S" (plist-get status :error)))
+
+             ;; Check HTTP status
+             (goto-char (point-min))
+             (if (re-search-forward "^HTTP/[0-9]\\.[0-9] \\([0-9]\\{3\\}\\)" nil t)
+                 (let ((status-code (string-to-number (match-string 1))))
+                   (if (and (>= status-code 200) (< status-code 300))
+                       (progn
+                         ;; Success - extract content
+                         (goto-char (point-min))
+                         (when (re-search-forward "\r\n\r\n\\|\n\n" nil t)
+                           (let* ((content (decode-coding-string
+                                            (buffer-substring-no-properties (point) (point-max))
+                                            'utf-8))
+                                  (nick (or (org-social-parser--get-value content "NICK") "Unknown"))
+                                  (avatar (org-social-parser--get-value content "AVATAR"))
+                                  (description (org-social-parser--get-value content "DESCRIPTION")))
+                             (setq result (list
+                                           (cons 'nick nick)
+                                           (cons 'url url)
+                                           (cons 'avatar avatar)
+                                           (cons 'description description))))))
+                     ;; HTTP error
+                     (message "HTTP %d error fetching user from %s" status-code url)
+                     (setq result nil)))
+               ;; No HTTP status found
+               (message "Invalid HTTP response from %s" url)
+               (setq result nil)))
+         (error
+          (message "Error fetching user from %s: %s" url (error-message-string err))
+          (setq result nil)))
+
+       ;; Kill buffer to avoid accumulation
+       (kill-buffer (current-buffer))
+
+       ;; Call appropriate callback
+       (if result
+           (funcall callback result)
+         (funcall error-callback))))
+   nil t))
 
 (defun org-social-user-queue--process-next-pending ()
   "Process the next pending item in the queue if worker slots available."
@@ -176,11 +177,20 @@ Calls CALLBACK with user alist on success, ERROR-CALLBACK on failure."
 
 (defun org-social-user-queue--check-completion ()
   "Check if the download queue is complete and call callback if done."
-  (let ((in-progress (seq-filter
-                      (lambda (i) (or
-                                   (eq (alist-get :status i) :processing)
-                                   (eq (alist-get :status i) :pending)))
-                      org-social-user-queue--queue)))
+  (let* ((total (length org-social-user-queue--queue))
+         (done (length (seq-filter (lambda (i) (eq (alist-get :status i) :done))
+                                   org-social-user-queue--queue)))
+         (failed (length (seq-filter (lambda (i) (eq (alist-get :status i) :error))
+                                     org-social-user-queue--queue)))
+         (in-progress (seq-filter
+                       (lambda (i) (or
+                                    (eq (alist-get :status i) :processing)
+                                    (eq (alist-get :status i) :pending)))
+                       org-social-user-queue--queue)))
+    ;; Show progress
+    (unless (= (length in-progress) 0)
+      (message "Loading users... %d/%d completed (%d failed)" done total failed))
+
     (when (= (length in-progress) 0)
       ;; All downloads complete - collect successful results
       (let ((users (seq-filter
@@ -193,9 +203,10 @@ Calls CALLBACK with user alist on success, ERROR-CALLBACK on failure."
         (setq users (sort users (lambda (a b)
                                   (string< (alist-get 'nick a)
                                            (alist-get 'nick b)))))
-        (message "Loaded %d users from %d feeds"
+        (message "Loaded %d users from %d feeds (%d failed)"
                  (length users)
-                 (length org-social-user-queue--queue))
+                 total
+                 failed)
         ;; Call completion callback
         (when org-social-user-queue--completion-callback
           (funcall org-social-user-queue--completion-callback users))))))

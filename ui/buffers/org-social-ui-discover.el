@@ -351,24 +351,49 @@ NICK is the user's nickname."
           (org-social-relay--fetch-feeds
            (lambda (feeds-list)
              (if feeds-list
-                 ;; Use the user queue system to fetch user info in parallel
-                 (org-social-user-queue-fetch-users
-                  feeds-list
-                  (lambda (users)
-                    (if users
-                        (progn
-                          (setq org-social-ui--discover-users users)
-                          ;; Display users
-                          (with-current-buffer buffer-name
-                            (let ((inhibit-read-only t))
-                              (goto-char (point-max))
-                              (org-social-ui--insert-discover-users users))
-                            (goto-char (point-min))))
-                      ;; No users fetched
-                      (with-current-buffer buffer-name
-                        (let ((inhibit-read-only t))
-                          (goto-char (point-max))
-                          (org-social-ui--insert-formatted-text "No users could be fetched.\n" nil "#ff6600"))))))
+                 (progn
+                   ;; Show loading message in buffer
+                   (with-current-buffer buffer-name
+                     (let ((inhibit-read-only t))
+                       (goto-char (point-max))
+                       (org-social-ui--insert-formatted-text
+                        (format "Loading information from %d feeds...\nThis may take a moment.\n\n"
+                                (length feeds-list))
+                        nil "#4a90e2")))
+                   ;; Use the user queue system to fetch user info in parallel
+                   (org-social-user-queue-fetch-users
+                    feeds-list
+                    (lambda (users)
+                      (if users
+                          (progn
+                            (setq org-social-ui--discover-users users)
+                            ;; Clear loading message and display users
+                            (with-current-buffer buffer-name
+                              (let ((inhibit-read-only t))
+                                ;; Find and remove loading message
+                                (goto-char (point-min))
+                                (when (search-forward "Loading information from" nil t)
+                                  (beginning-of-line)
+                                  (let ((start (point)))
+                                    ;; Delete loading message (3 lines)
+                                    (forward-line 3)
+                                    (delete-region start (point))))
+                                ;; Insert users at the end
+                                (goto-char (point-max))
+                                (org-social-ui--insert-discover-users users))
+                              (goto-char (point-min))))
+                        ;; No users fetched
+                        (with-current-buffer buffer-name
+                          (let ((inhibit-read-only t))
+                            ;; Clear loading message first
+                            (goto-char (point-min))
+                            (when (search-forward "Loading information from" nil t)
+                              (beginning-of-line)
+                              (let ((start (point)))
+                                (forward-line 3)
+                                (delete-region start (point))))
+                            (goto-char (point-max))
+                            (org-social-ui--insert-formatted-text "No users could be fetched.\n" nil "#ff6600")))))))
                ;; Failed to get feed list from relay
                (with-current-buffer buffer-name
                  (let ((inhibit-read-only t))

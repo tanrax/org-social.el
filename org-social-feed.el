@@ -256,11 +256,20 @@ When a download completes, the next pending item is automatically started."
 
 (defun org-social-feed--check-queue ()
   "Check if the download queue is complete."
-  (let ((in-progress (seq-filter
-                      (lambda (i) (or
-                                   (eq (alist-get :status i) :processing)
-                                   (eq (alist-get :status i) :pending)))
-                      org-social-variables--queue)))
+  (let* ((total (length org-social-variables--queue))
+         (done (length (seq-filter (lambda (i) (eq (alist-get :status i) :done))
+                                   org-social-variables--queue)))
+         (failed (length (seq-filter (lambda (i) (eq (alist-get :status i) :error))
+                                     org-social-variables--queue)))
+         (in-progress (seq-filter
+                       (lambda (i) (or
+                                    (eq (alist-get :status i) :processing)
+                                    (eq (alist-get :status i) :pending)))
+                       org-social-variables--queue)))
+    ;; Show progress
+    (unless (= (length in-progress) 0)
+      (message "Loading feeds... %d/%d completed (%d failed)" done total failed))
+
     (when (= (length in-progress) 0)
       ;; Remove failed downloads
       (setq org-social-variables--queue
