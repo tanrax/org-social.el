@@ -160,42 +160,68 @@ If START-DATE is nil, returns CONTENT unchanged."
 Uses `org-social-partial-fetch-by-date' with HTTP Range requests when available.
 Executes asynchronously using `url-retrieve' without blocking Emacs.
 Calls CALLBACK with the downloaded content on success.
-Calls ERROR-CALLBACK on error."
-  (let ((start-date (org-social-feed--calculate-start-date)))
-    (url-retrieve
-     url
-     (lambda (status)
-       ;; This callback is executed in the main thread (no race conditions)
-       (let ((result nil))
-         (condition-case err
-             (progn
-               ;; Check for errors first
-               (when (plist-get status :error)
-                 (error "Download failed: %S" (plist-get status :error)))
+Calls ERROR-CALLBACK on error.
+Includes a 5-second timeout to prevent hanging downloads."
+  (let ((start-date (org-social-feed--calculate-start-date))
+        (timeout-timer nil)
+        (callback-called nil)
+        (url-buffer nil))
+    (setq url-buffer
+          (url-retrieve
+           url
+           (lambda (status)
+             ;; Cancel timeout timer if it exists
+             (when timeout-timer
+               (cancel-timer timeout-timer))
 
-               ;; Extract content from buffer
-               (goto-char (point-min))
-               (when (re-search-forward "\r\n\r\n\\|\n\n" nil t)
-                 (let ((content (decode-coding-string
-                                 (buffer-substring-no-properties (point) (point-max))
-                                 'utf-8)))
-                   ;; Apply date filtering if needed
-                   (setq result
-                         (if start-date
-                             (org-social-feed--filter-by-date content start-date)
-                           content)))))
-           (error
-            (message "Error downloading %s: %s" url (error-message-string err))
-            (setq result nil)))
+             ;; Only execute callback once
+             (unless callback-called
+               (setq callback-called t)
 
-         ;; Kill buffer to avoid accumulation
-         (kill-buffer (current-buffer))
+               ;; This callback is executed in the main thread (no race conditions)
+               (let ((result nil))
+                 (condition-case err
+                     (progn
+                       ;; Check for errors first
+                       (when (plist-get status :error)
+                         (error "Download failed: %S" (plist-get status :error)))
 
-         ;; Call appropriate callback
-         (if result
-             (funcall callback result)
-           (funcall error-callback))))
-     nil t)))
+                       ;; Extract content from buffer
+                       (goto-char (point-min))
+                       (when (re-search-forward "\r\n\r\n\\|\n\n" nil t)
+                         (let ((content (decode-coding-string
+                                         (buffer-substring-no-properties (point) (point-max))
+                                         'utf-8)))
+                           ;; Apply date filtering if needed
+                           (setq result
+                                 (if start-date
+                                     (org-social-feed--filter-by-date content start-date)
+                                   content)))))
+                   (error
+                    (message "Error downloading %s: %s" url (error-message-string err))
+                    (setq result nil)))
+
+                 ;; Kill buffer to avoid accumulation
+                 (kill-buffer (current-buffer))
+
+                 ;; Call appropriate callback
+                 (if result
+                     (funcall callback result)
+                   (funcall error-callback)))))
+           nil t))
+
+    ;; Set up timeout timer (5 seconds)
+    (setq timeout-timer
+          (run-at-time 5 nil
+                       (lambda ()
+                         (unless callback-called
+                           (setq callback-called t)
+                           (message "Timeout downloading %s (5 seconds)" url)
+                           ;; Kill the url-retrieve buffer if it exists
+                           (when (and url-buffer (buffer-live-p url-buffer))
+                             (kill-buffer url-buffer))
+                           (funcall error-callback)))))))
+
 
 
 (defun org-social-feed--process-next-pending ()

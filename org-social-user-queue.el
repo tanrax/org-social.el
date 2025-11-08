@@ -85,55 +85,80 @@ CALLBACK will be called with a list of user alists when complete."
 (defun org-social-user-queue--fetch-user-info (url callback error-callback)
   "Fetch user info from URL asynchronously using `url-retrieve'.
 Calls CALLBACK with user alist on success, ERROR-CALLBACK on failure.
-This uses `url-retrieve' instead of threads to avoid blocking Emacs."
-  (url-retrieve
-   url
-   (lambda (status)
-     (let ((result nil))
-       (condition-case err
-           (progn
-             ;; Check for errors first
-             (when (plist-get status :error)
-               (error "Download failed: %S" (plist-get status :error)))
+This uses `url-retrieve' instead of threads to avoid blocking Emacs.
+Includes a 5-second timeout to prevent hanging downloads."
+  (let ((timeout-timer nil)
+        (callback-called nil)
+        (url-buffer nil))
+    (setq url-buffer
+          (url-retrieve
+           url
+           (lambda (status)
+             ;; Cancel timeout timer if it exists
+             (when timeout-timer
+               (cancel-timer timeout-timer))
 
-             ;; Check HTTP status
-             (goto-char (point-min))
-             (if (re-search-forward "^HTTP/[0-9]\\.[0-9] \\([0-9]\\{3\\}\\)" nil t)
-                 (let ((status-code (string-to-number (match-string 1))))
-                   (if (and (>= status-code 200) (< status-code 300))
-                       (progn
-                         ;; Success - extract content
-                         (goto-char (point-min))
-                         (when (re-search-forward "\r\n\r\n\\|\n\n" nil t)
-                           (let* ((content (decode-coding-string
-                                            (buffer-substring-no-properties (point) (point-max))
-                                            'utf-8))
-                                  (nick (or (org-social-parser--get-value content "NICK") "Unknown"))
-                                  (avatar (org-social-parser--get-value content "AVATAR"))
-                                  (description (org-social-parser--get-value content "DESCRIPTION")))
-                             (setq result (list
-                                           (cons 'nick nick)
-                                           (cons 'url url)
-                                           (cons 'avatar avatar)
-                                           (cons 'description description))))))
-                     ;; HTTP error
-                     (message "HTTP %d error fetching user from %s" status-code url)
-                     (setq result nil)))
-               ;; No HTTP status found
-               (message "Invalid HTTP response from %s" url)
-               (setq result nil)))
-         (error
-          (message "Error fetching user from %s: %s" url (error-message-string err))
-          (setq result nil)))
+             ;; Only execute callback once
+             (unless callback-called
+               (setq callback-called t)
 
-       ;; Kill buffer to avoid accumulation
-       (kill-buffer (current-buffer))
+               (let ((result nil))
+                 (condition-case err
+                     (progn
+                       ;; Check for errors first
+                       (when (plist-get status :error)
+                         (error "Download failed: %S" (plist-get status :error)))
 
-       ;; Call appropriate callback
-       (if result
-           (funcall callback result)
-         (funcall error-callback))))
-   nil t))
+                       ;; Check HTTP status
+                       (goto-char (point-min))
+                       (if (re-search-forward "^HTTP/[0-9]\\.[0-9] \\([0-9]\\{3\\}\\)" nil t)
+                           (let ((status-code (string-to-number (match-string 1))))
+                             (if (and (>= status-code 200) (< status-code 300))
+                                 (progn
+                                   ;; Success - extract content
+                                   (goto-char (point-min))
+                                   (when (re-search-forward "\r\n\r\n\\|\n\n" nil t)
+                                     (let* ((content (decode-coding-string
+                                                      (buffer-substring-no-properties (point) (point-max))
+                                                      'utf-8))
+                                            (nick (or (org-social-parser--get-value content "NICK") "Unknown"))
+                                            (avatar (org-social-parser--get-value content "AVATAR"))
+                                            (description (org-social-parser--get-value content "DESCRIPTION")))
+                                       (setq result (list
+                                                     (cons 'nick nick)
+                                                     (cons 'url url)
+                                                     (cons 'avatar avatar)
+                                                     (cons 'description description))))))
+                               ;; HTTP error
+                               (message "HTTP %d error fetching user from %s" status-code url)
+                               (setq result nil)))
+                         ;; No HTTP status found
+                         (message "Invalid HTTP response from %s" url)
+                         (setq result nil)))
+                   (error
+                    (message "Error fetching user from %s: %s" url (error-message-string err))
+                    (setq result nil)))
+
+                 ;; Kill buffer to avoid accumulation
+                 (kill-buffer (current-buffer))
+
+                 ;; Call appropriate callback
+                 (if result
+                     (funcall callback result)
+                   (funcall error-callback)))))
+           nil t))
+
+    ;; Set up timeout timer (5 seconds)
+    (setq timeout-timer
+          (run-at-time 5 nil
+                       (lambda ()
+                         (unless callback-called
+                           (setq callback-called t)
+                           (message "Timeout fetching user from %s (5 seconds)" url)
+                           ;; Kill the url-retrieve buffer if it exists
+                           (when (and url-buffer (buffer-live-p url-buffer))
+                             (kill-buffer url-buffer))
+                           (funcall error-callback)))))))
 
 (defun org-social-user-queue--process-next-pending ()
   "Process the next pending item in the queue if worker slots available."
