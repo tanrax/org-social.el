@@ -57,7 +57,6 @@
 (declare-function org-social-feed--initialize-queue-from-relay "org-social-feed" ())
 (declare-function org-social-feed--get-timeline "org-social-feed" ())
 (declare-function org-social-file--read-my-profile "org-social-file" ())
-(declare-function org-social-raw-timeline "org-social-raw" ())
 
 ;; Variables from org-social-variables
 (defvar org-social-file)
@@ -137,13 +136,7 @@ TIMESTAMP should be in RFC 3339 format or a time value."
     (condition-case nil
         (require 'org-social-ui)
       (error
-       (message "Warning: Could not load org-social-ui module")))
-
-    ;; Load raw timeline module
-    (condition-case nil
-        (require 'org-social-raw)
-      (error
-       (message "Warning: Could not load org-social-raw module")))))
+       (message "Warning: Could not load org-social-ui module")))))
 
 ;;;###autoload
 (defun org-social-open-file ()
@@ -169,14 +162,6 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
     (error "Timeline functionality not available.  Check if org-social-ui module loaded correctly"))
   (org-social-ui-timeline))
 
-;;;###autoload
-(defun org-social-timeline-raw ()
-  "Display timeline in raw Org mode format following Org Social specification."
-  (interactive)
-  (org-social--ensure-loaded)
-  (unless (fboundp 'org-social-raw-timeline)
-    (error "Raw timeline functionality not available.  Check if org-social-raw module loaded correctly"))
-  (org-social-raw-timeline))
 
 ;;;###autoload
 (defun org-social-setup ()
