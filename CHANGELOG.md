@@ -2,11 +2,19 @@
 
 ## 2.5
 
+- Groups Improvements:
+  - Multi-relay support: Subscribe to groups from multiple relay servers simultaneously
+  - Groups buffer now shows only subscribed groups (instead of all relay groups)
+  - Fixed multi-word group names parsing (e.g., "Org Social" now parsed correctly)
+  - Automatic GROUP property: When creating posts from group buffers (via button or keyboard shortcut 'c'), the `:GROUP:` property is automatically added with group name and relay URL
+  - Fixed parser to ignore groups defined in code blocks (BEGIN_SRC/END_SRC)
 - Poll Improvements:
   - Interactive radio button UI for voting on polls directly within posts
   - Added "📊 Results" button to view poll results with visual progress bars
   - "Thread" button now correctly appears only when polls have real replies (filters out simple votes)
-- Discover Buffer Improvements: Infinite scroll pagination and random order.
+- Discover Buffer Improvements: Infinite scroll pagination and random order
+- Code Cleanup:
+  - Removed `org-social-raw.el` and `org-social-timeline-raw` function (unused functionality)
 - Bug Fixes:
   - Emojis now render correctly instead of showing octal sequences (e.g., `\360\203...`)
   - Fixed vote counting in poll results (now correctly parses relay response format)
