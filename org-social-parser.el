@@ -48,15 +48,24 @@ TIMESTAMP should be in RFC 3339 format or a time value."
   (org-social--format-date timestamp))
 
 (defun org-social-parser--get-value (feed key)
-  "Extract values from an Org-social FEED based on KEY."
+  "Extract values from an Org-social FEED based on KEY.
+Ignores lines inside source blocks (#+BEGIN_SRC...#+END_SRC)."
   (when (and (stringp feed) (stringp key))
     (let* ((lines (split-string feed "\n"))
            (regex (concat "^#\\+" (regexp-quote key) ":\\s-*\\(.+\\)$"))
+           (in-src-block nil)
            values)
       (dolist (line lines)
-        (when (string-match regex line)
+        ;; Check if we're entering or leaving a source block
+        (cond
+         ((string-match-p "^#\\+BEGIN_SRC\\|^#\\+BEGIN_EXAMPLE\\|^#\\+BEGIN_QUOTE" line)
+          (setq in-src-block t))
+         ((string-match-p "^#\\+END_SRC\\|^#\\+END_EXAMPLE\\|^#\\+END_QUOTE" line)
+          (setq in-src-block nil))
+         ;; Only match the regex if we're not in a source block
+         ((and (not in-src-block) (string-match regex line))
           (let ((value (string-trim (match-string 1 line))))
-            (setq values (cons value values)))))
+            (setq values (cons value values))))))
       (if values
           (if (= (length values) 1)
               (car values)
@@ -76,13 +85,20 @@ Argument FOLLOW-LINE text."
 
 (defun org-social-parser--parse-group (group-line)
   "Parse a GROUP line into name and relay URL components.
-Argument GROUP-LINE text."
+GROUP-LINE should be in format: \\='Group Name https://relay.example.com\\='.
+The group name can contain spaces, and the relay URL is the last
+space-separated token."
   (when group-line
-    (let ((parts (split-string group-line " " t)))
-      (if (>= (length parts) 2)
-          (list (cons 'name (car parts))
-                (cons 'relay-url (cadr parts)))
-        (list (cons 'name (car parts))
+    (let* ((trimmed (string-trim group-line))
+           ;; Find the last space to separate name from URL
+           (last-space-pos (string-match " [^ ]+$" trimmed)))
+      (if last-space-pos
+          (let ((name (string-trim (substring trimmed 0 last-space-pos)))
+                (url (string-trim (substring trimmed (1+ last-space-pos)))))
+            (list (cons 'name name)
+                  (cons 'relay-url url)))
+        ;; No space found, treat entire line as name with no URL
+        (list (cons 'name trimmed)
               (cons 'relay-url nil))))))
 
 (defun org-social-parser--get-my-profile ()

@@ -395,16 +395,16 @@ Call CALLBACK with the list of matching post URLs and metadata."
              (funcall callback nil nil))))))))
 
 
-(defun org-social-relay--fetch-groups (callback)
-  "Fetch list of groups from the relay server.
+(defun org-social-relay--fetch-groups-from-url (relay-url callback)
+  "Fetch list of groups from RELAY-URL.
 Call CALLBACK with a list of alists, each containing (name . NAME),
-\(href . HREF), and (method . METHOD).
+\(href . HREF), (method . METHOD), and (relay-url . RELAY-URL).
 NAME is the display name of the group (e.g., \\='Org Mode\\=').
 HREF is the relay endpoint for the group (e.g., \\='/groups/org-mode/\\=').
-METHOD is the HTTP method to use (e.g., \\='GET\\=')."
-  (when (and org-social-relay
-             (not (string-empty-p org-social-relay)))
-    (let ((relay-url (string-trim-right org-social-relay "/")))
+METHOD is the HTTP method to use (e.g., \\='GET\\=').
+RELAY-URL is the base URL of the relay server."
+  (when (and relay-url (not (string-empty-p relay-url)))
+    (let ((relay-url (string-trim-right relay-url "/")))
       (org-social-relay--discover-endpoints
        relay-url
        (lambda (endpoints)
@@ -435,7 +435,8 @@ METHOD is the HTTP method to use (e.g., \\='GET\\=')."
                                                                             (method (cdr (assoc 'method group-obj))))
                                                                         `((name . ,name)
                                                                           (href . ,href)
-                                                                          (method . ,method))))
+                                                                          (method . ,method)
+                                                                          (relay-url . ,relay-url))))
                                                                     groups-array)))
                                                       (funcall callback groups-list))
                                                   (progn
@@ -456,6 +457,16 @@ METHOD is the HTTP method to use (e.g., \\='GET\\=')."
                                     (funcall callback nil)))))
              (message "groups endpoint not found in relay API")
              (funcall callback nil))))))))
+
+(defun org-social-relay--fetch-groups (callback)
+  "Fetch list of groups from the default relay server (org-social-relay).
+Call CALLBACK with a list of alists, each containing (name . NAME),
+\(href . HREF), (method . METHOD), and (relay-url . RELAY-URL).
+This is a wrapper around `org-social-relay--fetch-groups-from-url\\=`
+for backward compatibility."
+  (when (and org-social-relay
+             (not (string-empty-p org-social-relay)))
+    (org-social-relay--fetch-groups-from-url org-social-relay callback)))
 
 (defun org-social-relay--fetch-group-posts (group-href group-method callback)
   "Fetch posts from GROUP-HREF from the relay server.
