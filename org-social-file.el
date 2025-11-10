@@ -96,9 +96,10 @@ Does NOT save the buffer - modifications happen in memory only."
     (insert "\n* Posts")
     (point)))
 
-(defun org-social-file--insert-post-template (&optional reply-url reply-id)
+(defun org-social-file--insert-post-template (&optional reply-url reply-id group-context)
   "Insert a new post template at the current position.
-If REPLY-URL and REPLY-ID are provided, create a reply post."
+If REPLY-URL and REPLY-ID are provided, create a reply post.
+If GROUP-CONTEXT is provided, add GROUP property to the post."
   (let ((timestamp (org-social-parser--generate-timestamp))
         (lang-value (if (and (boundp 'org-social-default-lang)
                              org-social-default-lang
@@ -114,11 +115,10 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
     (insert ":CLIENT: org-social.el\n")
     (when (and reply-url reply-id)
       (insert (format ":REPLY_TO: %s#%s\n" reply-url reply-id)))
-    ;; Add GROUP property if we're in a group context
-    (when (and (boundp 'org-social-ui--current-group-context)
-               org-social-ui--current-group-context)
-      (let ((group-name (alist-get 'name org-social-ui--current-group-context))
-            (relay-url (alist-get 'relay-url org-social-ui--current-group-context)))
+    ;; Add GROUP property if group-context parameter is provided
+    (when group-context
+      (let ((group-name (alist-get 'name group-context))
+            (relay-url (alist-get 'relay-url group-context)))
         (when (and group-name relay-url)
           (insert (format ":GROUP: %s %s\n" group-name relay-url)))))
     (insert ":MOOD: \n")
@@ -183,9 +183,10 @@ and POLL-END is the RFC 3339 formatted end time."
         (require 'org-social-validator)
         (org-social-validator-validate-and-display)))))
 
-(defun org-social-file--new-post (&optional reply-url reply-id)
+(defun org-social-file--new-post (&optional reply-url reply-id group-context)
   "Create a new post in your Org-social feed.
-If REPLY-URL and REPLY-ID are provided, create a reply post."
+If REPLY-URL and REPLY-ID are provided, create a reply post.
+If GROUP-CONTEXT is provided, add GROUP property to the post."
   (unless (and (buffer-file-name)
                (string= (expand-file-name (buffer-file-name))
                         (expand-file-name org-social-file)))
@@ -193,7 +194,7 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
   (save-excursion
     (org-social-file--find-posts-section)
     (goto-char (point-max))
-    (org-social-file--insert-post-template reply-url reply-id))
+    (org-social-file--insert-post-template reply-url reply-id group-context))
   (goto-char (point-max))
   ;; Validate file after adding post
   (when (fboundp 'org-social-validator-validate-and-display)

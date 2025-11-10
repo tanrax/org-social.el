@@ -139,10 +139,6 @@ Fetches posts from relay and displays them like timeline."
     ;; Prepare buffer in background
     (with-current-buffer (get-buffer-create buffer-name)
       (kill-all-local-variables)
-
-      ;; Set group context for posting (buffer-local)
-      (setq-local org-social-ui--current-group-context `((name . ,group-name)
-                                                         (relay-url . ,relay-url)))
       (setq org-social-ui--current-screen 'group-posts)
 
       ;; Disable read-only mode before modifying buffer
@@ -175,7 +171,7 @@ Fetches posts from relay and displays them like timeline."
 
       ;; Action buttons
       (widget-create 'push-button
-                     :notify (lambda (&rest _) (org-social-file--new-post))
+                     :notify (lambda (&rest _) (org-social-ui--new-post))
                      :help-echo "Create a new post in this group"
                      " + New Post ")
 

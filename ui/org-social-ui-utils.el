@@ -12,11 +12,12 @@
 
 (require 'org-social-variables)
 (require 'org-social-ui-core)
+(require 'org-social-file)
 (require 'cl-lib)
 
 ;; Forward declarations
 (declare-function request "request" (url &rest args))
-(declare-function org-social-file--new-post "org-social-file" (&optional reply-url reply-id))
+(declare-function org-social-file--new-post "org-social-file" (&optional reply-url reply-id group-context))
 (declare-function org-social-file--new-poll "org-social-file" ())
 (declare-function org-social-file--new-reaction "org-social-file" (reply-url reply-id emoji))
 (declare-function emojify-completing-read "emojify" (&optional prompt))
@@ -752,9 +753,24 @@ Optional CALLBACK is called with success status when download completes."
 ;;; Action Functions
 
 (defun org-social-ui--new-post ()
-  "Create a new post."
+  "Create a new post.
+If called from a group buffer, automatically adds GROUP property."
   (interactive)
-  (org-social-file--new-post))
+  ;; Check if we're in a group buffer by buffer name
+  (let ((group-ctx nil)
+        (buffer-name (buffer-name)))
+    (when (string-match "^\\*Org Social Group: \\(.+\\)\\*$" buffer-name)
+      (let ((group-name (match-string 1 buffer-name))
+            (relay-url nil))
+        ;; Extract relay URL from buffer content (it's in the header)
+        (save-excursion
+          (goto-char (point-min))
+          (when (re-search-forward (concat "👥 " (regexp-quote group-name) " (\\(.+?\\))") nil t)
+            (setq relay-url (match-string 1))))
+        (when relay-url
+          (setq group-ctx `((name . ,group-name)
+                            (relay-url . ,relay-url))))))
+    (org-social-file--new-post nil nil group-ctx)))
 
 (defun org-social-ui--new-poll ()
   "Create a new poll."
