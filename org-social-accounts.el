@@ -37,6 +37,11 @@
 (defvar org-social-my-public-url)
 (defvar org-social-after-save-file-hook)
 (defvar org-social-after-fetch-posts-hook)
+(defvar org-social-variables--feeds)
+(defvar org-social-variables--my-profile)
+(defvar org-social-variables--queue)
+(defvar org-social-variables--posts-with-replies)
+(declare-function org-social-timeline "org-social" ())
 
 ;; Account storage
 
@@ -116,7 +121,8 @@ Example:
 ;;;###autoload
 (defun org-social-switch-account (name)
   "Switch to the Org Social account named NAME.
-If NAME is nil, switches to backward-compatible mode using global variables."
+If NAME is nil, switches to backward-compatible mode using global variables.
+Automatically reloads the timeline if it is open."
   (interactive
    (let ((accounts (org-social-list-accounts)))
      (cond
@@ -134,11 +140,14 @@ If NAME is nil, switches to backward-compatible mode using global variables."
   (if name
       (progn
         (org-social-accounts--apply-account name)
-        (message "Switched to Org Social account: %s" name))
+        (message "Switched to Org Social account: %s" name)
+        ;; Reload timeline if it's open
+        (org-social-accounts--reload-timeline-if-open))
     (message "Switched to Org Social default (backward-compatible) mode")))
 
 (defun org-social-accounts--apply-account (name)
-  "Apply settings from account NAME to global variables."
+  "Apply settings from account NAME to global variables.
+Also clears cached state (feeds, profile, queue, etc.)."
   (let ((account (gethash name org-social-accounts--registry)))
     (unless account
       (error "Account '%s' not found" name))
@@ -156,7 +165,13 @@ If NAME is nil, switches to backward-compatible mode using global variables."
     (when-let ((save-hook (plist-get account :after-save-file-hook)))
       (add-hook 'org-social-after-save-file-hook save-hook))
     (when-let ((fetch-hook (plist-get account :after-fetch-posts-hook)))
-      (add-hook 'org-social-after-fetch-posts-hook fetch-hook))))
+      (add-hook 'org-social-after-fetch-posts-hook fetch-hook))
+
+    ;; Clear cached state from previous account
+    (setq org-social-variables--feeds nil)
+    (setq org-social-variables--my-profile nil)
+    (setq org-social-variables--queue nil)
+    (setq org-social-variables--posts-with-replies nil)))
 
 (defun org-social-get-current-account ()
   "Get the currently active account name.
@@ -198,6 +213,16 @@ If NAME is the current account, switches to backward-compatible mode."
     (message "Removed current account '%s', switched to default mode" name))
 
   (message "Account '%s' removed" name))
+
+(defun org-social-accounts--reload-timeline-if-open ()
+  "Reload the timeline buffer if it is currently open.
+This is useful after switching accounts to refresh the follows list."
+  (when (get-buffer "*Org Social Timeline*")
+    (with-current-buffer "*Org Social Timeline*"
+      ;; Call timeline function to reload
+      (when (fboundp 'org-social-timeline)
+        (org-social-timeline)
+        (message "Timeline reloaded for new account")))))
 
 ;; Backward compatibility check
 
