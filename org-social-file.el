@@ -160,6 +160,8 @@ and POLL-END is the RFC 3339 formatted end time."
   (insert "#+AVATAR: https://example.com/avatar.jpg\n")
   (insert "#+LINK: https://your-website.com\n\n")
   (insert "* Posts\n")
+  ;; Set correct encoding (UTF-8 with LF line endings)
+  (set-buffer-file-coding-system 'utf-8-unix)
   (org-social-mode 1)
   (goto-char (point-min))
   (search-forward "YourNick")
