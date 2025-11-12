@@ -130,7 +130,7 @@ specifically for the timeline view."
                                (when my-url
                                  (org-social-ui-profile my-url)))))
                  :help-echo "View your profile"
-                 " 👤 My Profile ")
+                 " 👤 Profile ")
 
   (org-social-ui--insert-formatted-text " ")
 
@@ -138,6 +138,14 @@ specifically for the timeline view."
                  :notify (lambda (&rest _) (org-social-ui--refresh))
                  :help-echo "Refresh timeline"
                  " ↻ Refresh ")
+
+  (org-social-ui--insert-formatted-text " ")
+
+  (widget-create 'push-button
+                 :notify (lambda (&rest _)
+                           (browse-url "https://liberapay.com/org-social/"))
+                 :help-echo "Support Org Social development"
+                 " ❤ Donate ")
 
   (org-social-ui--insert-formatted-text "\n\n")
 
