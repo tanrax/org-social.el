@@ -106,7 +106,8 @@ M-x package-reinstall RET org-social RET restart-emacs RET
 org-social.el supports multiple accounts, allowing you to manage different social feeds (e.g., personal, blog, work) from a single Emacs session.
 
 ```elisp
-;; Add your accounts
+(require 'org-social-accounts)
+
 (org-social-add-account "personal"
                         :file "~/social-personal.org"
                         :relay "https://relay.org-social.org/"
