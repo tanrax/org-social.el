@@ -2,7 +2,7 @@
 
 ;; SPDX-License-Identifier: GPL-3.0
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 2.5
+;; Version: 2.6
 ;; URL: https://github.com/tanrax/org-social.el
 
 ;;; Commentary:
