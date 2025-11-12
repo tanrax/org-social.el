@@ -93,6 +93,7 @@ TIMESTAMP should be in RFC 3339 format or a time value."
     (condition-case err
         (progn
           (require 'org-social-variables)
+          (require 'org-social-accounts)
           (require 'org-social-parser)
           (require 'org-social-file)
           (require 'cl-lib)
