@@ -1,5 +1,9 @@
 # 📝 Changelog
 
+## 2.6 (Unreleased)
+
+- Multi-Account Support
+
 ## 2.5
 
 - Groups Improvements:

@@ -85,7 +85,9 @@ M-x package-reinstall RET org-social RET restart-emacs RET
 
 ## ⚙️ Configuration
 
-### Required Configuration
+### Required
+
+#### Single Account Configuration
 
 ```elisp
 ;; Required: Set the path to your social feed file
@@ -97,6 +99,34 @@ M-x package-reinstall RET org-social RET restart-emacs RET
 
 ;; Required: Set your public social.org URL (where others can access your feed)
 (setq org-social-my-public-url "https://example.com/social.org")
+```
+
+#### Multi-Account Configuration
+
+org-social.el supports multiple accounts, allowing you to manage different social feeds (e.g., personal, blog, work) from a single Emacs session.
+
+```elisp
+;; Add your accounts
+(org-social-add-account "personal"
+                        :file "~/social-personal.org"
+                        :relay "https://relay.org-social.org/"
+                        :public-url "https://example.com/personal.org"
+                        :after-save-file-hook nil
+                        :after-fetch-posts-hook nil)
+
+(org-social-add-account "blog"
+                        :file "~/social-blog.org"
+                        :relay "https://relay.org-social.org/"
+                        :public-url "https://blog.example.com/blog.org"
+                        :after-save-file-hook (lambda ()
+                                                 (message "Personal social file saved!"))
+                        :after-fetch-posts-hook (lambda ()
+                                                   (message "Blog posts fetched!")))
+
+;; Set the default account to use
+(org-social-switch-account "personal")
+
+;; Switch accounts at any time with M-x org-social-switch-account
 ```
 
 ### Optional Configuration
@@ -178,7 +208,36 @@ M-x customize-group RET org-social RET
 
 ## 🔧 Functions
 
-### `org-social-timeline`
+### Account Management
+
+#### `org-social-add-account`
+
+Register a new Org Social account with a name and properties.
+
+**Required properties:**
+- `:file` - Path to the social.org file for this account
+
+**Optional properties:**
+- `:relay` - Relay server URL
+- `:public-url` - Public URL where your feed is accessible
+- `:after-save-file-hook` - Function to run after saving the file
+- `:after-fetch-posts-hook` - Function to run after fetching posts
+
+#### `org-social-switch-account`
+
+Switch to a different Org Social account. You can call this interactively with `M-x org-social-switch-account` and select from your configured accounts.
+
+#### `org-social-list-accounts`
+
+Return a list of all registered account names.
+
+#### `org-social-remove-account`
+
+Remove an account from the registry. If you remove the currently active account, org-social.el will switch to backward-compatible mode using global variables.
+
+### Timeline and Posts
+
+#### `org-social-timeline`
 
 Downloads feeds from people you follow and displays a unified timeline with enhanced navigation and reply functionality. The timeline follows the Org Social specification including:
 - Proper `* Posts` section with post metadata
@@ -186,23 +245,23 @@ Downloads feeds from people you follow and displays a unified timeline with enha
 - Author information as comments
 - Original content preservation with multiline support
 
-### `org-social-new-post`
+#### `org-social-new-post`
 
 Make a new post in your social feed.
 
-### `org-social-new-poll`
+#### `org-social-new-poll`
 
 Create a new poll in your Org-social feed.
 
-### `org-social-mention-user`
+#### `org-social-mention-user`
 
 Insert a mention of a user in your post.
 
-### `org-social-check-relay-mentions`
+#### `org-social-check-relay-mentions`
 
 Check and display mentions from the relay server in a separate buffer. Only works when relay is configured.
 
-### `org-social-discover`
+#### `org-social-discover`
 
 Browse and follow users from the relay server. Opens a buffer showing all users registered in the relay with their avatars, descriptions, and follow/unfollow buttons. Allows you to:
 - View all users from the relay with their profile information
@@ -211,27 +270,27 @@ Browse and follow users from the relay server. Opens a buffer showing all users 
 - View user profiles with the "👤 Profile" button
 - Automatically updates your social.org file when you follow/unfollow users
 
-### `org-social-validate-file`
+#### `org-social-validate-file`
 
 Verifies that your file has the correct structure.
 
-### `org-social-open-file`
+#### `org-social-open-file`
 
 Open the Org-social feed file and enable org-social-mode.
 
-### `org-social-setup`
+#### `org-social-setup`
 
 Set up Org-social for first-time use.
 
-### `org-social-reply-to-post`
+#### `org-social-reply-to-post`
 
 Creates a reply to a post in the timeline (available when viewing the timeline).
 
-### `org-social-view-profile`
+#### `org-social-view-profile`
 
 View the profile of the post author at current position (available when viewing the timeline).
 
-### `org-social-save-file`
+#### `org-social-save-file`
 
 Save the current Org-social file and run associated hooks.
 
@@ -266,36 +325,6 @@ When your cursor is positioned in the content area of a post, you can use Org mo
 | `C-c C-c`     | org-ctrl-c-ctrl-c | Context-aware Org command (recalculate tables, execute code) |
 | `C-c *`       | org-table-recalculate | Force recalculation of table formulas |
 | `C-c C-v C-e` | org-babel-execute-src-block | Execute source code block |
-
-## 🎨 UI Features
-
-### Edit Your Posts
-
-When viewing your own posts in the timeline or threads, you'll see an **"✏️ Edit"** button. Clicking this button:
-- Opens your `social.org` file
-- Automatically positions the cursor at the beginning of that post's content
-- Allows you to edit the post directly in your file
-
-This makes it easy to quickly fix typos or update content without manually searching through your file.
-
-### My Profile Button
-
-The timeline header includes a **"👤 My Profile"** button that provides quick access to view your own profile. This is useful for:
-- Checking how your profile appears to others
-- Reviewing your recent posts
-- Verifying your profile information
-
-### Discover Users
-
-The **"🌍 Discover"** buffer allows you to explore and follow users from the relay server:
-
-1. Click the "🌍 Discover" button in the timeline header or press `D`
-2. Browse all users registered in the relay with their avatars and descriptions
-3. Use **"+ Follow"** button to follow new users
-4. Use **"− Unfollow"** button to stop following users
-5. Click **"👤 Profile"** to view a user's full profile
-
-Your `social.org` file is automatically updated when you follow or unfollow users.
 
 ## 🧮 Interactive Org Mode Content
 
@@ -376,7 +405,9 @@ You can use the following hooks to perform additional actions automatically:
 | `org-social-after-save-file-hook` | Runs after saving the social file. Useful for automating tasks like uploading to a remote server or syncing with other services. |
 | `org-social-after-fetch-posts-hook` | Runs after all feeds have been fetched and processed. |
 
-For example, to automatically upload your social file to a remote server after saving:
+### Global Hooks (Single Account Mode)
+
+For traditional single-account configuration, you can add hooks globally:
 
 ```elisp
 (add-hook 'org-social-after-save-file-hook
@@ -386,6 +417,34 @@ For example, to automatically upload your social file to a remote server after s
                      org-social-file
                      "user@server:/your/path/social.org")
              nil 0)))
+```
+
+### Per-Account Hooks (Multi-Account Mode)
+
+When using multi-account configuration, you can specify hooks for each account individually:
+
+```elisp
+(org-social-add-account "personal"
+                        :file "~/social-personal.org"
+                        :relay "https://relay.org-social.org/"
+                        :public-url "https://example.com/personal.org"
+                        :after-save-file-hook (lambda ()
+                                                 (message "Personal social file saved!")
+                                                 ;; Upload to server
+                                                 (call-process-shell-command
+                                                  "scp ~/social-personal.org user@server:/path/personal.org"
+                                                  nil 0)))
+
+(org-social-add-account "blog"
+                        :file "~/social-blog.org"
+                        :relay "https://relay.org-social.org/"
+                        :public-url "https://blog.example.com/blog.org"
+                        :after-fetch-posts-hook (lambda ()
+                                                   (message "Blog posts fetched!")
+                                                   ;; Custom notification
+                                                   (notifications-notify
+                                                    :title "Org Social"
+                                                    :body "New blog posts available")))
 ```
 
 ## 🔄 Workflow
@@ -398,18 +457,6 @@ For example, to automatically upload your social file to a remote server after s
 6. **Create posts**: Use `M-x org-social-new-post` or `C-c s n`
 7. **Create polls**: Use `M-x org-social-new-poll` or `C-c s p`
 8. **Save and sync**: Use `C-x C-s` to save with hooks
-
-## 🔌 Compatibility
-
-| Name | Status |
-|------|--------|
-| Relay: Self-register | ✅ |
-| Relay: List all feeds | ✅ |
-| Relay: Mentions | ✅ |
-| Relay: Replies/threads | ✅ |
-| Relay: Groups | ✅ |
-| Relay: Search | ✅ |
-| Org Social Live Preview Generator | ✅ |
 
 ## 📄 License
 
