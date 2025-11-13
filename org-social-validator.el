@@ -146,8 +146,10 @@ integration with other `org-mode' tools and features.")
 ;;; Validation Functions
 
 (defun org-social-validator--validate-encoding ()
-  "Validate that buffer is UTF-8 encoded with LF line endings."
-  (unless (eq buffer-file-coding-system 'utf-8-unix)
+  "Validate that buffer is UTF-8 encoded with LF line endings.
+Accepts utf-8-unix, undecided-unix (ASCII/UTF-8 compatible), and
+prefer-utf-8-unix."
+  (unless (memq buffer-file-coding-system '(utf-8-unix undecided-unix prefer-utf-8-unix))
     (org-social-validator--error
      1 1
      (format "File encoding is %s, should be UTF-8 with LF line endings"
