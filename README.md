@@ -9,7 +9,13 @@ An Emacs client for [Org Social](https://github.com/tanrax/org-social), a decent
 
 ## 🎯 Getting Started
 
-**Note:** The Relay server is required for `org-social.el` to work.
+**Important note!**: The [Relay server](https://github.com/tanrax/org-social-relay/) is required for `org-social.el` to work. You can think of it as the client's backend, or software that synchronizes data. You can use:
+
+- [Official instance](https://relay.org-social.org/)
+- [unofficial instances](https://raw.githubusercontent.com/tanrax/org-social/refs/heads/main/org-social-relay-list.txt)
+- A [Relay instance]((https://github.com/tanrax/org-social-relay/) on your local machine.
+
+It is your decision.
 
 ### Required Configuration
 
