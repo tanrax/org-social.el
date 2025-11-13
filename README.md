@@ -13,7 +13,7 @@ An Emacs client for [Org Social](https://github.com/tanrax/org-social), a decent
 
 - [Official instance](https://relay.org-social.org/)
 - [unofficial instances](https://raw.githubusercontent.com/tanrax/org-social/refs/heads/main/org-social-relay-list.txt)
-- A [Relay instance]((https://github.com/tanrax/org-social-relay/) on your local machine.
+- A [Relay instance](https://github.com/tanrax/org-social-relay/) on your local machine.
 
 It is your decision.
 
