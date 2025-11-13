@@ -420,6 +420,16 @@ prefer-utf-8-unix."
        "Missing '* Posts' section"
        "Add a '* Posts' headline to define where your posts start"))
 
+    ;; Check for blank line after "* Posts"
+    (save-excursion
+      (goto-char (point-min))
+      (when (re-search-forward "^\\* Posts\n\n" nil t)
+        (org-social-validator--error
+         (line-number-at-pos (match-beginning 0))
+         1
+         "Blank line after '* Posts' section"
+         "Remove the blank line. Posts should start immediately with '**' on the next line")))
+
     (when posts-start
       (save-excursion
         (goto-char posts-start)
