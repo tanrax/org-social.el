@@ -6,6 +6,7 @@ An Emacs client for [Org Social](https://github.com/tanrax/org-social), a decent
 ![Screenshot profile](screenshots/screenshot-2.png)
 ![Screenshot notifications](screenshots/screenshot-3.png)
 ![Screenshot groups](screenshots/screenshot-4.png)
+![Screenshot poll](screenshots/screenshot-5.png)
 
 ## 🎯 Getting Started
 
