@@ -5,7 +5,7 @@
 - Multi-Account Support
 - Fixed issue #25: Kill hanging HTTP processes on timeout to prevent zombie processes and 'running process' popups
 - Validator Improvements
-- Added button to donate to the project via Librepay.
+- Added button to donate to the project via Liberapay.
 
 ## 2.5
 
