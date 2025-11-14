@@ -217,8 +217,11 @@ Includes a 5-second timeout to prevent hanging downloads."
                          (unless callback-called
                            (setq callback-called t)
                            (message "Timeout downloading %s (5 seconds)" url)
-                           ;; Kill the url-retrieve buffer if it exists
+                           ;; Kill both the process and buffer to prevent hanging
                            (when (and url-buffer (buffer-live-p url-buffer))
+                             (let ((proc (get-buffer-process url-buffer)))
+                               (when (and proc (process-live-p proc))
+                                 (delete-process proc)))
                              (kill-buffer url-buffer))
                            (funcall error-callback)))))))
 
