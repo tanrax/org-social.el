@@ -150,7 +150,7 @@ _IS-MY-POST indicates if this is the current user's poll (unused for now)."
 
     ;; Render question
     (let ((org-content-start (point))
-          (question-text (mapconcat 'identity question-lines "\n")))
+          (question-text (mapconcat #'identity question-lines "\n")))
       (insert question-text)
       (insert "\n\n")
       (let ((org-content-end (point)))
