@@ -1,8 +1,11 @@
 # 📝 Changelog
 
-## 2.6 (Unreleased)
+## 2.6
 
 - Multi-Account Support
+- Fixed issue #25: Kill hanging HTTP processes on timeout to prevent zombie processes and 'running process' popups
+- Validator Improvements
+- Added button to donate to the project via Librepay.
 
 ## 2.5
 
