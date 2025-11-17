@@ -353,18 +353,25 @@ When a download completes, the next pending item is automatically started."
                                           ;; Keep boosts (posts with INCLUDE property)
                                           ;; Exclude group posts (posts with GROUP property)
                                           ;; Exclude reactions (posts with reply_to + mood)
+                                          ;; Filter by language if org-social-language-filter is set
                                           (let ((text (alist-get 'text post))
                                                 (group (alist-get 'group post))
                                                 (mood (alist-get 'mood post))
                                                 (reply-to (alist-get 'reply_to post))
-                                                (include (alist-get 'include post)))
+                                                (include (alist-get 'include post))
+                                                (lang (alist-get 'lang post)))
                                             ;; Exclude posts with GROUP property from timeline
                                             ;; Exclude reactions (reply_to + mood)
                                             (and (not group)
                                                  (not (and reply-to mood))
                                                  ;; Must have text OR be a boost (include)
                                                  (or (and text (not (string-empty-p (string-trim text))))
-                                                     (and include (not (string-empty-p include)))))))
+                                                     (and include (not (string-empty-p include))))
+                                                 ;; Filter by language if configured
+                                                 (or (null org-social-language-filter)
+                                                     (and lang
+                                                          (not (string-empty-p lang))
+                                                          (member lang org-social-language-filter))))))
                                         timeline))
          (timeline-sorted (sort timeline-filtered
                                 (lambda (a b)

@@ -166,6 +166,12 @@ org-social.el supports multiple accounts, allowing you to manage different socia
 ;; Recommended range: 10-30 (default: 20)
 (setq org-social-max-concurrent-downloads 20)  ; or 10, 30, etc.
 
+;; Filter timeline posts by language
+;; Only show posts in specified languages (using :LANG: property)
+;; Set to nil to show all posts regardless of language (default)
+;; Examples: '("en") for English only, '("en" "es") for English and Spanish
+(setq org-social-language-filter nil)  ; or '("en" "es"), '("en"), etc.
+
 ;; Optionally, configure global keybindings
 (keymap-global-set "C-c s t" #'org-social-timeline)
 (keymap-global-set "C-c s n" #'org-social-new-post)
@@ -207,6 +213,7 @@ For best performance with partial downloads, host your `social.org` file on a tr
 | `org-social-default-lang` | Default language code for new posts and polls. When set, automatically fills the `:LANG:` property with a two-letter ISO 639-1 language code (e.g., "en", "es", "fr"). When `nil` or empty string, the `:LANG:` field remains empty. | `nil` | ❌ | `string` |
 | `org-social-max-post-age-days` | Maximum age of posts to fetch from feeds, in days. Uses optimized partial downloads with HTTP Range requests (saves up to 89% bandwidth). Each feed is downloaded in a separate thread for parallel execution without blocking Emacs. For servers supporting Range requests (87.5%), only recent posts are downloaded. For others, the full feed is downloaded and filtered. Set to `nil` to disable filtering and download all posts. | `14` | ❌ | `integer` or `nil` |
 | `org-social-max-concurrent-downloads` | Maximum number of concurrent feed downloads. When loading the timeline, feeds are downloaded in parallel. This setting limits simultaneous downloads to avoid overwhelming system resources or triggering rate limits on remote servers. Recommended range: 10-30. Higher values = faster but more resource intensive. | `20` | ❌ | `integer` |
+| `org-social-language-filter` | List of language codes to filter timeline posts. Only posts with `:LANG:` property matching these codes will be shown. When `nil`, all posts are shown regardless of language. Posts without a `:LANG:` property or with empty `:LANG:` are hidden when filter is active. Uses ISO 639-1 two-letter language codes. | `nil` | ❌ | `list` of `string` or `nil` |
 
 You can customize these variables through Emacs' customization interface:
 

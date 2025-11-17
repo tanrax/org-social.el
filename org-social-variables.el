@@ -130,6 +130,21 @@ Default: 20."
   :type 'integer
   :group 'org-social)
 
+(defcustom org-social-language-filter nil
+  "List of language codes to filter timeline posts.
+When set to a list of ISO 639-1 two-letter language codes
+\(e.g., \\='(\"en\" \"es\")), only posts with a :LANG: property matching one of
+these codes will be shown in the timeline.  When nil, all posts are shown
+regardless of language.  Posts without a :LANG: property or with empty
+:LANG: are hidden when filter is active.
+Examples:
+  \\='(\"en\")           - Show only English posts
+  \\='(\"en\" \"es\")      - Show English and Spanish posts
+  nil               - Show all posts (default)"
+  :type '(choice (const :tag "Show all languages" nil)
+                 (repeat :tag "Language codes" string))
+  :group 'org-social)
+
 ;; Variables for state management
 
 (defvar org-social-variables--feeds nil
