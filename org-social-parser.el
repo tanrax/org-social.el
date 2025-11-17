@@ -196,9 +196,9 @@ Validates format according to specification - ignores invalid values."
                                   (cons 'text text))))
 
                   ;; Extract only official properties according to Org Social specification
-                  ;; Official properties: LANG, TAGS, CLIENT, REPLY_TO, POLL_END, POLL_OPTION, GROUP, MOOD
+                  ;; Official properties: LANG, TAGS, CLIENT, REPLY_TO, POLL_END, POLL_OPTION, GROUP, MOOD, INCLUDE
                   (dolist (prop '("LANG" "TAGS" "CLIENT" "REPLY_TO" "POLL_END"
-                                  "POLL_OPTION" "GROUP" "MOOD"))
+                                  "POLL_OPTION" "GROUP" "MOOD" "INCLUDE"))
                     (let ((value (org-social-parser--extract-property properties-text prop)))
                       (when value
                         (setq post-data (cons (cons (intern (downcase prop)) value) post-data)))))
@@ -216,6 +216,9 @@ Returns t if valid, nil if invalid (should be ignored)."
   (cond
    ;; REPLY_TO must be URL#timestamp format (accepts both +0200 and +02:00 timezone formats)
    ((string= prop-name "REPLY_TO")
+    (string-match-p "^https?://[^#]+#[0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}T[0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}[+-][0-9]\\{2\\}" value))
+   ;; INCLUDE must be URL#timestamp format (for boosting posts)
+   ((string= prop-name "INCLUDE")
     (string-match-p "^https?://[^#]+#[0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}T[0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}[+-][0-9]\\{2\\}" value))
    ;; POLL_END must be RFC 3339 format
    ((string= prop-name "POLL_END")

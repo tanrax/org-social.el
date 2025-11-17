@@ -59,19 +59,11 @@
 
   (org-social-ui--insert-formatted-text "\n\n")
 
-  ;; Action buttons
-  (widget-create 'push-button
-                 :notify (lambda (&rest _) (org-social-ui--refresh))
-                 :help-echo "Refresh notifications"
-                 " ↻ Refresh ")
-
-  (org-social-ui--insert-formatted-text "\n\n")
-
   ;; Help text
   (org-social-ui--insert-formatted-text "Your Notices\n" 1.2 "#4a90e2")
   (org-social-ui--insert-formatted-text "Navigation:\n" nil "#666666")
   (org-social-ui--insert-formatted-text "(n) Next | (p) Previous | (T) Timeline | (G) Groups\n" nil "#666666")
-  (org-social-ui--insert-formatted-text "Other: (g) Refresh | (q) Quit\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Other: (q) Quit\n" nil "#666666")
 
   (org-social-ui--insert-separator))
 

@@ -20,6 +20,7 @@
 (declare-function org-social-file--new-post "org-social-file" (&optional reply-url reply-id group-context))
 (declare-function org-social-file--new-poll "org-social-file" ())
 (declare-function org-social-file--new-reaction "org-social-file" (reply-url reply-id emoji))
+(declare-function org-social-file--new-boost "org-social-file" (post-url post-id &optional comment))
 (declare-function emojify-completing-read "emojify" (&optional prompt))
 (declare-function org-social-ui-timeline "org-social-ui-timeline" ())
 (declare-function org-social-ui-notifications "org-social-ui-notifications" ())
@@ -780,14 +781,20 @@ If called from a group buffer, automatically adds GROUP property."
 (defun org-social-ui--reply-to-post ()
   "Reply to the post by pressing the Reply button."
   (interactive)
-  (unless (org-social-ui--find-and-press-button "↳ Reply")
+  (unless (org-social-ui--find-and-press-button "↳")
     (message "No reply button found near point")))
 
 (defun org-social-ui--add-reaction-at-point ()
   "Add a reaction to the post by pressing the React button."
   (interactive)
-  (unless (org-social-ui--find-and-press-button "😊 React")
+  (unless (org-social-ui--find-and-press-button "😊")
     (message "No react button found near point")))
+
+(defun org-social-ui--boost-post-at-point ()
+  "Boost the post at point by pressing the Boost button."
+  (interactive)
+  (unless (org-social-ui--find-and-press-button "🔄")
+    (message "No boost button found near point")))
 
 (defun org-social-ui--add-reaction (author-url timestamp)
   "Add a reaction to a post using emojify selector.
@@ -799,6 +806,13 @@ TIMESTAMP is the timestamp of the post being reacted to."
         (when selected-emoji
           (org-social-file--new-reaction author-url timestamp selected-emoji)))
     (message "Emojify not available. Please install the emojify package.")))
+
+(defun org-social-ui--boost-post (author-url timestamp)
+  "Boost (share) a post by creating a new post with INCLUDE property.
+AUTHOR-URL is the URL of the post author.
+TIMESTAMP is the timestamp of the post being boosted."
+  (interactive)
+  (org-social-file--new-boost author-url timestamp nil))
 
 (defun org-social-ui--get-post-at-point ()
   "Get post data at current point.
@@ -990,108 +1004,75 @@ Returns list of reply structures from relay data, or nil if failed."
                   replies-data)))))))))
 
 (defun org-social-ui--fetch-post-reactions-sync (post-url post-data)
-  "Fetch reactions for POST-URL and add them to POST-DATA synchronously.
-Returns POST-DATA with reactions added, or POST-DATA unchanged if failed."
+  "Fetch interactions (reactions and boosts) for POST-URL from Relay.
+Returns POST-DATA with reactions and boosts added.
+Returns POST-DATA unchanged if failed."
   (require 'org-social-relay)
   (require 'json)
   (if (and org-social-relay
            (not (string-empty-p org-social-relay)))
       (let* ((relay-url (string-trim-right org-social-relay "/"))
-             (reply-to (alist-get 'reply_to post-data))
-             (author-url (or (alist-get 'author-url post-data)
-                             (alist-get 'url post-data))))
-        (cond
-         ;; Case 1: Post has a parent, get reactions by querying parent's replies
-         (reply-to
-          (let* ((encoded-url (url-hexify-string reply-to))
-                 (url (format "%s/replies/?post=%s" relay-url encoded-url))
-                 (buffer (condition-case nil
-                             (url-retrieve-synchronously url t nil 10)
-                           (error nil))))
-            (if buffer
-                (with-current-buffer buffer
-                  (set-buffer-multibyte t)
-                  (goto-char (point-min))
-                  (if (re-search-forward "\n\n" nil t)
-                      (let* ((json-data (decode-coding-string
-                                         (buffer-substring-no-properties (point) (point-max))
-                                         'utf-8))
-                             (response (condition-case nil
-                                           (json-read-from-string json-data)
-                                         (error nil)))
-                             (response-type (when response (cdr (assoc 'type response))))
-                             (replies-data (when response (cdr (assoc 'data response)))))
-                        (kill-buffer buffer)
-                        (if (and response-type (string= response-type "Success") replies-data)
-                            ;; Find this post in the children and extract its moods
-                            (let ((replies-list (if (vectorp replies-data)
-                                                    (append replies-data nil)
-                                                  replies-data)))
-                              (catch 'found
-                                (dolist (reply-node replies-list)
-                                  (let ((node-post-url (cdr (assoc 'post reply-node)))
-                                        (node-moods (cdr (assoc 'moods reply-node))))
-                                    (when (string= node-post-url post-url)
-                                      (throw 'found
-                                             (if node-moods
-                                                 (append post-data `((reactions . ,node-moods)))
-                                               post-data)))))
-                                post-data))
-                          post-data))
-                    (progn (kill-buffer buffer) post-data)))
-              post-data)))
-         ;; Case 2: Post has no parent, get reactions from author's feed reactions
-         (author-url
-          (let* ((encoded-feed (url-hexify-string author-url))
-                 (url (format "%s/reactions/?feed=%s" relay-url encoded-feed))
-                 (buffer (condition-case nil
-                             (url-retrieve-synchronously url t nil 10)
-                           (error nil))))
-            (if buffer
-                (with-current-buffer buffer
-                  (set-buffer-multibyte t)
-                  (goto-char (point-min))
-                  (if (re-search-forward "\n\n" nil t)
-                      (let* ((json-data (decode-coding-string
-                                         (buffer-substring-no-properties (point) (point-max))
-                                         'utf-8))
-                             (response (condition-case nil
-                                           (json-read-from-string json-data)
-                                         (error nil)))
-                             (response-type (when response (cdr (assoc 'type response))))
-                             (reactions-data (when response (cdr (assoc 'data response)))))
-                        (kill-buffer buffer)
-                        (if (and response-type (string= response-type "Success") reactions-data)
-                            ;; Filter reactions for this specific post and group by emoji
-                            (let ((reactions-list (if (vectorp reactions-data)
-                                                      (append reactions-data nil)
-                                                    reactions-data))
-                                  (moods-by-emoji (make-hash-table :test 'equal)))
-                              (dolist (reaction reactions-list)
-                                (let ((parent (cdr (assoc 'parent reaction)))
-                                      (emoji (cdr (assoc 'emoji reaction)))
-                                      (reaction-post (cdr (assoc 'post reaction))))
-                                  (when (and parent emoji reaction-post
-                                             (string= parent post-url))
-                                    (let ((existing (gethash emoji moods-by-emoji)))
-                                      (puthash emoji
-                                               (vconcat (vector reaction-post)
-                                                        (if (vectorp existing) existing (vector)))
-                                               moods-by-emoji)))))
-                              ;; Convert hash table to alist format expected by component
-                              (let ((moods-list '()))
-                                (maphash (lambda (emoji posts)
-                                           (push `((emoji . ,emoji) (posts . ,posts))
-                                                 moods-list))
-                                         moods-by-emoji)
-                                (if moods-list
-                                    (append post-data `((reactions . ,moods-list)))
-                                  post-data)))
-                          post-data))
-                    (progn (kill-buffer buffer) post-data)))
-              post-data)))
-         ;; Case 3: No way to get reactions
-         (t post-data)))
+             (encoded-url (url-hexify-string post-url))
+             (url (format "%s/interactions/?post=%s" relay-url encoded-url))
+             (buffer (condition-case nil
+                         (url-retrieve-synchronously url t nil 10)
+                       (error nil))))
+        (if buffer
+            (with-current-buffer buffer
+              (set-buffer-multibyte t)
+              (goto-char (point-min))
+              (if (re-search-forward "\n\n" nil t)
+                  (let* ((json-data (decode-coding-string
+                                     (buffer-substring-no-properties (point) (point-max))
+                                     'utf-8))
+                         (response (condition-case nil
+                                       (json-read-from-string json-data)
+                                     (error nil)))
+                         (response-type (when response (cdr (assoc 'type response))))
+                         (interactions-data (when response (cdr (assoc 'data response)))))
+                    (kill-buffer buffer)
+                    (if (and response-type (string= response-type "Success") interactions-data)
+                        ;; Extract reactions and boosts from interactions
+                        (let* ((reactions-data (cdr (assoc 'reactions interactions-data)))
+                               (boosts-data (cdr (assoc 'boosts interactions-data)))
+                               (reactions-list (when reactions-data
+                                                 (if (vectorp reactions-data)
+                                                     (append reactions-data nil)
+                                                   reactions-data)))
+                               (boosts-list (when boosts-data
+                                              (if (vectorp boosts-data)
+                                                  (append boosts-data nil)
+                                                boosts-data)))
+                               ;; Group reactions by emoji
+                               (moods-by-emoji (make-hash-table :test 'equal)))
+                          ;; Process reactions
+                          (when reactions-list
+                            (dolist (reaction reactions-list)
+                              (let ((emoji (cdr (assoc 'emoji reaction)))
+                                    (reaction-post (cdr (assoc 'post reaction))))
+                                (when (and emoji reaction-post)
+                                  (let ((existing (gethash emoji moods-by-emoji)))
+                                    (puthash emoji
+                                             (vconcat (vector reaction-post)
+                                                      (if (vectorp existing) existing (vector)))
+                                             moods-by-emoji))))))
+                          ;; Convert hash table to alist format expected by component
+                          (let ((moods-list '())
+                                (result post-data))
+                            (maphash (lambda (emoji posts)
+                                       (push `((emoji . ,emoji) (posts . ,posts))
+                                             moods-list))
+                                     moods-by-emoji)
+                            ;; Add reactions if any
+                            (when moods-list
+                              (setq result (append result `((reactions . ,moods-list)))))
+                            ;; Add boosts if any
+                            (when (and boosts-list (> (length boosts-list) 0))
+                              (setq result (append result `((boosts . ,boosts-list)))))
+                            result))
+                      post-data))
+                (progn (kill-buffer buffer) post-data)))
+          post-data))
     ;; No relay configured
     post-data))
 

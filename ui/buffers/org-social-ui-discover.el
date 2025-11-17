@@ -89,14 +89,6 @@
 
   (org-social-ui--insert-formatted-text "\n\n")
 
-  ;; Refresh button
-  (widget-create 'push-button
-                 :notify (lambda (&rest _) (org-social-ui-discover))
-                 :help-echo "Refresh discover"
-                 " ↻ Refresh ")
-
-  (org-social-ui--insert-formatted-text "\n\n")
-
   ;; Title
   (org-social-ui--insert-formatted-text "Discover Users\n" 1.5 "#4a90e2")
 

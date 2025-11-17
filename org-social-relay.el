@@ -328,6 +328,56 @@ Call CALLBACK with the thread structure."
              (message "replies endpoint not found in relay API")
              (funcall callback nil))))))))
 
+(defun org-social-relay--fetch-interactions (post-url callback)
+  "Fetch all interactions (reactions, replies, boosts) for POST-URL.
+Fetches from the relay server.
+Call CALLBACK with the interactions data structure."
+  (when (and org-social-relay
+             (not (string-empty-p org-social-relay)))
+    (let ((relay-url (string-trim-right org-social-relay "/")))
+      (org-social-relay--discover-endpoints
+       relay-url
+       (lambda (endpoints)
+         (let ((interactions-endpoint (gethash "interactions" endpoints)))
+           (if interactions-endpoint
+               (let ((href (plist-get interactions-endpoint :href))
+                     (method (plist-get interactions-endpoint :method)))
+                 (let ((url (concat relay-url
+                                    (replace-regexp-in-string
+                                     "{\\(post_url\\|url post\\|post\\)}"
+                                     (url-hexify-string post-url)
+                                     href))))
+                   (request url
+                            :type method
+                            :timeout 10
+                            :success (cl-function
+                                      (lambda (&key data &allow-other-keys)
+                                        (condition-case err
+                                            (if (and data (stringp data) (not (string-empty-p data)))
+                                                (let* ((response (json-read-from-string data))
+                                                       (response-type (cdr (assoc 'type response)))
+                                                       (interactions-data (cdr (assoc 'data response))))
+                                                  (if (string= response-type "Success")
+                                                      (funcall callback interactions-data)
+                                                    (progn
+                                                      (message "Relay returned error response: %s" response-type)
+                                                      (funcall callback nil))))
+                                              (progn
+                                                (message "Received empty, nil, or non-string response from relay: %S" data)
+                                                (funcall callback nil)))
+                                          (error
+                                           (message "Failed to parse relay interactions response: %s (data: %S)" (error-message-string err) data)
+                                           (funcall callback nil)))))
+                            :error (cl-function
+                                    (lambda (&key error-thrown &allow-other-keys)
+                                      (message "Failed to fetch interactions from relay: %s"
+                                               (if error-thrown
+                                                   (error-message-string error-thrown)
+                                                 "Unknown error"))
+                                      (funcall callback nil))))))
+             (message "interactions endpoint not found in relay API")
+             (funcall callback nil))))))))
+
 (defun org-social-relay--search-posts (query callback &optional search-type page per-page)
   "Search posts by QUERY from the relay server.
 SEARCH-TYPE can be \\='tag to search by tag, defaults to text search.

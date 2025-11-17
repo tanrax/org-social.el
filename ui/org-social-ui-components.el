@@ -244,14 +244,21 @@ Automatically fetches reactions from Relay if not present in POST."
                           (alist-get 'id post-with-reactions)
                           (alist-get 'date post-with-reactions)
                           ""))
-           (text (or (alist-get 'text post-with-reactions)
-                     (alist-get 'content post-with-reactions)
-                     ""))
+           (text (string-trim (or (alist-get 'text post-with-reactions)
+                                  (alist-get 'content post-with-reactions)
+                                  "")))
            (poll-end (or (alist-get 'poll_end post-with-reactions)
                          (alist-get 'poll-end post-with-reactions)))
            (tags (or (alist-get 'tags post-with-reactions) ""))
            (mood (or (alist-get 'mood post-with-reactions) ""))
            (client (alist-get 'client post-with-reactions))
+           (include (alist-get 'include post-with-reactions))
+           (boosts-data (alist-get 'boosts post-with-reactions))
+           (boosts-count (if boosts-data
+                             (length (if (vectorp boosts-data)
+                                         (append boosts-data nil)
+                                       boosts-data))
+                           0))
            (my-nick (alist-get 'nick org-social-variables--my-profile))
            (is-my-post (or (string= author my-nick)
                            (string= author-url (alist-get 'url org-social-variables--my-profile)))))
@@ -271,6 +278,10 @@ Automatically fetches reactions from Relay if not present in POST."
 	(widget-create 'item
                        :format ""  ; Invisible widget
                        :value post-data-with-url)
+
+	;; 1.5. If this is a boost, show boost indicator and fetch original post
+	(when (and include (not (string-empty-p include)))
+          (org-social-ui--insert-formatted-text "🔄 Boosted\n\n" 1.1 "#4a90e2"))
 
 	;; 2. Post content
 	(when (and text (not (string-empty-p text)))
@@ -295,6 +306,57 @@ Automatically fetches reactions from Relay if not present in POST."
                 ;; Apply 'org-mode' syntax highlighting to this region only
                 (org-social-ui--apply-org-mode-to-region org-content-start org-content-end)))))
 
+	;; 2.5. If this is a boost, show the original boosted post
+	(when (and include (not (string-empty-p include)))
+          ;; Only show separator if boost has text/comment
+          (when (and text (not (string-empty-p text)))
+            (org-social-ui--insert-formatted-text "\n")
+            (org-social-ui--insert-formatted-text "── Original post ──\n" nil "#888888")
+            (org-social-ui--insert-formatted-text "\n"))
+          ;; Fetch and display the original post
+          (let ((original-post (org-social-ui--fetch-post-sync include)))
+            (when original-post
+              (let* ((orig-author (or (alist-get 'author-nick original-post)
+                                      (alist-get 'nick original-post)
+                                      "Unknown"))
+                     (orig-text (or (alist-get 'text original-post)
+                                    (alist-get 'content original-post)
+                                    ""))
+                     (orig-avatar (or (alist-get 'author-avatar original-post)
+                                      (alist-get 'avatar original-post)
+                                      (alist-get 'feed-avatar original-post)))
+                     (orig-timestamp (or (alist-get 'timestamp original-post)
+                                         (alist-get 'id original-post)
+                                         (alist-get 'date original-post)
+                                         "")))
+                ;; Show original author info
+                (if (and orig-avatar (not (string-empty-p orig-avatar)))
+                    (progn
+                      (org-social-ui--insert-formatted-text " ")
+                      (org-social-ui--put-image-from-cache orig-avatar (line-number-at-pos) 50)
+                      (org-social-ui--insert-formatted-text " "))
+                  (org-social-ui--insert-formatted-text "👤 " nil "#4a90e2"))
+                (org-social-ui--insert-formatted-text (format "%s" orig-author) 1.1 "#4a90e2")
+                (org-social-ui--insert-formatted-text " • ")
+                (org-social-ui--insert-formatted-text (org-social--format-date orig-timestamp) nil "#666666")
+                (org-social-ui--insert-formatted-text "\n\n")
+                ;; Show original post content
+                (when (and orig-text (not (string-empty-p orig-text)))
+                  (let ((orig-content-start (point))
+                        (formatted-text (org-social-ui--format-org-headings orig-text)))
+                    (insert formatted-text)
+                    (insert "\n")
+                    (let ((orig-content-end (point)))
+                      (put-text-property orig-content-start orig-content-end
+                                         'org-social-org-content t)
+                      (let ((keymap-overlay (make-overlay orig-content-start orig-content-end)))
+                        (overlay-put keymap-overlay 'keymap org-social-ui--org-content-keymap)
+                        (overlay-put keymap-overlay 'priority 50)
+                        (overlay-put keymap-overlay 'org-social-keymap-overlay t))
+                      (org-social-ui--apply-org-mode-to-region orig-content-start orig-content-end))))
+                (org-social-ui--insert-formatted-text "────────────────\n" nil "#888888")
+                (org-social-ui--insert-formatted-text "\n")))))
+
 	;; 3. Add line break between content and tags (only if tags exist)
 	(when (and tags (not (string-empty-p tags)))
           (org-social-ui--insert-formatted-text "\n")
@@ -316,7 +378,8 @@ Automatically fetches reactions from Relay if not present in POST."
                            :notify `(lambda (&rest _)
                                       (require 'org-social-polls)
                                       (org-social-polls--show-poll-results ,author-url ,timestamp))
-                           " 📊 Results ")
+                           :help-echo "View poll results"
+                           " 📊 ")
             (setq first-button nil))
 
           ;; Edit button (only for my posts)
@@ -325,7 +388,8 @@ Automatically fetches reactions from Relay if not present in POST."
             (widget-create 'push-button
                            :notify `(lambda (&rest _)
                                       (org-social-file--edit-post ,timestamp))
-                           " ✏️ Edit ")
+                           :help-echo "Edit this post"
+                           " ✏️ ")
             (setq first-button nil))
 
           ;; Reply button (only for others' posts)
@@ -334,7 +398,8 @@ Automatically fetches reactions from Relay if not present in POST."
             (widget-create 'push-button
                            :notify `(lambda (&rest _)
                                       (org-social-file--new-post ,author-url ,timestamp))
-                           " ↳ Reply ")
+                           :help-echo "Reply to this post"
+                           " ↳ ")
             (setq first-button nil))
 
           ;; Thread button - show if post has reply_to OR has real replies
@@ -347,7 +412,8 @@ Automatically fetches reactions from Relay if not present in POST."
               (widget-create 'push-button
                              :notify `(lambda (&rest _)
 					(org-social-ui-thread ,thread-url))
-                             " 🧵 Thread ")
+                             :help-echo "View conversation thread"
+                             " 🧵 ")
               (setq first-button nil)))
 
           ;; Profile button (only for others' posts)
@@ -356,7 +422,8 @@ Automatically fetches reactions from Relay if not present in POST."
             (widget-create 'push-button
                            :notify `(lambda (&rest _)
                                       (org-social-ui-profile ,author-url))
-                           " 👤 Profile ")
+                           :help-echo "View user profile"
+                           " 👤 ")
             (setq first-button nil))
 
           ;; Reaction button (only for others' posts)
@@ -365,7 +432,21 @@ Automatically fetches reactions from Relay if not present in POST."
             (widget-create 'push-button
                            :notify `(lambda (&rest _)
                                       (org-social-ui--add-reaction ,author-url ,timestamp))
-                           " 😊 React ")
+                           :help-echo "Add reaction to this post"
+                           " 😊 ")
+            (setq first-button nil))
+
+          ;; Boost button (only for others' posts)
+          (when (not is-my-post)
+            (unless first-button (org-social-ui--insert-formatted-text " "))
+            (let ((boost-label (if (> boosts-count 0)
+                                   (format " %d 🔄 " boosts-count)
+                                 " 🔄 ")))
+              (widget-create 'push-button
+                             :notify `(lambda (&rest _)
+                                        (org-social-ui--boost-post ,author-url ,timestamp))
+                             :help-echo "Boost (share) this post"
+                             boost-label))
             (setq first-button nil))
 
           ;; Share button (if org-social-live-preview-url is set)
@@ -376,7 +457,8 @@ Automatically fetches reactions from Relay if not present in POST."
             (widget-create 'push-button
                            :notify `(lambda (&rest _)
                                       (org-social-ui--open-live-preview ,author-url ,timestamp))
-                           " 🔗 Share ")
+                           :help-echo "Share post preview link"
+                           " 🔗 ")
             (setq first-button nil))
 
           ;; Mood at the end, aligned to the right
@@ -392,20 +474,21 @@ Automatically fetches reactions from Relay if not present in POST."
           (if (and reactions-data (> (length reactions-data) 0))
               (progn
 		(org-social-ui--insert-formatted-text "\n\n")
-		(let ((first-reaction t)
+		(let ((first-item t)
                       (reactions-list (if (vectorp reactions-data)
                                           (append reactions-data nil)
-					reactions-data)))
+                                        reactions-data)))
+                  ;; Show reactions
                   (dolist (reaction reactions-list)
                     (let* ((emoji (cdr (assoc 'emoji reaction)))
                            (posts (cdr (assoc 'posts reaction)))
                            (count (if (vectorp posts) (length posts) (length posts))))
                       (when (and emoji (> count 0))
-			(unless first-reaction
+			(unless first-item
                           (org-social-ui--insert-formatted-text " | " nil "#888888"))
 			;; Show emoji and count
 			(org-social-ui--insert-formatted-text (format "%s %d" emoji count) nil "#ffaa00")
-			(setq first-reaction nil)))))
+			(setq first-item nil)))))
 		;; Add line break after reactions
 		(org-social-ui--insert-formatted-text "\n\n"))
             ;; No reactions, just add one line break
@@ -479,20 +562,13 @@ Automatically fetches reactions from Relay if not present in POST."
                  :help-echo "Create a new poll"
                  " 📊 New Poll ")
 
-  (org-social-ui--insert-formatted-text " ")
-
-  (widget-create 'push-button
-                 :notify (lambda (&rest _) (org-social-ui--refresh))
-                 :help-echo "Refresh timeline"
-                 " ↻ Refresh ")
-
   (org-social-ui--insert-formatted-text "\n\n")
 
   ;; Help text
   (org-social-ui--insert-formatted-text "Navigation: (n) Next | (p) Previous | (t) Thread | (P) Profile\n" nil "#666666")
-  (org-social-ui--insert-formatted-text "Post: (c) New Post | (l) New Poll | (r) Reply | (R) React\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Post: (c) New Post | (l) New Poll | (r) Reply | (R) React | (b) Boost\n" nil "#666666")
   (org-social-ui--insert-formatted-text "Actions: (N) Notices | (G) Groups\n" nil "#666666")
-  (org-social-ui--insert-formatted-text "Other: (g) Refresh | (q) Quit\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Other: (q) Quit\n" nil "#666666")
 
   (org-social-ui--insert-separator))
 
@@ -546,19 +622,11 @@ Automatically fetches reactions from Relay if not present in POST."
 
   (org-social-ui--insert-formatted-text "\n\n")
 
-  ;; Action buttons
-  (widget-create 'push-button
-                 :notify (lambda (&rest _) (org-social-ui--refresh))
-                 :help-echo "Refresh notifications"
-                 " ↻ Refresh ")
-
-  (org-social-ui--insert-formatted-text "\n\n")
-
   ;; Help text
   (org-social-ui--insert-formatted-text "Your Mentions and Replies\n" 1.2 "#4a90e2")
   (org-social-ui--insert-formatted-text "Navigation:\n" nil "#666666")
   (org-social-ui--insert-formatted-text "(n) Next | (p) Previous | (T) Timeline | (G) Groups\n" nil "#666666")
-  (org-social-ui--insert-formatted-text "Other: (g) Refresh | (q) Quit\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Other: (q) Quit\n" nil "#666666")
 
   (org-social-ui--insert-separator))
 

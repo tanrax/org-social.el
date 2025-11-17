@@ -62,17 +62,9 @@
 
   (org-social-ui--insert-formatted-text "\n\n")
 
-  ;; Action buttons
-  (widget-create 'push-button
-                 :notify (lambda (&rest _) (org-social-ui--refresh))
-                 :help-echo "Refresh groups"
-                 " ↻ Refresh ")
-
-  (org-social-ui--insert-formatted-text "\n\n")
-
   ;; Help text
   (org-social-ui--insert-formatted-text "Navigation: (n) Next | (p) Previous\n" nil "#666666")
-  (org-social-ui--insert-formatted-text "Other: (g) Refresh | (q) Quit\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Other: (q) Quit\n" nil "#666666")
 
   (org-social-ui--insert-separator))
 
@@ -175,19 +167,12 @@ Fetches posts from relay and displays them like timeline."
                      :help-echo "Create a new post in this group"
                      " + New Post ")
 
-      (org-social-ui--insert-formatted-text " ")
-
-      (widget-create 'push-button
-                     :notify (lambda (&rest _) (org-social-ui--refresh))
-                     :help-echo "Refresh group posts"
-                     " ↻ Refresh ")
-
       (org-social-ui--insert-formatted-text "\n\n")
 
       ;; Help text
       (org-social-ui--insert-formatted-text "Navigation: (n) Next | (p) Previous | (t) Thread | (P) Profile\n" nil "#666666")
-      (org-social-ui--insert-formatted-text "Post: (c) New Post | (r) Reply | (R) React\n" nil "#666666")
-      (org-social-ui--insert-formatted-text "Other: (g) Refresh | (b) Back | (q) Quit\n" nil "#666666")
+      (org-social-ui--insert-formatted-text "Post: (c) New Post | (r) Reply | (R) React | (b) Boost\n" nil "#666666")
+      (org-social-ui--insert-formatted-text "Other: (q) Quit\n" nil "#666666")
 
       (org-social-ui--insert-separator)
 

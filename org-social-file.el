@@ -56,13 +56,15 @@
     (remove-hook 'after-save-hook #'org-social-file--auto-save t)))
 
 (defun org-social-file--normalize-empty-headers ()
-  "Add a space after empty ** headers in the current buffer.
-This ensures that lines containing only '**' become '** '.
+  "Add a space after empty headers (**, ***, ****, etc.) in the current buffer.
+This ensures that lines containing only asterisks become properly formatted.
+For example, '**' becomes '** ', '***' becomes '*** ', etc.
 Does NOT save the buffer - modifications happen in memory only."
   (save-excursion
     (goto-char (point-min))
-    (while (re-search-forward "^\\*\\*$" nil t)
-      ;; Found a line with only **
+    ;; Match lines with only asterisks (2 or more) at the start
+    (while (re-search-forward "^\\(\\*\\{2,\\}\\)$" nil t)
+      ;; Found a line with only asterisks
       (end-of-line)
       (insert " "))))
 
@@ -293,6 +295,50 @@ EMOJI is the reaction emoji."
           (insert (format ":GROUP: %s %s\n" group-name relay-url)))))
     (insert (format ":MOOD: %s\n" emoji))
     (insert ":END:\n\n")
+    (goto-char (point-max))))
+
+(defun org-social-file--new-boost (post-url post-id &optional comment)
+  "Create a new boost (share) of a post at POST-URL with POST-ID.
+This creates a post with the INCLUDE property pointing to the original post.
+POST-URL is the URL of the post being boosted.
+POST-ID is the timestamp ID of the post being boosted.
+Optional COMMENT is a text comment to add to the boost."
+  (unless (and (buffer-file-name)
+               (string= (expand-file-name (buffer-file-name))
+                        (expand-file-name org-social-file)))
+    (org-social-file--open))
+  (save-excursion
+    (org-social-file--find-posts-section)
+    (goto-char (point-max))
+    (org-social-file--insert-boost-template post-url post-id comment))
+  (goto-char (point-max))
+  (message "Post boosted successfully")
+  ;; Validate file after adding boost
+  (when (fboundp 'org-social-validator-validate-and-display)
+    (require 'org-social-validator)
+    (org-social-validator-validate-and-display)))
+
+(defun org-social-file--insert-boost-template (post-url post-id &optional comment)
+  "Insert a boost template at the current position.
+POST-URL is the URL of the post being boosted.
+POST-ID is the timestamp ID of the post being boosted.
+Optional COMMENT is a text comment to add to the boost."
+  (let ((timestamp (org-social-parser--generate-timestamp)))
+    (insert "\n** \n:PROPERTIES:\n")
+    (insert (format ":ID: %s\n" timestamp))
+    (insert ":CLIENT: org-social.el\n")
+    (insert (format ":INCLUDE: %s#%s\n" post-url post-id))
+    ;; Add GROUP property if we're in a group context
+    (when (and (boundp 'org-social-ui--current-group-context)
+               org-social-ui--current-group-context)
+      (let ((group-name (alist-get 'name org-social-ui--current-group-context))
+            (relay-url (alist-get 'relay-url org-social-ui--current-group-context)))
+        (when (and group-name relay-url)
+          (insert (format ":GROUP: %s %s\n" group-name relay-url)))))
+    (insert ":END:\n")
+    (when (and comment (not (string-empty-p comment)))
+      (insert "\n" comment "\n"))
+    (insert "\n")
     (goto-char (point-max))))
 
 ;; Validation moved to org-social-validator.el - use org-social-validator-validate-buffer instead

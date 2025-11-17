@@ -350,19 +350,21 @@ When a download completes, the next pending item is automatically started."
                            org-social-variables--feeds))
          (timeline-filtered (seq-filter (lambda (post)
                                           ;; Keep posts with text (reactions are filtered out)
+                                          ;; Keep boosts (posts with INCLUDE property)
                                           ;; Exclude group posts (posts with GROUP property)
                                           ;; Exclude reactions (posts with reply_to + mood)
                                           (let ((text (alist-get 'text post))
                                                 (group (alist-get 'group post))
                                                 (mood (alist-get 'mood post))
-                                                (reply-to (alist-get 'reply_to post)))
+                                                (reply-to (alist-get 'reply_to post))
+                                                (include (alist-get 'include post)))
                                             ;; Exclude posts with GROUP property from timeline
                                             ;; Exclude reactions (reply_to + mood)
                                             (and (not group)
                                                  (not (and reply-to mood))
-                                                 ;; Must have text
-                                                 text
-                                                 (not (string-empty-p (string-trim text))))))
+                                                 ;; Must have text OR be a boost (include)
+                                                 (or (and text (not (string-empty-p (string-trim text))))
+                                                     (and include (not (string-empty-p include)))))))
                                         timeline))
          (timeline-sorted (sort timeline-filtered
                                 (lambda (a b)

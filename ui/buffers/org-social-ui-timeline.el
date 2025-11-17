@@ -135,13 +135,6 @@ specifically for the timeline view."
   (org-social-ui--insert-formatted-text " ")
 
   (widget-create 'push-button
-                 :notify (lambda (&rest _) (org-social-ui--refresh))
-                 :help-echo "Refresh timeline"
-                 " ↻ Refresh ")
-
-  (org-social-ui--insert-formatted-text " ")
-
-  (widget-create 'push-button
                  :notify (lambda (&rest _)
                            (browse-url "https://liberapay.com/org-social/"))
                  :help-echo "Support Org Social development"
@@ -151,9 +144,9 @@ specifically for the timeline view."
 
   ;; Help text
   (org-social-ui--insert-formatted-text "Navigation: (n) Next | (p) Previous | (t) Thread | (P) Profile\n" nil "#666666")
-  (org-social-ui--insert-formatted-text "Post: (c) New Post | (l) New Poll | (r) Reply | (R) React\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Post: (c) New Post | (l) New Poll | (r) Reply | (R) React | (b) Boost\n" nil "#666666")
   (org-social-ui--insert-formatted-text "Actions: (N) Notices | (G) Groups | (S) Search\n" nil "#666666")
-  (org-social-ui--insert-formatted-text "Other: (g) Refresh | (q) Quit\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Other: (q) Quit\n" nil "#666666")
 
   (org-social-ui--insert-separator))
 
@@ -227,19 +220,11 @@ specifically for the timeline view."
 
   (org-social-ui--insert-formatted-text "\n\n")
 
-  ;; Action buttons
-  (widget-create 'push-button
-                 :notify (lambda (&rest _) (org-social-ui--refresh))
-                 :help-echo "Refresh notifications"
-                 " ↻ Refresh ")
-
-  (org-social-ui--insert-formatted-text "\n\n")
-
   ;; Help text
   (org-social-ui--insert-formatted-text "Your Mentions and Replies\n" 1.2 "#4a90e2")
   (org-social-ui--insert-formatted-text "Navigation:\n" nil "#666666")
   (org-social-ui--insert-formatted-text "(n) Next | (p) Previous | (T) Timeline | (G) Groups\n" nil "#666666")
-  (org-social-ui--insert-formatted-text "Other: (g) Refresh | (q) Quit\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Other: (q) Quit\n" nil "#666666")
 
   (org-social-ui--insert-separator))
 
