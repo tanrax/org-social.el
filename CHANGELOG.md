@@ -1,5 +1,21 @@
 # 📝 Changelog
 
+## 2.7
+
+- Boost Support (Share/Repost):
+  - New `/interactions` endpoint integration (replaces separate `/reactions` and `/boosts` calls)
+  - Added boost functionality with `:INCLUDE:` property support
+  - Visual "🔄 Boosted" indicator on boosted posts
+  - Boost counter integrated in post buttons (e.g., "[ 3 🔄 ]")
+  - Keyboard shortcut `b` to boost posts from timeline
+- Language Filter:
+  - New `org-social-language-filter` configuration variable by language codes (e.g., `'("en" "es")` for English and Spanish)
+- UI Improvements:
+  - Removed visual refresh button from all buffers (keyboard shortcut `g` still works)
+  - Buttons now use emoji-only format with tooltips for cleaner appearance
+  - All post buttons include `:help-echo` properties for better usability
+  - Help text updated with boost shortcut information
+
 ## 2.6
 
 - Multi-Account Support
