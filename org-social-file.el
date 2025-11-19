@@ -34,12 +34,206 @@
 (require 'org)
 (require 'org-id)
 (require 'url)
+(require 'url-parse)
+
+;; Optional require with error handling
+(condition-case nil
+    (require 'request)
+  (error
+   (message "Warning: 'request' package not available. Some vfile features may not work.")))
 
 ;; Forward declaration for validator
 (declare-function org-social-validator-validate-and-display "org-social-validator" ())
 
 ;; Forward declarations for relay
 (declare-function org-social-relay--fetch-feeds "org-social-relay" (callback))
+(declare-function request "request" (url &rest args))
+
+;;; vfile support
+
+(defun org-social-file--is-vfile-p (file-path)
+  "Check if FILE-PATH is a vfile URL (http:// or https://)."
+  (and (stringp file-path)
+       (or (string-prefix-p "http://" file-path)
+           (string-prefix-p "https://" file-path))))
+
+(defun org-social-file--extract-host-from-vfile (vfile-url)
+  "Extract the host base URL from VFILE-URL.
+Returns the scheme://host part of the URL."
+  (when (org-social-file--is-vfile-p vfile-url)
+    (let ((parsed-url (url-generic-parse-url vfile-url)))
+      (format "%s://%s"
+              (url-type parsed-url)
+              (url-host parsed-url)))))
+
+(defun org-social-file--get-local-file-path (_vfile-url)
+  "Get the local file path for a vfile.
+Returns path to v-social.org or v-social-ACCOUNT.org in `user-emacs-directory'.
+When using multi-account mode, each account gets its own cache file.
+_VFILE-URL is ignored but kept for API compatibility."
+  (let ((account-name (when (boundp 'org-social-accounts--current)
+                        org-social-accounts--current)))
+    (if account-name
+        ;; Multi-account mode: use account-specific file
+        (expand-file-name (format "v-social-%s.org" account-name) user-emacs-directory)
+      ;; Single-account mode: use default file
+      (expand-file-name "v-social.org" user-emacs-directory))))
+
+(defun org-social-file--download-vfile (public-url callback)
+  "Download the file from PUBLIC-URL asynchronously.
+Calls CALLBACK with the downloaded content on success, or nil on error.
+Note: Despite the function name, this downloads from the public URL, not vfile."
+  (message "Downloading file from %s..." public-url)
+  (url-retrieve
+   public-url
+   (lambda (status)
+     (let ((content nil))
+       (condition-case err
+           (progn
+             ;; Check for errors
+             (when (plist-get status :error)
+               (error "Download failed: %S" (plist-get status :error)))
+
+             ;; Extract content from buffer
+             (goto-char (point-min))
+             (when (re-search-forward "\r\n\r\n\\|\n\n" nil t)
+               (setq content (decode-coding-string
+                              (buffer-substring-no-properties (point) (point-max))
+                              'utf-8))))
+         (error
+          (message "Error downloading vfile: %s" (error-message-string err))
+          (setq content nil)))
+
+       ;; Kill buffer to avoid accumulation
+       (kill-buffer (current-buffer))
+
+       ;; Call callback with result
+       (funcall callback content)))
+   nil t))
+
+(defun org-social-file--download-vfile-sync (public-url)
+  "Download the file from PUBLIC-URL synchronously.
+Returns the downloaded content as a string, or nil on error.
+Note: Despite the function name, this downloads from the public URL, not vfile."
+  (condition-case err
+      (with-current-buffer (url-retrieve-synchronously public-url t nil 10)
+        (let ((content nil))
+          ;; Check for HTTP errors
+          (goto-char (point-min))
+          (when (re-search-forward "^HTTP/[0-9.]+ \\([0-9]+\\)" nil t)
+            (let ((status-code (string-to-number (match-string 1))))
+              (unless (and (>= status-code 200) (< status-code 300))
+                (error "HTTP error %d" status-code))))
+
+          ;; Extract content
+          (goto-char (point-min))
+          (when (re-search-forward "\r\n\r\n\\|\n\n" nil t)
+            (setq content (decode-coding-string
+                           (buffer-substring-no-properties (point) (point-max))
+                           'utf-8)))
+
+          ;; Kill buffer
+          (kill-buffer (current-buffer))
+          content))
+    (error
+     (message "Error downloading vfile synchronously: %s" (error-message-string err))
+     nil)))
+
+(defun org-social-file--upload-vfile (vfile-url local-file-path)
+  "Upload LOCAL-FILE-PATH to VFILE-URL using the host's upload endpoint.
+Uses native Emacs url-retrieve for HTTP POST with multipart/form-data."
+  (when (and (org-social-file--is-vfile-p vfile-url)
+             (file-exists-p local-file-path))
+    (let* ((host-url (org-social-file--extract-host-from-vfile vfile-url))
+           (upload-url (concat host-url "/upload"))
+           (boundary (format "----EmacsFormBoundary%d" (random 1000000)))
+           (file-content (with-temp-buffer
+                          (insert-file-contents-literally local-file-path)
+                          (encode-coding-string (buffer-string) 'utf-8)))
+           (body (concat
+                  "--" boundary "\r\n"
+                  "Content-Disposition: form-data; name=\"vfile\"\r\n\r\n"
+                  vfile-url "\r\n"
+                  "--" boundary "\r\n"
+                  "Content-Disposition: form-data; name=\"file\"; filename=\"social.org\"\r\n"
+                  "Content-Type: text/plain; charset=utf-8\r\n\r\n"
+                  file-content "\r\n"
+                  "--" boundary "--\r\n"))
+           (url-request-method "POST")
+           (url-request-extra-headers
+            `(("Content-Type" . ,(format "multipart/form-data; boundary=%s" boundary))))
+           (url-request-data (encode-coding-string body 'utf-8)))
+      (message "Uploading file to %s..." host-url)
+      (url-retrieve
+       upload-url
+       (lambda (status)
+         (let ((http-status nil)
+               (response-body "")
+               (current-buf (current-buffer)))
+           (condition-case err
+               (progn
+                 ;; Check for errors in status plist
+                 (when (plist-get status :error)
+                   (error "Upload failed: %S" (plist-get status :error)))
+
+                 ;; Extract HTTP status code
+                 (goto-char (point-min))
+                 (when (re-search-forward "^HTTP/[0-9.]+ \\([0-9]+\\)" nil t)
+                   (setq http-status (string-to-number (match-string 1))))
+
+                 ;; Extract response body (limit size to avoid huge messages)
+                 (goto-char (point-min))
+                 (when (re-search-forward "\r\n\r\n\\|\n\n" nil t)
+                   (let ((body-start (point)))
+                     (setq response-body (buffer-substring-no-properties
+                                          body-start
+                                          (min (+ body-start 500) (point-max)))))))
+             (error
+              (message "Error during upload: %s" (error-message-string err))))
+
+           ;; Kill buffer safely
+           (when (buffer-live-p current-buf)
+             (kill-buffer current-buf))
+
+           ;; Report result
+           (if (and http-status (= http-status 200))
+               (message "File uploaded successfully to host")
+             (message "Failed to upload file to host (status %s): %s"
+                      (or http-status "unknown")
+                      (string-trim response-body)))))
+       nil t))))
+
+(defun org-social-file--sync-vfile ()
+  "Upload the current social file to the host if `org-social-file' is a vfile URL.
+This function is meant to be called from after-save-file-hook."
+  (when (and (boundp 'org-social-file)
+             (org-social-file--is-vfile-p org-social-file))
+    (let ((local-path (org-social-file--get-local-file-path org-social-file)))
+      (when (and (buffer-file-name)
+                 (file-equal-p (buffer-file-name) local-path))
+        (org-social-file--upload-vfile org-social-file local-path)))))
+
+(defun org-social-file--ensure-vfile-downloaded ()
+  "Ensure vfile is downloaded to local cache if `org-social-file' is a vfile URL.
+This is called before reading the profile to ensure the file exists locally.
+Returns t if file is available (either already cached or downloaded),
+nil otherwise."
+  (when (and (boundp 'org-social-file)
+             (org-social-file--is-vfile-p org-social-file)
+             (boundp 'org-social-my-public-url)
+             org-social-my-public-url)
+    (let ((local-path (org-social-file--get-local-file-path org-social-file)))
+      (unless (file-exists-p local-path)
+        (message "Downloading file from public URL for profile reading...")
+        (let ((content (org-social-file--download-vfile-sync org-social-my-public-url)))
+          (when content
+            (with-temp-file local-path
+              (insert content)
+              (set-buffer-file-coding-system 'utf-8-unix))
+            (message "File downloaded and cached")
+            t)))
+      ;; Return t if file exists now
+      (file-exists-p local-path))))
 
 ;; Minor mode definition
 (define-minor-mode org-social-mode
@@ -70,15 +264,26 @@ Does NOT save the buffer - modifications happen in memory only."
 
 (defun org-social-file--before-save ()
   "Normalize empty headers before saving."
-  (when (and (buffer-file-name)
-             (file-equal-p (buffer-file-name) org-social-file))
-    (org-social-file--normalize-empty-headers)))
+  (let ((current-file (buffer-file-name))
+        (target-file (if (org-social-file--is-vfile-p org-social-file)
+                         (org-social-file--get-local-file-path org-social-file)
+                       org-social-file)))
+    (when (and current-file
+               (file-equal-p current-file target-file))
+      (org-social-file--normalize-empty-headers))))
 
 (defun org-social-file--auto-save ()
   "Auto-save handler for Org-social files."
-  (when (and (buffer-file-name)
-             (file-equal-p (buffer-file-name) org-social-file))
-    (run-hooks 'org-social-after-save-file-hook)))
+  (let ((current-file (buffer-file-name))
+        (target-file (if (org-social-file--is-vfile-p org-social-file)
+                         (org-social-file--get-local-file-path org-social-file)
+                       org-social-file)))
+    (when (and current-file
+               (file-equal-p current-file target-file))
+      ;; Upload to host if it's a vfile
+      (org-social-file--sync-vfile)
+      ;; Run user hooks
+      (run-hooks 'org-social-after-save-file-hook))))
 
 (defun org-social-file--save ()
   "Save the current Org-social file and run associated hooks."
@@ -108,7 +313,25 @@ If GROUP-CONTEXT is provided, add GROUP property to the post."
                              (not (string-empty-p org-social-default-lang)))
                         org-social-default-lang
                       nil)))
-    (insert "\n** \n:PROPERTIES:\n")
+    ;; Check if we need to add newlines before **
+    ;; Logic:
+    ;; - First post after "* Posts": no blank line
+    ;; - Subsequent posts: blank line separator
+    (unless (bobp)
+      (let ((is-first-post (save-excursion
+                            (forward-line -1)
+                            (looking-at-p "^\\* Posts"))))
+        (if is-first-post
+            ;; First post: only add newline if not already at one
+            (unless (eq (char-before) ?\n)
+              (insert "\n"))
+          ;; Subsequent posts: ensure blank line separator
+          (if (eq (char-before) ?\n)
+              ;; Already on new line, add one more for blank line
+              (insert "\n")
+            ;; Not on new line, add two
+            (insert "\n\n")))))
+    (insert "** \n:PROPERTIES:\n")
     (insert (format ":ID: %s\n" timestamp))
     ;; Only insert LANG if it has a value (optional field)
     (when lang-value
@@ -137,7 +360,25 @@ and POLL-END is the RFC 3339 formatted end time."
                              (not (string-empty-p org-social-default-lang)))
                         org-social-default-lang
                       nil)))
-    (insert "\n** \n:PROPERTIES:\n")
+    ;; Check if we need to add newlines before **
+    ;; Logic:
+    ;; - First post after "* Posts": no blank line
+    ;; - Subsequent posts: blank line separator
+    (unless (bobp)
+      (let ((is-first-post (save-excursion
+                            (forward-line -1)
+                            (looking-at-p "^\\* Posts"))))
+        (if is-first-post
+            ;; First post: only add newline if not already at one
+            (unless (eq (char-before) ?\n)
+              (insert "\n"))
+          ;; Subsequent posts: ensure blank line separator
+          (if (eq (char-before) ?\n)
+              ;; Already on new line, add one more for blank line
+              (insert "\n")
+            ;; Not on new line, add two
+            (insert "\n\n")))))
+    (insert "** \n:PROPERTIES:\n")
     (insert (format ":ID: %s\n" timestamp))
     ;; Only insert LANG if it has a value (optional field)
     (when lang-value
@@ -170,31 +411,88 @@ and POLL-END is the RFC 3339 formatted end time."
   (message "New Org-social feed created! Please update your profile information."))
 
 (defun org-social-file--open ()
-  "Open the Org-social feed file and enable `org-social-mode'."
-  (if (file-exists-p org-social-file)
-      (progn
-        (find-file org-social-file)
-        (org-social-mode 1)
-        (goto-char (point-max))
-        ;; Validate file and show warnings if any
+  "Open the Org-social feed file and enable `org-social-mode'.
+If `org-social-file' is a vfile URL, downloads it first to local cache."
+  (if (org-social-file--is-vfile-p org-social-file)
+      ;; Handle vfile URL
+      (let ((local-path (org-social-file--get-local-file-path org-social-file)))
+        (if (file-exists-p local-path)
+            ;; Local cached file exists, open it
+            (progn
+              (find-file local-path)
+              (org-social-mode 1)
+              (goto-char (point-max))
+              (message "Opened cached vfile. Save to sync with host.")
+              ;; Validate file
+              (when (fboundp 'org-social-validator-validate-and-display)
+                (require 'org-social-validator)
+                (org-social-validator-validate-and-display)))
+          ;; Download from host first (using public URL)
+          (if (not (and (boundp 'org-social-my-public-url) org-social-my-public-url))
+              (error "org-social-my-public-url must be set to download vfile")
+            (message "Downloading file from public URL...")
+            (org-social-file--download-vfile
+             org-social-my-public-url
+             (lambda (content)
+             (if content
+                 (progn
+                   ;; Save downloaded content to local file
+                   (with-temp-file local-path
+                     (insert content)
+                     ;; Set correct encoding
+                     (set-buffer-file-coding-system 'utf-8-unix))
+                   ;; Open the file
+                   (find-file local-path)
+                   (org-social-mode 1)
+                   (goto-char (point-max))
+                   (message "vfile downloaded successfully. Save to sync with host.")
+                   ;; Validate file
+                   (when (fboundp 'org-social-validator-validate-and-display)
+                     (require 'org-social-validator)
+                     (org-social-validator-validate-and-display)))
+               ;; Download failed, offer to create new file
+               (when (y-or-n-p "Failed to download vfile.  Create new local file? ")
+                 (with-temp-file local-path
+                   (insert "#+TITLE: My Social Feed\n")
+                   (insert "#+NICK: YourNick\n")
+                   (insert "#+DESCRIPTION: A brief description about yourself\n")
+                   (insert "#+AVATAR: https://example.com/avatar.jpg\n")
+                   (insert "#+LINK: https://your-website.com\n\n")
+                   (insert "* Posts\n")
+                   (set-buffer-file-coding-system 'utf-8-unix))
+                 (find-file local-path)
+                 (org-social-mode 1)
+                 (goto-char (point-min))
+                 (search-forward "YourNick")
+                 (message "New file created. Update your profile and save to sync with host."))))))))
+    ;; Handle local file path
+    (if (file-exists-p org-social-file)
+        (progn
+          (find-file org-social-file)
+          (org-social-mode 1)
+          (goto-char (point-max))
+          ;; Validate file and show warnings if any
+          (when (fboundp 'org-social-validator-validate-and-display)
+            (require 'org-social-validator)
+            (org-social-validator-validate-and-display)))
+      (when (y-or-n-p (format "File %s doesn't exist.  Create it? " org-social-file))
+        (org-social-file--create-new-feed-file)
+        ;; Validate newly created file
         (when (fboundp 'org-social-validator-validate-and-display)
           (require 'org-social-validator)
-          (org-social-validator-validate-and-display)))
-    (when (y-or-n-p (format "File %s doesn't exist.  Create it? " org-social-file))
-      (org-social-file--create-new-feed-file)
-      ;; Validate newly created file
-      (when (fboundp 'org-social-validator-validate-and-display)
-        (require 'org-social-validator)
-        (org-social-validator-validate-and-display)))))
+          (org-social-validator-validate-and-display))))))
 
 (defun org-social-file--new-post (&optional reply-url reply-id group-context)
   "Create a new post in your Org-social feed.
 If REPLY-URL and REPLY-ID are provided, create a reply post.
 If GROUP-CONTEXT is provided, add GROUP property to the post."
-  (unless (and (buffer-file-name)
-               (string= (expand-file-name (buffer-file-name))
-                        (expand-file-name org-social-file)))
-    (org-social-file--open))
+  (let ((target-file (if (org-social-file--is-vfile-p org-social-file)
+                         (org-social-file--get-local-file-path org-social-file)
+                       org-social-file)))
+    (unless (and (buffer-file-name)
+                 (string= (expand-file-name (buffer-file-name))
+                          (expand-file-name target-file)))
+      (org-social-file--open)))
   (save-excursion
     (org-social-file--find-posts-section)
     (goto-char (point-max))
@@ -209,10 +507,13 @@ If GROUP-CONTEXT is provided, add GROUP property to the post."
   "Create a new poll in your Org-social feed.
 Interactively prompts for the poll question, options, and duration."
   (interactive)
-  (unless (and (buffer-file-name)
-               (string= (expand-file-name (buffer-file-name))
-                        (expand-file-name org-social-file)))
-    (org-social-file--open))
+  (let ((target-file (if (org-social-file--is-vfile-p org-social-file)
+                         (org-social-file--get-local-file-path org-social-file)
+                       org-social-file)))
+    (unless (and (buffer-file-name)
+                 (string= (expand-file-name (buffer-file-name))
+                          (expand-file-name target-file)))
+      (org-social-file--open)))
 
   ;; Prompt for poll question
   (let ((question (read-string "Poll question: ")))
@@ -261,10 +562,13 @@ This creates an empty post with only the MOOD field set to EMOJI and REPLY_TO.
 REPLY-URL is the URL of the post being reacted to.
 REPLY-ID is the timestamp ID of the post being reacted to.
 EMOJI is the reaction emoji to add."
-  (unless (and (buffer-file-name)
-               (string= (expand-file-name (buffer-file-name))
-                        (expand-file-name org-social-file)))
-    (org-social-file--open))
+  (let ((target-file (if (org-social-file--is-vfile-p org-social-file)
+                         (org-social-file--get-local-file-path org-social-file)
+                       org-social-file)))
+    (unless (and (buffer-file-name)
+                 (string= (expand-file-name (buffer-file-name))
+                          (expand-file-name target-file)))
+      (org-social-file--open)))
   (save-excursion
     (org-social-file--find-posts-section)
     (goto-char (point-max))
@@ -282,7 +586,25 @@ REPLY-URL is the URL of the post being reacted to.
 REPLY-ID is the timestamp ID of the post being reacted to.
 EMOJI is the reaction emoji."
   (let ((timestamp (org-social-parser--generate-timestamp)))
-    (insert "\n** \n:PROPERTIES:\n")
+    ;; Check if we need to add newlines before **
+    ;; Logic:
+    ;; - First post after "* Posts": no blank line
+    ;; - Subsequent posts: blank line separator
+    (unless (bobp)
+      (let ((is-first-post (save-excursion
+                            (forward-line -1)
+                            (looking-at-p "^\\* Posts"))))
+        (if is-first-post
+            ;; First post: only add newline if not already at one
+            (unless (eq (char-before) ?\n)
+              (insert "\n"))
+          ;; Subsequent posts: ensure blank line separator
+          (if (eq (char-before) ?\n)
+              ;; Already on new line, add one more for blank line
+              (insert "\n")
+            ;; Not on new line, add two
+            (insert "\n\n")))))
+    (insert "** \n:PROPERTIES:\n")
     (insert (format ":ID: %s\n" timestamp))
     (insert ":CLIENT: org-social.el\n")
     (insert (format ":REPLY_TO: %s#%s\n" reply-url reply-id))
@@ -303,10 +625,13 @@ This creates a post with the INCLUDE property pointing to the original post.
 POST-URL is the URL of the post being boosted.
 POST-ID is the timestamp ID of the post being boosted.
 Optional COMMENT is a text comment to add to the boost."
-  (unless (and (buffer-file-name)
-               (string= (expand-file-name (buffer-file-name))
-                        (expand-file-name org-social-file)))
-    (org-social-file--open))
+  (let ((target-file (if (org-social-file--is-vfile-p org-social-file)
+                         (org-social-file--get-local-file-path org-social-file)
+                       org-social-file)))
+    (unless (and (buffer-file-name)
+                 (string= (expand-file-name (buffer-file-name))
+                          (expand-file-name target-file)))
+      (org-social-file--open)))
   (save-excursion
     (org-social-file--find-posts-section)
     (goto-char (point-max))
@@ -324,7 +649,25 @@ POST-URL is the URL of the post being boosted.
 POST-ID is the timestamp ID of the post being boosted.
 Optional COMMENT is a text comment to add to the boost."
   (let ((timestamp (org-social-parser--generate-timestamp)))
-    (insert "\n** \n:PROPERTIES:\n")
+    ;; Check if we need to add newlines before **
+    ;; Logic:
+    ;; - First post after "* Posts": no blank line
+    ;; - Subsequent posts: blank line separator
+    (unless (bobp)
+      (let ((is-first-post (save-excursion
+                            (forward-line -1)
+                            (looking-at-p "^\\* Posts"))))
+        (if is-first-post
+            ;; First post: only add newline if not already at one
+            (unless (eq (char-before) ?\n)
+              (insert "\n"))
+          ;; Subsequent posts: ensure blank line separator
+          (if (eq (char-before) ?\n)
+              ;; Already on new line, add one more for blank line
+              (insert "\n")
+            ;; Not on new line, add two
+            (insert "\n\n")))))
+    (insert "** \n:PROPERTIES:\n")
     (insert (format ":ID: %s\n" timestamp))
     (insert ":CLIENT: org-social.el\n")
     (insert (format ":INCLUDE: %s#%s\n" post-url post-id))
@@ -480,34 +823,37 @@ Optional REPLY-URL and REPLY-ID are passed to create a reply post."
   "Open social.org and position cursor at the post with TIMESTAMP.
 TIMESTAMP is the post ID (e.g., '2025-04-28T12:00:00+0100')."
   (interactive)
-  ;; Open the social.org file
-  (if (file-exists-p org-social-file)
-      (progn
-        (find-file org-social-file)
-        (org-social-mode 1)
-        ;; Search for the post with the given timestamp
-        (goto-char (point-min))
-        (let ((search-pattern (format "^:ID:\\s-*%s" (regexp-quote timestamp))))
-          (if (re-search-forward search-pattern nil t)
-              (progn
-                ;; Found the ID line, now navigate to the post content
-                (beginning-of-line)
-                ;; Search forward for :END: to skip the properties drawer
-                (if (re-search-forward "^:END:\\s-*$" nil t)
-                    (progn
-                      ;; Move to the line after :END:
-                      (forward-line 1)
-                      ;; Skip any blank lines
-                      (while (and (not (eobp))
-                                  (looking-at "^\\s-*$"))
-                        (forward-line 1))
-                      ;; Now we should be at the content
-                      (message "Editing post from %s" timestamp))
-                  ;; If :END: not found, just position after the ID
-                  (message "Warning: Could not find :END: for post %s" timestamp)))
-            (message "Post with timestamp %s not found" timestamp)
-            (goto-char (point-max)))))
-    (message "Social file not found: %s" org-social-file)))
+  (let ((target-file (if (org-social-file--is-vfile-p org-social-file)
+                         (org-social-file--get-local-file-path org-social-file)
+                       org-social-file)))
+    ;; Open the social.org file
+    (if (file-exists-p target-file)
+        (progn
+          (find-file target-file)
+          (org-social-mode 1)
+          ;; Search for the post with the given timestamp
+          (goto-char (point-min))
+          (let ((search-pattern (format "^:ID:\\s-*%s" (regexp-quote timestamp))))
+            (if (re-search-forward search-pattern nil t)
+		(progn
+                  ;; Found the ID line, now navigate to the post content
+                  (beginning-of-line)
+                  ;; Search forward for :END: to skip the properties drawer
+                  (if (re-search-forward "^:END:\\s-*$" nil t)
+                      (progn
+			;; Move to the line after :END:
+			(forward-line 1)
+			;; Skip any blank lines
+			(while (and (not (eobp))
+                                    (looking-at "^\\s-*$"))
+                          (forward-line 1))
+			;; Now we should be at the content
+			(message "Editing post from %s" timestamp))
+                    ;; If :END: not found, just position after the ID
+                    (message "Warning: Could not find :END: for post %s" timestamp)))
+              (message "Post with timestamp %s not found" timestamp)
+              (goto-char (point-max)))))
+      (message "Social file not found: %s" target-file))))
 
 ;; Interactive functions with proper naming
 (defalias 'org-social-save-file #'org-social-file--save)

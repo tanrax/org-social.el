@@ -103,10 +103,21 @@ space-separated token."
 
 (defun org-social-parser--get-my-profile ()
   "Get the current user's profile from their Org-social file."
-  (let ((feed nil))
-    (when (file-exists-p org-social-file)
+  ;; Ensure vfile is downloaded if needed
+  (when (and (fboundp 'org-social-file--ensure-vfile-downloaded)
+             (fboundp 'org-social-file--is-vfile-p)
+             (org-social-file--is-vfile-p org-social-file))
+    (org-social-file--ensure-vfile-downloaded))
+
+  (let ((feed nil)
+        (target-file (if (and (fboundp 'org-social-file--is-vfile-p)
+                              (org-social-file--is-vfile-p org-social-file)
+                              (fboundp 'org-social-file--get-local-file-path))
+                         (org-social-file--get-local-file-path org-social-file)
+                       org-social-file)))
+    (when (file-exists-p target-file)
       (with-temp-buffer
-        (insert-file-contents org-social-file)
+        (insert-file-contents target-file)
         (setq feed (buffer-string)))
       (let* ((follows (org-social-parser--get-value feed "FOLLOW"))
              (follows-list (if (listp follows) follows (list follows)))
@@ -127,7 +138,8 @@ space-separated token."
   "Extract a property value from TEXT according to Org Social specification.
 PROP-NAME should be the property name without colons.
 Validates format according to specification - ignores invalid values."
-  (when (string-match (format ":%s:\\s-*\\([^\n]+\\)" (regexp-quote prop-name)) text)
+  (when (and (stringp text)
+             (string-match (format ":%s:\\s-*\\([^\n]+\\)" (regexp-quote prop-name)) text))
     (let ((value (string-trim (match-string 1 text))))
       ;; Enhanced validation according to Org Social specification
       (when (and (not (string-empty-p value))

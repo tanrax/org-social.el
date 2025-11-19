@@ -20,6 +20,8 @@ It is your decision.
 
 ### Required Configuration
 
+**Option 1: Local file + Your own hosting**
+
 1. Create your [social.org](https://github.com/tanrax/org-social) file
 2. Upload it to a web server so others can access it
 3. Configure org-social.el with the required settings:
@@ -30,7 +32,18 @@ It is your decision.
 (setq org-social-my-public-url "https://example.com/social.org")  ;; Your public URL
 ```
 
-You can use the [public Relay server](https://relay.org-social.org/) or check the [public Relay list](https://github.com/tanrax/org-social/blob/main/org-social-relay-list.txt) for other options.
+**Option 2: Using Org Social Host (simplified hosting)**
+
+If you don't have your own web server, you can use [Org Social Host](https://github.com/tanrax/org-social-host) for automatic hosting:
+
+1. Sign up at the [public host](https://host.org-social.org/signup) to get your `vfile URL` and `public URL`
+2. Configure org-social.el with:
+
+```elisp
+(setq org-social-file "http://host.org-social.org/vfile?token=YOUR_TOKEN&ts=TIMESTAMP&sig=SIGNATURE")
+(setq org-social-relay "https://relay.org-social.org/")
+(setq org-social-my-public-url "http://host.org-social.org/your-nick/social.org")
+```
 
 ### Basic Usage
 
@@ -96,6 +109,8 @@ M-x package-reinstall RET org-social RET restart-emacs RET
 
 #### Single Account Configuration
 
+**Option 1: Local File**
+
 ```elisp
 ;; Required: Set the path to your social feed file
 (setq org-social-file "~/my-social-feed.org")
@@ -108,9 +123,32 @@ M-x package-reinstall RET org-social RET restart-emacs RET
 (setq org-social-my-public-url "https://example.com/social.org")
 ```
 
+**Option 2: Using vfile (Org Social Host)**
+
+If you're using [Org Social Host](https://github.com/tanrax/org-social-host), you can use a vfile URL instead of a local file path. The client will automatically download and sync your file with the host.
+
+```elisp
+;; Use your vfile URL from the host signup
+(setq org-social-file "http://host.org-social.org/vfile?token=YOUR_TOKEN&ts=TIMESTAMP&sig=SIGNATURE")
+
+;; Required: Configure Org Social Relay server
+(setq org-social-relay "https://relay.org-social.org/")
+
+;; Required: Set your public URL (from host signup)
+(setq org-social-my-public-url "http://host.org-social.org/your-nick/social.org")
+```
+
+When using a vfile:
+- The file is automatically downloaded from the host when you open it
+- Your local copy is cached as `~/.emacs.d/v-social.org` (single-account) or `~/.emacs.d/v-social-ACCOUNT.org` (multi-account)
+- Every time you save (`C-x C-s`), changes are automatically uploaded to the host
+- Uses native Emacs url-retrieve functions (no external dependencies required)
+
 #### Multi-Account Configuration
 
 org-social.el supports multiple accounts, allowing you to manage different social feeds (e.g., personal, blog, work) from a single Emacs session.
+
+**Using local files:**
 
 ```elisp
 (require 'org-social-accounts)
@@ -127,7 +165,7 @@ org-social.el supports multiple accounts, allowing you to manage different socia
                         :relay "https://relay.org-social.org/"
                         :public-url "https://blog.example.com/blog.org"
                         :after-save-file-hook (lambda ()
-                                                 (message "Personal social file saved!"))
+                                                 (message "Blog social file saved!"))
                         :after-fetch-posts-hook (lambda ()
                                                    (message "Blog posts fetched!")))
 
@@ -136,6 +174,32 @@ org-social.el supports multiple accounts, allowing you to manage different socia
 
 ;; Switch accounts at any time with M-x org-social-switch-account
 ```
+
+**Using vfiles (Org Social Host):**
+
+You can also use vfile URLs for multi-account setups. Each account will have its own cache file:
+
+```elisp
+(require 'org-social-accounts)
+
+(org-social-add-account "personal"
+                        :file "http://host.org-social.org/vfile?token=TOKEN1&ts=TS1&sig=SIG1"
+                        :relay "https://relay.org-social.org/"
+                        :public-url "http://host.org-social.org/mynick/social.org")
+
+(org-social-add-account "blog"
+                        :file "http://host.org-social.org/vfile?token=TOKEN2&ts=TS2&sig=SIG2"
+                        :relay "https://relay.org-social.org/"
+                        :public-url "http://host.org-social.org/myblog/social.org")
+
+;; Set the default account to use
+(org-social-switch-account "personal")
+```
+
+When using vfiles with multi-account:
+- Each account's vfile is cached separately: `~/.emacs.d/v-social-personal.org`, `~/.emacs.d/v-social-blog.org`
+- Switching accounts automatically loads the correct cached file
+- Saving uploads to the correct host account
 
 ### Optional Configuration
 
