@@ -104,45 +104,70 @@
 
 (defun org-social-ui--follow-user (feed-url nick)
   "Add FEED-URL with NICK to follows in social.org."
-  (when (file-exists-p org-social-file)
-    (with-current-buffer (find-file-noselect org-social-file)
-      (save-excursion
-        (goto-char (point-min))
-        ;; Find the end of the header metadata (before * Posts)
-        (if (re-search-forward "^\\* Posts" nil t)
-            (progn
-              (beginning-of-line)
-              (insert (format "#+FOLLOW: %s %s\n" nick feed-url))
-              (save-buffer)
-              (message "Now following %s" nick))
-          ;; If no Posts section, add at the end of file
-          (goto-char (point-max))
-          (unless (bolp) (insert "\n"))
-          (insert (format "#+FOLLOW: %s %s\n" nick feed-url))
-          (save-buffer)
-          (message "Now following %s" nick)))
-      ;; Reload profile
-      (setq org-social-variables--my-profile (org-social-parser--get-my-profile))
-      ;; Refresh discover view
-      (org-social-ui-discover))))
+  (let ((target-file (if (and (fboundp 'org-social-file--is-vfile-p)
+                              (org-social-file--is-vfile-p org-social-file)
+                              (fboundp 'org-social-file--get-local-file-path))
+                         (org-social-file--get-local-file-path org-social-file)
+                       org-social-file)))
+    (when (file-exists-p target-file)
+      (with-current-buffer (find-file-noselect target-file)
+	(save-excursion
+          (goto-char (point-min))
+          ;; Find the end of the header metadata (before * Posts)
+          (if (re-search-forward "^\\* Posts" nil t)
+              (progn
+		(beginning-of-line)
+		(insert (format "#+FOLLOW: %s %s\n" nick feed-url))
+		(save-buffer)
+		;; Sync to host if vfile
+		(when (and (fboundp 'org-social-file--is-vfile-p)
+			   (org-social-file--is-vfile-p org-social-file)
+			   (fboundp 'org-social-file--sync-vfile))
+		  (org-social-file--sync-vfile))
+		(message "Now following %s" nick))
+            ;; If no Posts section, add at the end of file
+            (goto-char (point-max))
+            (unless (bolp) (insert "\n"))
+            (insert (format "#+FOLLOW: %s %s\n" nick feed-url))
+            (save-buffer)
+	    ;; Sync to host if vfile
+	    (when (and (fboundp 'org-social-file--is-vfile-p)
+		       (org-social-file--is-vfile-p org-social-file)
+		       (fboundp 'org-social-file--sync-vfile))
+	      (org-social-file--sync-vfile))
+            (message "Now following %s" nick)))
+        ;; Reload profile
+        (setq org-social-variables--my-profile (org-social-parser--get-my-profile))
+        ;; Refresh discover view
+        (org-social-ui-discover)))))
 
 (defun org-social-ui--unfollow-user (feed-url nick)
   "Remove FEED-URL from follows in social.org.
 NICK is the user's nickname."
-  (when (file-exists-p org-social-file)
-    (with-current-buffer (find-file-noselect org-social-file)
-      (save-excursion
-        (goto-char (point-min))
-        ;; Search for the FOLLOW line with this URL
-        (when (re-search-forward (format "^#\\+FOLLOW:.*%s" (regexp-quote feed-url)) nil t)
-          (beginning-of-line)
-          (kill-line 1)
-          (save-buffer)
-          (message "Unfollowed %s" nick)))
-      ;; Reload profile
-      (setq org-social-variables--my-profile (org-social-parser--get-my-profile))
-      ;; Refresh discover view
-      (org-social-ui-discover))))
+  (let ((target-file (if (and (fboundp 'org-social-file--is-vfile-p)
+                              (org-social-file--is-vfile-p org-social-file)
+                              (fboundp 'org-social-file--get-local-file-path))
+                         (org-social-file--get-local-file-path org-social-file)
+                       org-social-file)))
+    (when (file-exists-p target-file)
+      (with-current-buffer (find-file-noselect target-file)
+	(save-excursion
+          (goto-char (point-min))
+          ;; Search for the FOLLOW line with this URL
+          (when (re-search-forward (format "^#\\+FOLLOW:.*%s" (regexp-quote feed-url)) nil t)
+            (beginning-of-line)
+            (kill-line 1)
+            (save-buffer)
+	    ;; Sync to host if vfile
+	    (when (and (fboundp 'org-social-file--is-vfile-p)
+		       (org-social-file--is-vfile-p org-social-file)
+		       (fboundp 'org-social-file--sync-vfile))
+	      (org-social-file--sync-vfile))
+            (message "Unfollowed %s" nick)))
+        ;; Reload profile
+        (setq org-social-variables--my-profile (org-social-parser--get-my-profile))
+        ;; Refresh discover view
+        (org-social-ui-discover)))))
 
 (defun org-social-ui--insert-discover-user (user)
   "Insert a user component for USER in discover view."

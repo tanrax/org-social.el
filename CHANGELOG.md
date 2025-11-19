@@ -2,6 +2,7 @@
 
 ## 2.7
 
+- vfile Support
 - Boost Support (Share/Repost):
   - New `/interactions` endpoint integration (replaces separate `/reactions` and `/boosts` calls)
   - Added boost functionality with `:INCLUDE:` property support

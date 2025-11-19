@@ -148,8 +148,8 @@ Uses native Emacs url-retrieve for HTTP POST with multipart/form-data."
            (upload-url (concat host-url "/upload"))
            (boundary (format "----EmacsFormBoundary%d" (random 1000000)))
            (file-content (with-temp-buffer
-                          (insert-file-contents-literally local-file-path)
-                          (encode-coding-string (buffer-string) 'utf-8)))
+                           (insert-file-contents-literally local-file-path)
+                           (encode-coding-string (buffer-string) 'utf-8)))
            (body (concat
                   "--" boundary "\r\n"
                   "Content-Disposition: form-data; name=\"vfile\"\r\n\r\n"
@@ -319,8 +319,8 @@ If GROUP-CONTEXT is provided, add GROUP property to the post."
     ;; - Subsequent posts: blank line separator
     (unless (bobp)
       (let ((is-first-post (save-excursion
-                            (forward-line -1)
-                            (looking-at-p "^\\* Posts"))))
+                             (forward-line -1)
+                             (looking-at-p "^\\* Posts"))))
         (if is-first-post
             ;; First post: only add newline if not already at one
             (unless (eq (char-before) ?\n)
@@ -366,8 +366,8 @@ and POLL-END is the RFC 3339 formatted end time."
     ;; - Subsequent posts: blank line separator
     (unless (bobp)
       (let ((is-first-post (save-excursion
-                            (forward-line -1)
-                            (looking-at-p "^\\* Posts"))))
+                             (forward-line -1)
+                             (looking-at-p "^\\* Posts"))))
         (if is-first-post
             ;; First post: only add newline if not already at one
             (unless (eq (char-before) ?\n)
@@ -434,37 +434,37 @@ If `org-social-file' is a vfile URL, downloads it first to local cache."
             (org-social-file--download-vfile
              org-social-my-public-url
              (lambda (content)
-             (if content
-                 (progn
-                   ;; Save downloaded content to local file
+               (if content
+                   (progn
+                     ;; Save downloaded content to local file
+                     (with-temp-file local-path
+                       (insert content)
+                       ;; Set correct encoding
+                       (set-buffer-file-coding-system 'utf-8-unix))
+                     ;; Open the file
+                     (find-file local-path)
+                     (org-social-mode 1)
+                     (goto-char (point-max))
+                     (message "vfile downloaded successfully. Save to sync with host.")
+                     ;; Validate file
+                     (when (fboundp 'org-social-validator-validate-and-display)
+                       (require 'org-social-validator)
+                       (org-social-validator-validate-and-display)))
+		 ;; Download failed, offer to create new file
+		 (when (y-or-n-p "Failed to download vfile.  Create new local file? ")
                    (with-temp-file local-path
-                     (insert content)
-                     ;; Set correct encoding
+                     (insert "#+TITLE: My Social Feed\n")
+                     (insert "#+NICK: YourNick\n")
+                     (insert "#+DESCRIPTION: A brief description about yourself\n")
+                     (insert "#+AVATAR: https://example.com/avatar.jpg\n")
+                     (insert "#+LINK: https://your-website.com\n\n")
+                     (insert "* Posts\n")
                      (set-buffer-file-coding-system 'utf-8-unix))
-                   ;; Open the file
                    (find-file local-path)
                    (org-social-mode 1)
-                   (goto-char (point-max))
-                   (message "vfile downloaded successfully. Save to sync with host.")
-                   ;; Validate file
-                   (when (fboundp 'org-social-validator-validate-and-display)
-                     (require 'org-social-validator)
-                     (org-social-validator-validate-and-display)))
-               ;; Download failed, offer to create new file
-               (when (y-or-n-p "Failed to download vfile.  Create new local file? ")
-                 (with-temp-file local-path
-                   (insert "#+TITLE: My Social Feed\n")
-                   (insert "#+NICK: YourNick\n")
-                   (insert "#+DESCRIPTION: A brief description about yourself\n")
-                   (insert "#+AVATAR: https://example.com/avatar.jpg\n")
-                   (insert "#+LINK: https://your-website.com\n\n")
-                   (insert "* Posts\n")
-                   (set-buffer-file-coding-system 'utf-8-unix))
-                 (find-file local-path)
-                 (org-social-mode 1)
-                 (goto-char (point-min))
-                 (search-forward "YourNick")
-                 (message "New file created. Update your profile and save to sync with host."))))))))
+                   (goto-char (point-min))
+                   (search-forward "YourNick")
+                   (message "New file created. Update your profile and save to sync with host."))))))))
     ;; Handle local file path
     (if (file-exists-p org-social-file)
         (progn
@@ -592,8 +592,8 @@ EMOJI is the reaction emoji."
     ;; - Subsequent posts: blank line separator
     (unless (bobp)
       (let ((is-first-post (save-excursion
-                            (forward-line -1)
-                            (looking-at-p "^\\* Posts"))))
+                             (forward-line -1)
+                             (looking-at-p "^\\* Posts"))))
         (if is-first-post
             ;; First post: only add newline if not already at one
             (unless (eq (char-before) ?\n)
@@ -655,8 +655,8 @@ Optional COMMENT is a text comment to add to the boost."
     ;; - Subsequent posts: blank line separator
     (unless (bobp)
       (let ((is-first-post (save-excursion
-                            (forward-line -1)
-                            (looking-at-p "^\\* Posts"))))
+                             (forward-line -1)
+                             (looking-at-p "^\\* Posts"))))
         (if is-first-post
             ;; First post: only add newline if not already at one
             (unless (eq (char-before) ?\n)
