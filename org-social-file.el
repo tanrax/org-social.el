@@ -955,19 +955,55 @@ Returns an alist with keys 'old-url, 'new-url, and 'id, or nil if no migration f
                                                (cons 'id id)))))))))
       latest-migration)))
 
+(defun org-social-file--in-code-block-p ()
+  "Check if point is inside a code block (between #+BEGIN_SRC and #+END_SRC)."
+  (save-excursion
+    (let ((pos (point)))
+      ;; Look backward for BEGIN_SRC or END_SRC
+      (goto-char (point-min))
+      (let ((in-block nil))
+        (while (and (< (point) pos)
+                    (re-search-forward "^#\\+\\(BEGIN\\|END\\)_SRC" pos t))
+          (if (string= (match-string 1) "BEGIN")
+              (setq in-block t)
+            (setq in-block nil)))
+        in-block))))
+
 (defun org-social-file--apply-migration (old-url new-url)
   "Replace all occurrences of OLD-URL with NEW-URL in the current buffer.
 This is done using `regexp-quote' to avoid regex interpretation issues.
+IMPORTANT: Does NOT replace URLs in:
+  - :MIGRATION: lines (preserves migration history)
+  - Code blocks (between #+BEGIN_SRC and #+END_SRC)
 Returns the number of replacements made."
   (save-excursion
     (let ((replacements 0)
           ;; Quote the old URL to escape any special regex characters
           (old-url-quoted (regexp-quote old-url)))
       (goto-char (point-min))
-      ;; Replace all occurrences
+      ;; Replace all occurrences, except in :MIGRATION: lines and code blocks
       (while (re-search-forward old-url-quoted nil t)
-        (replace-match new-url t t)
-        (setq replacements (1+ replacements)))
+        (let ((match-start (match-beginning 0))
+              (match-end (match-end 0)))
+          ;; Save position before checks
+          (goto-char match-start)
+          ;; Check if we're in a code block
+          (let ((in-code-block (org-social-file--in-code-block-p))
+                (line-start (line-beginning-position))
+                (line-end (line-end-position)))
+            ;; Check if this line contains :MIGRATION:
+            (goto-char line-start)
+            (let ((is-migration-line (looking-at "^:MIGRATION:")))
+              ;; Only replace if NOT in migration line AND NOT in code block
+              (unless (or is-migration-line in-code-block)
+                (goto-char match-start)
+                (delete-region match-start match-end)
+                (insert new-url)
+                (setq replacements (1+ replacements)))
+              ;; Move past this match to continue searching
+              (goto-char (if (or is-migration-line in-code-block)
+                             match-end
+                           (point)))))))
       (when (> replacements 0)
         (message "Applied migration: replaced %d occurrences of %s with %s"
                  replacements old-url new-url))
