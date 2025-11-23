@@ -2,6 +2,13 @@
 
 ## 2.7
 
+- Migration Support:
+  - New `org-social-new-migration` command to create migration posts
+  - Automatic local migration processing when opening files or viewing timeline
+  - Automatic remote migration detection when downloading follower feeds
+  - Replaces old URLs with new URLs throughout the file (FOLLOW, REPLY_TO, INCLUDE, mentions)
+  - Only processes the most recent migration post based on timestamp
+  - Auto-saves social.org after applying remote migrations
 - vfile Support
 - Boost Support (Share/Repost):
   - New `/interactions` endpoint integration (replaces separate `/reactions` and `/boosts` calls)

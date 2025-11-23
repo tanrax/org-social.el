@@ -303,6 +303,15 @@ When a download completes, the next pending item is automatically started."
       ;; Remove failed downloads
       (setq org-social-variables--queue
             (seq-filter (lambda (i) (not (eq (alist-get :status i) :error))) org-social-variables--queue))
+
+      ;; Check for remote migrations before processing feeds
+      (when (fboundp 'org-social-file--check-and-apply-remote-migrations)
+        (let ((feeds-data (mapcar (lambda (item)
+                                    (cons (alist-get :url item)
+                                          (alist-get :response item)))
+                                  org-social-variables--queue)))
+          (org-social-file--check-and-apply-remote-migrations feeds-data)))
+
       ;; Process the feeds
       (setq org-social-variables--feeds
             (mapcar (lambda (item)

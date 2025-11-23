@@ -332,6 +332,41 @@ Make a new post in your social feed.
 
 Create a new poll in your Org-social feed.
 
+#### `org-social-new-migration`
+
+Create a migration post to notify followers that your feed has moved to a new URL. This function prompts for:
+- Old URL: The previous location of your social.org file
+- New URL: The new location where your social.org file is hosted
+
+**Automatic Migration Processing:**
+
+org-social.el automatically detects and processes migrations in two scenarios:
+
+1. **Local migrations** - When you open your social.org file or view the timeline, the latest migration post in YOUR file is detected and applied
+2. **Remote migrations** - When downloading feeds from followers, if someone has migrated their URL, org-social.el automatically updates all references in your social.org file
+
+This includes updating:
+- `#+FOLLOW:` entries
+- `:REPLY_TO:` properties
+- `:INCLUDE:` properties (boosts)
+- Mention links `[[org-social:...]]`
+
+**Important notes:**
+- Only the most recent migration (based on timestamp) from each feed is processed
+- Remote migrations are only applied if the feed's URL matches the old URL in the migration post
+- Your social.org file is automatically saved after applying remote migrations
+- You'll see a message indicating how many updates were made
+
+**Example migration post**:
+```org
+**
+:PROPERTIES:
+:ID: 2025-11-23T12:15:04+0100
+:CLIENT: org-social.el
+:MIGRATION: https://old-site.com/social.org https://new-site.com/social.org
+:END:
+```
+
 #### `org-social-mention-user`
 
 Insert a mention of a user in your post.

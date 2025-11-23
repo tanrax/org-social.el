@@ -45,6 +45,7 @@
 (declare-function org-social-file--open "org-social-file" ())
 (declare-function org-social-file--new-post "org-social-file" (reply-url reply-id))
 (declare-function org-social-file--new-poll "org-social-file" ())
+(declare-function org-social-file--new-migration "org-social-file" ())
 (declare-function org-social-ui-timeline "org-social-ui" ())
 (declare-function org-social-validator-validate-buffer "org-social-validator" ())
 (declare-function org-social-validator-validate-and-display "org-social-validator" ())
@@ -189,6 +190,13 @@ If REPLY-URL and REPLY-ID are provided, create a reply post."
   (interactive)
   (org-social--ensure-loaded)
   (org-social-file--new-poll))
+
+;;;###autoload
+(defun org-social-new-migration ()
+  "Create a new migration post in your Org-social feed."
+  (interactive)
+  (org-social--ensure-loaded)
+  (org-social-file--new-migration))
 
 ;;;###autoload
 (defun org-social-check-relay-mentions ()

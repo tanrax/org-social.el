@@ -118,6 +118,9 @@ space-separated token."
     (when (file-exists-p target-file)
       (with-temp-buffer
         (insert-file-contents target-file)
+        ;; Process migrations if the function exists
+        (when (fboundp 'org-social-file--process-migrations)
+          (org-social-file--process-migrations))
         (setq feed (buffer-string)))
       (let* ((follows (org-social-parser--get-value feed "FOLLOW"))
              (follows-list (if (listp follows) follows (list follows)))

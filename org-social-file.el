@@ -141,7 +141,7 @@ Note: Despite the function name, this downloads from the public URL, not vfile."
 
 (defun org-social-file--upload-vfile (vfile-url local-file-path)
   "Upload LOCAL-FILE-PATH to VFILE-URL using the host's upload endpoint.
-Uses native Emacs url-retrieve for HTTP POST with multipart/form-data."
+Uses native Emacs `url-retrieve' for HTTP POST with multipart/form-data."
   (when (and (org-social-file--is-vfile-p vfile-url)
              (file-exists-p local-file-path))
     (let* ((host-url (org-social-file--extract-host-from-vfile vfile-url))
@@ -421,6 +421,8 @@ If `org-social-file' is a vfile URL, downloads it first to local cache."
             (progn
               (find-file local-path)
               (org-social-mode 1)
+              ;; Process migrations before moving to end
+              (org-social-file--process-migrations)
               (goto-char (point-max))
               (message "Opened cached vfile. Save to sync with host.")
               ;; Validate file
@@ -429,7 +431,7 @@ If `org-social-file' is a vfile URL, downloads it first to local cache."
                 (org-social-validator-validate-and-display)))
           ;; Download from host first (using public URL)
           (if (not (and (boundp 'org-social-my-public-url) org-social-my-public-url))
-              (error "org-social-my-public-url must be set to download vfile")
+              (error "Org-social-my-public-url must be set to download vfile")
             (message "Downloading file from public URL...")
             (org-social-file--download-vfile
              org-social-my-public-url
@@ -444,6 +446,8 @@ If `org-social-file' is a vfile URL, downloads it first to local cache."
                      ;; Open the file
                      (find-file local-path)
                      (org-social-mode 1)
+                     ;; Process migrations before moving to end
+                     (org-social-file--process-migrations)
                      (goto-char (point-max))
                      (message "vfile downloaded successfully. Save to sync with host.")
                      ;; Validate file
@@ -470,6 +474,8 @@ If `org-social-file' is a vfile URL, downloads it first to local cache."
         (progn
           (find-file org-social-file)
           (org-social-mode 1)
+          ;; Process migrations before moving to end
+          (org-social-file--process-migrations)
           (goto-char (point-max))
           ;; Validate file and show warnings if any
           (when (fboundp 'org-social-validator-validate-and-display)
@@ -854,6 +860,169 @@ TIMESTAMP is the post ID (e.g., '2025-04-28T12:00:00+0100')."
               (message "Post with timestamp %s not found" timestamp)
               (goto-char (point-max)))))
       (message "Social file not found: %s" target-file))))
+
+(defun org-social-file--new-migration ()
+  "Create a new migration post in your Org-social feed.
+Interactively prompts for the old URL and new URL."
+  (interactive)
+  (let ((target-file (if (org-social-file--is-vfile-p org-social-file)
+                         (org-social-file--get-local-file-path org-social-file)
+                       org-social-file)))
+    (unless (and (buffer-file-name)
+                 (string= (expand-file-name (buffer-file-name))
+                          (expand-file-name target-file)))
+      (org-social-file--open)))
+
+  ;; Prompt for old URL
+  (let ((old-url (read-string "Old URL: ")))
+    (when (string-empty-p old-url)
+      (user-error "Old URL cannot be empty"))
+
+    ;; Prompt for new URL
+    (let ((new-url (read-string "New URL: ")))
+      (when (string-empty-p new-url)
+        (user-error "New URL cannot be empty"))
+
+      ;; Insert the migration post
+      (save-excursion
+        (org-social-file--find-posts-section)
+        (goto-char (point-max))
+        (org-social-file--insert-migration-template old-url new-url))
+      (goto-char (point-max))
+      (message "Migration post created from %s to %s" old-url new-url)
+      ;; Validate file after adding migration post
+      (when (fboundp 'org-social-validator-validate-and-display)
+        (require 'org-social-validator)
+        (org-social-validator-validate-and-display)))))
+
+(defun org-social-file--insert-migration-template (old-url new-url)
+  "Insert a migration template at the current position.
+OLD-URL is the old account URL.
+NEW-URL is the new account URL."
+  (let ((timestamp (org-social-parser--generate-timestamp)))
+    ;; Check if we need to add newlines before **
+    ;; Logic:
+    ;; - First post after "* Posts": no blank line
+    ;; - Subsequent posts: blank line separator
+    (unless (bobp)
+      (let ((is-first-post (save-excursion
+                             (forward-line -1)
+                             (looking-at-p "^\\* Posts"))))
+        (if is-first-post
+            ;; First post: only add newline if not already at one
+            (unless (eq (char-before) ?\n)
+              (insert "\n"))
+          ;; Subsequent posts: ensure blank line separator
+          (if (eq (char-before) ?\n)
+              ;; Already on new line, add one more for blank line
+              (insert "\n")
+            ;; Not on new line, add two
+            (insert "\n\n")))))
+    (insert "** \n:PROPERTIES:\n")
+    (insert (format ":ID: %s\n" timestamp))
+    (insert ":CLIENT: org-social.el\n")
+    (insert (format ":MIGRATION: %s %s\n" old-url new-url))
+    (insert ":END:\n\n")
+    (goto-char (point-max))))
+
+;; Migration processing functions
+
+(defun org-social-file--find-latest-migration ()
+  "Find the latest migration post in the current buffer.
+Returns an alist with keys 'old-url, 'new-url, and 'id, or nil if no migration found."
+  (save-excursion
+    (goto-char (point-min))
+    (let ((latest-migration nil)
+          (latest-time nil))
+      ;; Search for all migration posts
+      (while (re-search-forward "^:MIGRATION:\\s-+\\(\\S-+\\)\\s-+\\(\\S-+\\)\\s-*$" nil t)
+        (let ((old-url (match-string 1))
+              (new-url (match-string 2)))
+          ;; Find the ID for this migration post
+          (save-excursion
+            (when (re-search-backward "^:ID:\\s-+\\(.+\\)\\s-*$" nil t)
+              (let* ((id (string-trim (match-string 1)))
+                     (parsed-time (condition-case nil
+                                      (date-to-time id)
+                                    (error nil))))
+                ;; Check if this is the latest migration
+                (when (and parsed-time
+                           (or (null latest-time)
+                               (time-less-p latest-time parsed-time)))
+                  (setq latest-time parsed-time)
+                  (setq latest-migration (list (cons 'old-url old-url)
+                                               (cons 'new-url new-url)
+                                               (cons 'id id)))))))))
+      latest-migration)))
+
+(defun org-social-file--apply-migration (old-url new-url)
+  "Replace all occurrences of OLD-URL with NEW-URL in the current buffer.
+This is done using `regexp-quote' to avoid regex interpretation issues.
+Returns the number of replacements made."
+  (save-excursion
+    (let ((replacements 0)
+          ;; Quote the old URL to escape any special regex characters
+          (old-url-quoted (regexp-quote old-url)))
+      (goto-char (point-min))
+      ;; Replace all occurrences
+      (while (re-search-forward old-url-quoted nil t)
+        (replace-match new-url t t)
+        (setq replacements (1+ replacements)))
+      (when (> replacements 0)
+        (message "Applied migration: replaced %d occurrences of %s with %s"
+                 replacements old-url new-url))
+      replacements)))
+
+(defun org-social-file--process-migrations ()
+  "Process the latest migration in the current buffer.
+Finds the most recent migration post and applies the URL replacement.
+This function is called automatically when opening the social.org file."
+  (when-let ((migration (org-social-file--find-latest-migration)))
+    (let ((old-url (alist-get 'old-url migration))
+          (new-url (alist-get 'new-url migration))
+          (id (alist-get 'id migration)))
+      (when (and old-url new-url)
+        (let ((count (org-social-file--apply-migration old-url new-url)))
+          (when (> count 0)
+            (message "Migration from %s applied (%d replacements)" id count)))))))
+
+(defun org-social-file--find-migration-in-feed (feed-content)
+  "Find the latest migration in FEED-CONTENT string.
+Returns an alist with keys 'old-url, 'new-url, and 'id, or nil if no migration found."
+  (when (and feed-content (stringp feed-content))
+    (with-temp-buffer
+      (insert feed-content)
+      (org-social-file--find-latest-migration))))
+
+(defun org-social-file--process-remote-migration (feed-url feed-content)
+  "Process migration from a remote FEED-URL with FEED-CONTENT.
+Updates our local social.org file if a migration is found."
+  (when-let ((migration (org-social-file--find-migration-in-feed feed-content)))
+    (let ((old-url (alist-get 'old-url migration))
+          (new-url (alist-get 'new-url migration))
+          (id (alist-get 'id migration)))
+      ;; Only process if the old URL matches the feed URL we're downloading
+      (when (and old-url new-url (string= old-url feed-url))
+        (let ((target-file (if (org-social-file--is-vfile-p org-social-file)
+                               (org-social-file--get-local-file-path org-social-file)
+                             org-social-file)))
+          (when (file-exists-p target-file)
+            (with-current-buffer (find-file-noselect target-file)
+              (let ((count (org-social-file--apply-migration old-url new-url)))
+                (when (> count 0)
+                  (save-buffer)
+                  (message "Remote migration detected: %s → %s (%d updates)"
+                           old-url new-url count))))))))))
+
+(defun org-social-file--check-and-apply-remote-migrations (feeds-data)
+  "Check for migrations in FEEDS-DATA and apply them to our social.org.
+FEEDS-DATA is a list of (url . content) cons cells."
+  (when feeds-data
+    (dolist (feed-pair feeds-data)
+      (let ((url (car feed-pair))
+            (content (cdr feed-pair)))
+        (when (and url content)
+          (org-social-file--process-remote-migration url content))))))
 
 ;; Interactive functions with proper naming
 (defalias 'org-social-save-file #'org-social-file--save)
