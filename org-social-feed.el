@@ -329,6 +329,11 @@ When a download completes, the next pending item is automatically started."
                          (cons 'url url)
                          (cons 'posts posts))))
                     org-social-variables--queue))
+
+      ;; Load my profile fresh each time to avoid stale data
+      (when (fboundp 'org-social-parser--get-my-profile)
+        (setq org-social-variables--my-profile (org-social-parser--get-my-profile)))
+
       ;; Add own profile only if not already in feeds (relay might have already included it)
       (when (and org-social-variables--my-profile
                  (not (seq-find (lambda (feed)
