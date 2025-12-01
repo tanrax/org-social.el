@@ -383,7 +383,12 @@ specifically for the timeline view."
                  org-social-relay
                  (not (string-empty-p org-social-relay))
                  (fboundp 'org-social-feed--initialize-queue-from-relay))
-            (org-social-feed--initialize-queue-from-relay)
+            (progn
+              (org-social-feed--initialize-queue-from-relay)
+              ;; Update mentions cache asynchronously in background (doesn't block)
+              (when (fboundp 'org-social-file--update-mentions-cache-async)
+                (require 'org-social-file)
+                (org-social-file--update-mentions-cache-async)))
           ;; Initialize queue from local followers
           (when (fboundp 'org-social-feed--initialize-queue)
             (org-social-feed--initialize-queue)
