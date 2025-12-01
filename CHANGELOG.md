@@ -1,5 +1,9 @@
 # 📝 Changelog
 
+## dev
+
+- Improvement: `org-social-mention-user`
+
 ## 2.7
 
 - Migration Support:
