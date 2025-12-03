@@ -202,19 +202,11 @@ Includes a 5-second timeout to prevent hanging downloads."
 
 (defun org-social-user-queue--check-completion ()
   "Check if the download queue is complete and call callback if done."
-  (let* ((total (length org-social-user-queue--queue))
-         (done (length (seq-filter (lambda (i) (eq (alist-get :status i) :done))
-                                   org-social-user-queue--queue)))
-         (failed (length (seq-filter (lambda (i) (eq (alist-get :status i) :error))
-                                     org-social-user-queue--queue)))
-         (in-progress (seq-filter
+  (let* ((in-progress (seq-filter
                        (lambda (i) (or
                                     (eq (alist-get :status i) :processing)
                                     (eq (alist-get :status i) :pending)))
                        org-social-user-queue--queue)))
-    ;; Show progress
-    (unless (= (length in-progress) 0)
-      (message "Loading users... %d/%d completed (%d failed)" done total failed))
 
     (when (= (length in-progress) 0)
       ;; All downloads complete - collect successful results
@@ -228,10 +220,6 @@ Includes a 5-second timeout to prevent hanging downloads."
         (setq users (sort users (lambda (a b)
                                   (string< (alist-get 'nick a)
                                            (alist-get 'nick b)))))
-        (message "Loaded %d users from %d feeds (%d failed)"
-                 (length users)
-                 total
-                 failed)
         ;; Call completion callback
         (when org-social-user-queue--completion-callback
           (funcall org-social-user-queue--completion-callback users))))))

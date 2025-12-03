@@ -74,7 +74,16 @@ NOTIFICATION is an alist with keys: type, post."
          (author-url (when (string-match "\\(.*\\)#" post-url)
                        (match-string 1 post-url)))
          (timestamp (when (string-match "#\\(.+\\)$" post-url)
-                      (match-string 1 post-url))))
+                      (match-string 1 post-url)))
+         ;; Find nick from feeds list
+         (author-nick (when author-url
+                        (let ((feed (seq-find (lambda (f)
+                                                (string= (alist-get 'url f) author-url))
+                                              org-social-variables--feeds)))
+                          (if feed
+                              (alist-get 'nick feed)
+                            ;; Fallback to domain if nick not found
+                            (file-name-nondirectory (string-trim-right author-url "/social.org")))))))
 
     (org-social-ui--insert-formatted-text "📧 " 1.1 "#ff6600")
     (org-social-ui--insert-formatted-text "New mention from ")
@@ -85,7 +94,7 @@ NOTIFICATION is an alist with keys: type, post."
                      :notify `(lambda (&rest _)
                                 (org-social-ui-profile ,author-url))
                      :help-echo (format "View profile: %s" author-url)
-                     (format "@%s" (file-name-nondirectory (string-trim-right author-url "/social.org"))))
+                     author-nick)
 
       (org-social-ui--insert-formatted-text " • ")
 
@@ -122,7 +131,16 @@ NOTIFICATION is an alist with keys: type, post, emoji, parent."
          (author-url (when (string-match "\\(.*\\)#" post-url)
                        (match-string 1 post-url)))
          (timestamp (when (string-match "#\\(.+\\)$" post-url)
-                      (match-string 1 post-url))))
+                      (match-string 1 post-url)))
+         ;; Find nick from feeds list
+         (author-nick (when author-url
+                        (let ((feed (seq-find (lambda (f)
+                                                (string= (alist-get 'url f) author-url))
+                                              org-social-variables--feeds)))
+                          (if feed
+                              (alist-get 'nick feed)
+                            ;; Fallback to domain if nick not found
+                            (file-name-nondirectory (string-trim-right author-url "/social.org")))))))
 
     (org-social-ui--insert-formatted-text (format "%s " emoji) 1.1 "#ff6600")
     (org-social-ui--insert-formatted-text "Reaction from ")
@@ -133,7 +151,7 @@ NOTIFICATION is an alist with keys: type, post, emoji, parent."
                      :notify `(lambda (&rest _)
                                 (org-social-ui-profile ,author-url))
                      :help-echo (format "View profile: %s" author-url)
-                     (format "@%s" (file-name-nondirectory (string-trim-right author-url "/social.org"))))
+                     author-nick)
 
       (org-social-ui--insert-formatted-text " • ")
 
@@ -161,7 +179,16 @@ NOTIFICATION is an alist with keys: type, post, parent."
          (author-url (when (string-match "\\(.*\\)#" post-url)
                        (match-string 1 post-url)))
          (timestamp (when (string-match "#\\(.+\\)$" post-url)
-                      (match-string 1 post-url))))
+                      (match-string 1 post-url)))
+         ;; Find nick from feeds list
+         (author-nick (when author-url
+                        (let ((feed (seq-find (lambda (f)
+                                                (string= (alist-get 'url f) author-url))
+                                              org-social-variables--feeds)))
+                          (if feed
+                              (alist-get 'nick feed)
+                            ;; Fallback to domain if nick not found
+                            (file-name-nondirectory (string-trim-right author-url "/social.org")))))))
 
     (org-social-ui--insert-formatted-text "💬 " 1.1 "#4a90e2")
     (org-social-ui--insert-formatted-text "New reply from ")
@@ -172,7 +199,7 @@ NOTIFICATION is an alist with keys: type, post, parent."
                      :notify `(lambda (&rest _)
                                 (org-social-ui-profile ,author-url))
                      :help-echo (format "View profile: %s" author-url)
-                     (format "@%s" (file-name-nondirectory (string-trim-right author-url "/social.org"))))
+                     author-nick)
 
       (org-social-ui--insert-formatted-text " • ")
 

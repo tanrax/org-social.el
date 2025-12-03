@@ -383,12 +383,7 @@ specifically for the timeline view."
                  org-social-relay
                  (not (string-empty-p org-social-relay))
                  (fboundp 'org-social-feed--initialize-queue-from-relay))
-            (progn
-              (org-social-feed--initialize-queue-from-relay)
-              ;; Update mentions cache asynchronously in background (doesn't block)
-              (when (fboundp 'org-social-file--update-mentions-cache-async)
-                (require 'org-social-file)
-                (org-social-file--update-mentions-cache-async)))
+            (org-social-feed--initialize-queue-from-relay)
           ;; Initialize queue from local followers
           (when (fboundp 'org-social-feed--initialize-queue)
             (org-social-feed--initialize-queue)
@@ -531,7 +526,11 @@ Only checks posts that will be visible on the current page."
                       (org-social-feed--get-timeline))))
       ;; Display timeline (reactions will be fetched automatically by post component)
       (org-social-ui--check-replies-and-display-timeline timeline)
-      (message "Timeline ready with %d posts" (if timeline (length timeline) 0)))))
+      (message "Timeline ready with %d posts" (if timeline (length timeline) 0))
+      ;; After timeline is displayed, update mentions cache in background
+      (when (fboundp 'org-social-file--update-mentions-cache-async)
+        (require 'org-social-file)
+        (org-social-file--update-mentions-cache-async)))))
 
 (defun org-social-ui--timeline-next-page ()
   "Load and append next page of posts (infinite scroll)."

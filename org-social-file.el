@@ -747,8 +747,7 @@ USERS is a list of cons cells (NICK . URL)."
           (insert (format "\n  (%S . %S)"
                           (car user)  ; NICK
                           (cdr user)))) ; URL
-        (insert "\n)\n"))
-      (message "Mentions cache saved with %d users" (length users)))))
+        (insert "\n)\n")))))
 
 (defun org-social-file--load-mentions-cache ()
   "Load mentions cache from file.
@@ -788,14 +787,12 @@ This fetches ALL users from relay in background and saves them to cache."
                                          (cons (alist-get 'nick user)
                                                (alist-get 'url user)))
                                        users)))
-                (org-social-file--save-mentions-cache user-list)
-                (message "✓ Mentions cache updated with %d users from relay" (length user-list)))))))))))
+                (org-social-file--save-mentions-cache user-list))))))))))
 
 (defun org-social-file--get-relay-users (callback)
   "Get list of users from relay server and call CALLBACK with results.
 CALLBACK is called with a list of cons cells (NICK . URL)."
   (require 'org-social-relay)
-  (message "Loading users from relay...")
   (org-social-relay--fetch-feeds
    (lambda (feeds-list)
      (if feeds-list

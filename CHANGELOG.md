@@ -2,7 +2,7 @@
 
 ## dev
 
-- Improvement: `org-social-mention-user`
+- Improvement: `org-social-mention-user` - Now uses async cache system that loads all users from relay without blocking Emacs. Cache updates automatically and silently after timeline is displayed
 
 ## 2.7
 
