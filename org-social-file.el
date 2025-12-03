@@ -730,11 +730,69 @@ Returns nil if extraction fails."
 NICK is the user's nickname and URL is their social.org URL."
   (insert (format "[[org-social:%s][%s]]" url nick)))
 
+(defun org-social-file--get-mentions-cache-path ()
+  "Get the path to the mentions cache file."
+  (expand-file-name "org-social-mentions" user-emacs-directory))
+
+(defun org-social-file--save-mentions-cache (users)
+  "Save USERS list to mentions cache file.
+USERS is a list of cons cells (NICK . URL)."
+  (when users
+    (let ((cache-file (org-social-file--get-mentions-cache-path)))
+      (with-temp-file cache-file
+        (insert ";; Org-social mentions cache - Auto-generated file\n")
+        (insert ";; Do not edit manually.\n\n")
+        (insert "(")
+        (dolist (user users)
+          (insert (format "\n  (%S . %S)"
+                          (car user)  ; NICK
+                          (cdr user)))) ; URL
+        (insert "\n)\n")))))
+
+(defun org-social-file--load-mentions-cache ()
+  "Load mentions cache from file.
+Returns a list of cons cells (NICK . URL), or nil if cache doesn't exist."
+  (let ((cache-file (org-social-file--get-mentions-cache-path)))
+    (when (file-exists-p cache-file)
+      (condition-case err
+          (with-temp-buffer
+            (insert-file-contents cache-file)
+            (goto-char (point-min))
+            ;; Skip comment lines
+            (while (looking-at "^;;")
+              (forward-line 1))
+            ;; Read the s-expression
+            (read (current-buffer)))
+        (error
+         (message "Error loading mentions cache: %s" (error-message-string err))
+         nil)))))
+
+(defun org-social-file--update-mentions-cache-async ()
+  "Update mentions cache asynchronously from relay without blocking Emacs.
+This fetches ALL users from relay in background and saves them to cache."
+  (when (and (boundp 'org-social-relay)
+             org-social-relay
+             (not (string-empty-p org-social-relay)))
+    ;; Fetch ALL feed URLs from relay (just URLs, not full feeds)
+    (require 'org-social-relay)
+    (org-social-relay--fetch-feeds
+     (lambda (feeds-list)
+       (when feeds-list
+         ;; Now fetch user info for ALL feeds from relay
+         (org-social-user-queue-fetch-users
+          feeds-list
+          (lambda (users)
+            (when users
+              (let ((user-list (mapcar (lambda (user)
+                                         (cons (alist-get 'nick user)
+                                               (alist-get 'url user)))
+                                       users)))
+                (org-social-file--save-mentions-cache user-list))))))))))
+
 (defun org-social-file--get-relay-users (callback)
   "Get list of users from relay server and call CALLBACK with results.
 CALLBACK is called with a list of cons cells (NICK . URL)."
   (require 'org-social-relay)
-  (message "Loading users from relay...")
   (org-social-relay--fetch-feeds
    (lambda (feeds-list)
      (if feeds-list
@@ -748,6 +806,8 @@ CALLBACK is called with a list of cons cells (NICK . URL)."
                                            (cons (alist-get 'nick user)
                                                  (alist-get 'url user)))
                                          users)))
+                  ;; Save to cache for faster future access
+                  (org-social-file--save-mentions-cache user-list)
                   (funcall callback user-list))
               (message "No users could be fetched from relay")
               (funcall callback nil))))
@@ -755,47 +815,63 @@ CALLBACK is called with a list of cons cells (NICK . URL)."
        (funcall callback nil)))))
 
 (defun org-social-file--mention-user ()
-  "Prompt for a followed user and insert a mention at point."
+  "Prompt for a followed user and insert a mention at point.
+Uses cached user data for instant access when available."
   (interactive)
-  (if (and (boundp 'org-social-only-relay-followers-p)
-           org-social-only-relay-followers-p
-           (boundp 'org-social-relay)
-           org-social-relay
-           (not (string-empty-p org-social-relay)))
-      ;; Use relay to get users
-      (org-social-file--get-relay-users
-       (lambda (users)
-         (if users
-             ;; Run completing-read in the main thread context
-             (run-at-time 0 nil
-                          (lambda ()
-                            (let* ((user-alist (mapcar (lambda (user)
-                                                         (cons (car user) user))
-                                                       users))
-                                   (selected-nick (completing-read "Mention user: "
-                                                                   (mapcar #'car user-alist)
-                                                                   nil t))
-                                   (selected-user (cdr (assoc selected-nick user-alist))))
-                              (when selected-user
-                                (org-social-file--insert-mention (car selected-user)
-                                                                 (cdr selected-user))
-                                (message "Mentioned user: %s" (car selected-user))))))
-           (message "No users found in relay"))))
-    ;; Use local followers
-    (let ((followed-users (org-social-file--get-followed-users)))
-      (if followed-users
-          (let* ((user-alist (mapcar (lambda (user)
-                                       (cons (car user) user))
-                                     followed-users))
-                 (selected-nick (completing-read "Mention user: "
-                                                 (mapcar #'car user-alist)
-                                                 nil t))
-                 (selected-user (cdr (assoc selected-nick user-alist))))
-            (when selected-user
-              (org-social-file--insert-mention (car selected-user)
-                                               (cdr selected-user))
-              (message "Mentioned user: %s" (car selected-user))))
-        (message "No followed users found. Add users to your #+FOLLOW: list first.")))))
+  ;; Strategy: Try cache first (fast), fallback to fetching if needed
+  (let ((cached-users (org-social-file--load-mentions-cache)))
+    (if cached-users
+        ;; Cache exists - use it immediately (instant!)
+        (let* ((user-alist (mapcar (lambda (user)
+                                     (cons (car user) user))
+                                   cached-users))
+               (selected-nick (completing-read "Mention user: "
+                                               (mapcar #'car user-alist)
+                                               nil t))
+               (selected-user (cdr (assoc selected-nick user-alist))))
+          (when selected-user
+            (org-social-file--insert-mention (car selected-user)
+                                             (cdr selected-user))
+            (message "Mentioned user: %s" (car selected-user))))
+      ;; No cache - fall back to old behavior based on settings
+      (if (and (boundp 'org-social-relay)
+               org-social-relay
+               (not (string-empty-p org-social-relay)))
+          ;; Fetch from relay
+          (progn
+            (message "Fetching users from relay...")
+            (org-social-file--get-relay-users
+             (lambda (users)
+               (if users
+                   (run-at-time 0 nil
+                                (lambda ()
+                                  (let* ((user-alist (mapcar (lambda (user)
+                                                               (cons (car user) user))
+                                                             users))
+                                         (selected-nick (completing-read "Mention user: "
+                                                                         (mapcar #'car user-alist)
+                                                                         nil t))
+                                         (selected-user (cdr (assoc selected-nick user-alist))))
+                                    (when selected-user
+                                      (org-social-file--insert-mention (car selected-user)
+                                                                       (cdr selected-user))
+                                      (message "Mentioned user: %s" (car selected-user))))))
+                 (message "No users found in relay")))))
+        ;; Use local followers as last resort
+        (let ((followed-users (org-social-file--get-followed-users)))
+          (if followed-users
+              (let* ((user-alist (mapcar (lambda (user)
+                                           (cons (car user) user))
+                                         followed-users))
+                     (selected-nick (completing-read "Mention user: "
+                                                     (mapcar #'car user-alist)
+                                                     nil t))
+                     (selected-user (cdr (assoc selected-nick user-alist))))
+                (when selected-user
+                  (org-social-file--insert-mention (car selected-user)
+                                                   (cdr selected-user))
+                  (message "Mentioned user: %s" (car selected-user))))
+            (message "No followed users found. Add users to your #+FOLLOW: list first.")))))))
 
 ;; Forward declarations for wrapper functions
 (declare-function org-social-new-post "org-social" (&optional reply-url reply-id))

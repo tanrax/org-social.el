@@ -526,7 +526,11 @@ Only checks posts that will be visible on the current page."
                       (org-social-feed--get-timeline))))
       ;; Display timeline (reactions will be fetched automatically by post component)
       (org-social-ui--check-replies-and-display-timeline timeline)
-      (message "Timeline ready with %d posts" (if timeline (length timeline) 0)))))
+      (message "Timeline ready with %d posts" (if timeline (length timeline) 0))
+      ;; After timeline is displayed, update mentions cache in background
+      (when (fboundp 'org-social-file--update-mentions-cache-async)
+        (require 'org-social-file)
+        (org-social-file--update-mentions-cache-async)))))
 
 (defun org-social-ui--timeline-next-page ()
   "Load and append next page of posts (infinite scroll)."
