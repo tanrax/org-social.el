@@ -94,33 +94,45 @@ AUTHOR-URL and TIMESTAMP identify the poll.
 POLL-OPTION is the selected option."
   (require 'org-social-file)
   (require 'org-social-parser)
-  ;; Open social.org file
-  (unless (and (buffer-file-name)
-               (string= (expand-file-name (buffer-file-name))
-                        (expand-file-name org-social-file)))
-    (find-file org-social-file))
-  ;; Find posts section
-  (goto-char (point-min))
-  (unless (re-search-forward "^\\* Posts" nil t)
-    (user-error "No '* Posts' section found in %s" org-social-file))
-  ;; Go to end of buffer to insert new post
-  (goto-char (point-max))
-  ;; Insert minimal vote template
-  (let ((vote-timestamp (org-social-parser--generate-timestamp)))
-    (insert "\n** \n:PROPERTIES:\n")
-    (insert (format ":ID: %s\n" vote-timestamp))
-    (insert ":CLIENT: org-social.el\n")
-    (insert (format ":REPLY_TO: %s#%s\n" author-url timestamp))
-    (insert (format ":POLL_OPTION: %s\n" poll-option))
-    (insert ":END:\n\n")
-    (message "Vote created for option: %s" poll-option))
-  ;; Move cursor to end and recenter
-  (goto-char (point-max))
-  (recenter -3)
-  ;; Validate file after adding vote
-  (when (fboundp 'org-social-validator-validate-and-display)
-    (require 'org-social-validator)
-    (org-social-validator-validate-and-display)))
+  ;; Determine target file (handle vfile URLs)
+  (let ((target-file (if (and (fboundp 'org-social-file--is-vfile-p)
+                              (org-social-file--is-vfile-p org-social-file)
+                              (fboundp 'org-social-file--get-local-file-path))
+                         (org-social-file--get-local-file-path org-social-file)
+                       org-social-file)))
+    ;; Open social.org file (or local vfile cache)
+    (unless (and (buffer-file-name)
+                 (string= (expand-file-name (buffer-file-name))
+                          (expand-file-name target-file)))
+      (find-file target-file))
+    ;; Find posts section
+    (goto-char (point-min))
+    (unless (re-search-forward "^\\* Posts" nil t)
+      (user-error "No '* Posts' section found in %s" target-file))
+    ;; Go to end of buffer to insert new post
+    (goto-char (point-max))
+    ;; Insert minimal vote template
+    (let ((vote-timestamp (org-social-parser--generate-timestamp)))
+      (insert "\n** \n:PROPERTIES:\n")
+      (insert (format ":ID: %s\n" vote-timestamp))
+      (insert ":CLIENT: org-social.el\n")
+      (insert (format ":REPLY_TO: %s#%s\n" author-url timestamp))
+      (insert (format ":POLL_OPTION: %s\n" poll-option))
+      (insert ":END:\n\n")
+      (save-buffer)
+      (message "Vote created for option: %s" poll-option))
+    ;; Sync to vfile host if using vfile
+    (when (and (fboundp 'org-social-file--is-vfile-p)
+               (org-social-file--is-vfile-p org-social-file)
+               (fboundp 'org-social-file--sync-vfile))
+      (org-social-file--sync-vfile))
+    ;; Move cursor to end and recenter
+    (goto-char (point-max))
+    (recenter -3)
+    ;; Validate file after adding vote
+    (when (fboundp 'org-social-validator-validate-and-display)
+      (require 'org-social-validator)
+      (org-social-validator-validate-and-display))))
 
 (defun org-social-ui--render-poll-content (text poll-end author-url timestamp _is-my-post)
   "Render poll content with interactive radio buttons.
