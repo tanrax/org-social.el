@@ -3,6 +3,7 @@
 ## dev
 
 - Improvement: `org-social-mention-user` - Now uses async cache system that loads all users from relay without blocking Emacs. Cache updates automatically and silently after timeline is displayed
+- Fix: Poll voting now works correctly with vfile URLs by using local cache file
 
 ## 2.7
 
