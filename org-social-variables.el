@@ -68,6 +68,14 @@ Default is set to the public relay server."
                  (string :tag "Relay server URL"))
   :group 'org-social)
 
+(defcustom org-social-realtime-notifications nil
+  "When non-nil, receive real-time notifications via SSE from the relay.
+Requires `org-social-relay' and `org-social-my-public-url' to be configured.
+When enabled, you'll receive desktop notifications for mentions, reactions,
+replies, and boosts as they happen."
+  :type 'boolean
+  :group 'org-social)
+
 (defcustom org-social-my-public-url nil
   "Public URL of your social.org file.
 This is the URL where others can access your social.org file.

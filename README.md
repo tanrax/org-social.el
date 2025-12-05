@@ -236,6 +236,12 @@ When using vfiles with multi-account:
 ;; Examples: '("en") for English only, '("en" "es") for English and Spanish
 (setq org-social-language-filter nil)  ; or '("en" "es"), '("en"), etc.
 
+;; Enable real-time desktop notifications (requires relay and public URL)
+;; When enabled, you'll receive instant notifications for mentions, reactions, replies, and boosts
+;; Uses Server-Sent Events (SSE) from the relay server
+;; Automatically connects when Emacs starts up
+(setq org-social-realtime-notifications t)  ; set to t to enable
+
 ;; Optionally, configure global keybindings
 (keymap-global-set "C-c s t" #'org-social-timeline)
 (keymap-global-set "C-c s n" #'org-social-new-post)
