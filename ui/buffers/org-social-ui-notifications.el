@@ -60,7 +60,6 @@
   (org-social-ui--insert-formatted-text "\n\n")
 
   ;; Help text
-  (org-social-ui--insert-formatted-text "Your Notices\n" 1.2 "#4a90e2")
   (org-social-ui--insert-formatted-text "Navigation:\n" nil "#666666")
   (org-social-ui--insert-formatted-text "(n) Next | (p) Previous | (T) Timeline | (G) Groups\n" nil "#666666")
   (org-social-ui--insert-formatted-text "Other: (q) Quit\n" nil "#666666")
@@ -85,6 +84,7 @@ NOTIFICATION is an alist with keys: type, post."
                             ;; Fallback to domain if nick not found
                             (file-name-nondirectory (string-trim-right author-url "/social.org")))))))
 
+    (org-social-ui--insert-formatted-text "\n")
     (org-social-ui--insert-formatted-text "📧 " 1.1 "#ff6600")
     (org-social-ui--insert-formatted-text "New mention from ")
 
@@ -101,7 +101,7 @@ NOTIFICATION is an alist with keys: type, post."
       (when timestamp
         (org-social-ui--insert-formatted-text (org-social--format-date timestamp) nil "#666666")))
 
-    (org-social-ui--insert-formatted-text "\n  ")
+    (org-social-ui--insert-formatted-text "\n\n  ")
 
     ;; Action buttons
     (widget-create 'push-button
@@ -142,6 +142,7 @@ NOTIFICATION is an alist with keys: type, post, emoji, parent."
                             ;; Fallback to domain if nick not found
                             (file-name-nondirectory (string-trim-right author-url "/social.org")))))))
 
+    (org-social-ui--insert-formatted-text "\n")
     (org-social-ui--insert-formatted-text (format "%s " emoji) 1.1 "#ff6600")
     (org-social-ui--insert-formatted-text "Reaction from ")
 
@@ -158,7 +159,7 @@ NOTIFICATION is an alist with keys: type, post, emoji, parent."
       (when timestamp
         (org-social-ui--insert-formatted-text (org-social--format-date timestamp) nil "#666666")))
 
-    (org-social-ui--insert-formatted-text "\n  ")
+    (org-social-ui--insert-formatted-text "\n\n  ")
 
     ;; Action buttons
     (when parent-url
@@ -190,6 +191,7 @@ NOTIFICATION is an alist with keys: type, post, parent."
                             ;; Fallback to domain if nick not found
                             (file-name-nondirectory (string-trim-right author-url "/social.org")))))))
 
+    (org-social-ui--insert-formatted-text "\n")
     (org-social-ui--insert-formatted-text "💬 " 1.1 "#4a90e2")
     (org-social-ui--insert-formatted-text "New reply from ")
 
@@ -206,7 +208,7 @@ NOTIFICATION is an alist with keys: type, post, parent."
       (when timestamp
         (org-social-ui--insert-formatted-text (org-social--format-date timestamp) nil "#666666")))
 
-    (org-social-ui--insert-formatted-text "\n  ")
+    (org-social-ui--insert-formatted-text "\n\n  ")
 
     ;; Action buttons
     (widget-create 'push-button
@@ -257,7 +259,7 @@ NOTIFICATION is an alist with keys: type, post, parent."
                  (if (= (length notifications) 1) "" "s"))
          nil "#4a90e2")
         (org-social-ui--insert-formatted-text
-         (format "%d mention%s, %d reaction%s, %d repl%s\n\n"
+         (format "%d mention%s, %d reaction%s, %d repl%s\n"
                  mention-count (if (= mention-count 1) "" "s")
                  reaction-count (if (= reaction-count 1) "" "s")
                  reply-count (if (= reply-count 1) "y" "ies"))
