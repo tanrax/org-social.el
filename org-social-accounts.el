@@ -35,6 +35,7 @@
 (defvar org-social-file)
 (defvar org-social-relay)
 (defvar org-social-my-public-url)
+(defvar org-social-default-lang)
 (defvar org-social-after-save-file-hook)
 (defvar org-social-after-fetch-posts-hook)
 (defvar org-social-variables--feeds)
@@ -59,6 +60,7 @@ When nil, uses backward-compatible mode with global variables.")
 ;; :file - Path to social.org file (string)
 ;; :relay - Relay server URL (string or nil)
 ;; :public-url - Public URL of the feed (string or nil)
+;; :default-lang - Default language code for posts (string or nil)
 ;; :after-save-file-hook - Hook function to run after saving (function or nil)
 ;; :after-fetch-posts-hook - Hook function to run after fetching (function or nil)
 
@@ -72,6 +74,7 @@ Required properties:
 Optional properties:
   :relay URL          - Relay server URL
   :public-url URL     - Public URL where your feed is accessible
+  :default-lang CODE  - Default language code for posts (e.g., \"en\", \"es\")
   :after-save-file-hook FUNCTION - Function to run after saving the file
   :after-fetch-posts-hook FUNCTION - Function to run after fetching posts
 
@@ -80,6 +83,7 @@ Example:
                           :file \"~/social-personal.org\"
                           :relay \"https://relay.org-social.org/\"
                           :public-url \"https://example.com/personal.org\"
+                          :default-lang \"en\"
                           :after-save-file-hook (lambda ()
                                                    (message \"Personal saved!\")))"
   (unless name
@@ -156,6 +160,7 @@ Also clears cached state (feeds, profile, queue, etc.)."
     (setq org-social-file (plist-get account :file))
     (setq org-social-relay (plist-get account :relay))
     (setq org-social-my-public-url (plist-get account :public-url))
+    (setq org-social-default-lang (plist-get account :default-lang))
 
     ;; Clear existing hooks
     (setq org-social-after-save-file-hook nil)
