@@ -142,9 +142,9 @@ Returns a cons cell (EVENT-TYPE . EVENT-DATA) or nil if incomplete."
     (dolist (line lines)
       (cond
        ((string-prefix-p "event: " line)
-        (setq event-type (substring line 7)))
+        (setq event-type (string-trim (substring line 7))))
        ((string-prefix-p "data: " line)
-        (setq event-data (substring line 6)))))
+        (setq event-data (string-trim (substring line 6))))))
     (when (and event-type event-data)
       (cons event-type event-data))))
 
