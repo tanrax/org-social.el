@@ -32,6 +32,9 @@
 (defvar org-social-realtime--partial-data ""
   "Buffer for incomplete SSE event data.")
 
+(defvar org-social-realtime--headers-received nil
+  "Whether HTTP response headers have been received and skipped.")
+
 ;;; Helper functions
 
 (defun org-social-realtime--get-logo-path ()
@@ -145,24 +148,33 @@ Returns a cons cell (EVENT-TYPE . EVENT-DATA) or nil if incomplete."
     (when (and event-type event-data)
       (cons event-type event-data))))
 
-(defun org-social-realtime--filter (proc string)
-  "Process filter for SSE connection PROC receiving STRING."
+(defun org-social-realtime--filter (_proc string)
+  "Process filter for SSE connection receiving STRING."
   ;; Append new data to partial buffer
   (setq org-social-realtime--partial-data
         (concat org-social-realtime--partial-data string))
 
-  ;; Process complete events (separated by double newline)
-  (while (string-match "\n\n" org-social-realtime--partial-data)
-    (let* ((event-str (substring org-social-realtime--partial-data
-                                 0 (match-beginning 0)))
-           (parsed (org-social-realtime--parse-sse-data event-str)))
-      ;; Process this event
-      (when parsed
-        (org-social-realtime--process-sse-event (car parsed) (cdr parsed)))
+  ;; Skip HTTP headers on first data
+  (unless org-social-realtime--headers-received
+    (when (string-match "\r\n\r\n\\(.*\\)" org-social-realtime--partial-data)
+      ;; Headers received, keep only body
+      (setq org-social-realtime--partial-data (match-string 1 org-social-realtime--partial-data))
+      (setq org-social-realtime--headers-received t)
+      (message "Org Social [DEBUG]: HTTP headers skipped, processing SSE events")))
 
-      ;; Remove processed data
-      (setq org-social-realtime--partial-data
-            (substring org-social-realtime--partial-data (match-end 0))))))
+  ;; Process complete events (separated by double newline) only after headers
+  (when org-social-realtime--headers-received
+    (while (string-match "\n\n" org-social-realtime--partial-data)
+      (let* ((event-str (substring org-social-realtime--partial-data
+                                   0 (match-beginning 0)))
+             (parsed (org-social-realtime--parse-sse-data event-str)))
+        ;; Process this event
+        (when parsed
+          (org-social-realtime--process-sse-event (car parsed) (cdr parsed)))
+
+        ;; Remove processed data
+        (setq org-social-realtime--partial-data
+              (substring org-social-realtime--partial-data (match-end 0)))))))
 
 (defun org-social-realtime--sentinel (proc event)
   "Process sentinel for SSE connection PROC with EVENT."
@@ -199,8 +211,9 @@ Requires `org-social-relay' and `org-social-my-public-url' to be configured."
 
     (message "Org Social: Connecting to real-time notifications...")
 
-    ;; Reset partial data buffer
+    ;; Reset state
     (setq org-social-realtime--partial-data "")
+    (setq org-social-realtime--headers-received nil)
 
     ;; Create buffer for connection
     (setq org-social-realtime--buffer
