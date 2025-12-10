@@ -2,7 +2,7 @@
 ;; Author: Andros Fenollosa <hi@andros.dev>
 ;; Version: 2.7
 ;; URL: https://github.com/tanrax/org-social.el
-;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (emojify "1.2") (plz "0.9") (plz-media-type "0.1") (plz-event-source "0.1"))
+;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (emojify "1.2"))
 ;; SPDX-License-Identifier: GPL-3.0
 ;; This file is NOT part of GNU Emacs.
 ;; This program is free software; you can redistribute it and/or
