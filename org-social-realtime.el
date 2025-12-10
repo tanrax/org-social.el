@@ -169,6 +169,7 @@ Requires `org-social-relay' and `org-social-my-public-url' to be configured."
                                      (close . ,(lambda (event)
                                                  (message "Org Social [DEBUG]: SSE connection closed")
                                                  (setq org-social-realtime--connected nil))))))))
+               :timeout 0  ; Disable timeout for persistent SSE connection
                :then (lambda (_)
                        (message "Org Social [DEBUG]: Request completed"))
                :else (lambda (error)
