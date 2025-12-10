@@ -115,10 +115,9 @@ EVENT is an event object from the `plz-event-source' library."
          (event-data (plz-event-source-event-data event)))
     (message "Org Social [DEBUG]: Received SSE event type: %s" event-type)
     (cond
-     ;; Connection established
+     ;; Connection established (first message from relay)
      ((eq event-type 'connected)
-      (message "Org Social: Connected to real-time notifications")
-      (setq org-social-realtime--connected t))
+      (message "Org Social: Connected to real-time notifications"))
 
      ;; Notification event
      ((eq event-type 'notification)
@@ -163,7 +162,13 @@ Requires `org-social-relay' and `org-social-my-public-url' to be configured."
                :as `(media-types
                      ((text/event-stream
                        . ,(plz-event-source:text/event-stream
-                           :events `((message . ,#'org-social-realtime--handle-sse-event))))))
+                           :events `((open . ,(lambda (event)
+                                                (message "Org Social [DEBUG]: SSE connection opened")
+                                                (setq org-social-realtime--connected t)))
+                                     (message . ,#'org-social-realtime--handle-sse-event)
+                                     (close . ,(lambda (event)
+                                                 (message "Org Social [DEBUG]: SSE connection closed")
+                                                 (setq org-social-realtime--connected nil))))))))
                :then (lambda (_)
                        (message "Org Social [DEBUG]: Request completed"))
                :else (lambda (error)
