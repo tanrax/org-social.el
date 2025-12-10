@@ -42,6 +42,8 @@
 (defvar org-social-variables--my-profile)
 (defvar org-social-variables--queue)
 (defvar org-social-variables--posts-with-replies)
+(defvar org-social-realtime-notifications)
+(declare-function org-social-realtime-connect "org-social-realtime" ())
 (declare-function org-social-timeline "org-social" ())
 
 ;; Account storage
@@ -176,7 +178,14 @@ Also clears cached state (feeds, profile, queue, etc.)."
     (setq org-social-variables--feeds nil)
     (setq org-social-variables--my-profile nil)
     (setq org-social-variables--queue nil)
-    (setq org-social-variables--posts-with-replies nil)))
+    (setq org-social-variables--posts-with-replies nil))
+
+  ;; Reconnect real-time notifications if enabled
+  (when (and (boundp 'org-social-realtime-notifications)
+             org-social-realtime-notifications
+             (featurep 'org-social-realtime))
+    (require 'org-social-realtime)
+    (org-social-realtime-connect)))
 
 (defun org-social-get-current-account ()
   "Get the currently active account name.

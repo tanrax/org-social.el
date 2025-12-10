@@ -239,16 +239,33 @@ Requires `org-social-relay' and `org-social-my-public-url' to be configured."
   "Connect to real-time notifications if enabled in configuration.
 Automatically called on Emacs startup when realtime notifications enabled."
   (interactive)
-  (when (and org-social-realtime-notifications
-             org-social-relay
-             org-social-my-public-url
-             (not org-social-realtime--process))
-    (org-social-realtime-connect)))
+  (cond
+   ;; Already connected
+   ((and org-social-realtime--process
+         (process-live-p org-social-realtime--process))
+    (message "Org Social: Real-time notifications already connected"))
+
+   ;; Feature not enabled
+   ((not (and (boundp 'org-social-realtime-notifications)
+              org-social-realtime-notifications))
+    (message "Org Social: Real-time notifications disabled (org-social-realtime-notifications is nil)"))
+
+   ;; Missing configuration
+   ((not (and org-social-relay org-social-my-public-url))
+    (message "Org Social: Waiting for account configuration (relay: %s, public-url: %s)"
+             (if org-social-relay "configured" "missing")
+             (if org-social-my-public-url "configured" "missing")))
+
+   ;; All good, connect
+   (t
+    (org-social-realtime-connect))))
 
 ;; Auto-connect when Emacs starts if configuration is enabled
+;; Using after-init-hook instead of emacs-startup-hook for better timing
+;; (runs after init files are loaded, ensuring account configuration is present)
 ;;;###autoload
 (with-eval-after-load 'org-social
-  (add-hook 'emacs-startup-hook #'org-social-realtime-maybe-connect))
+  (add-hook 'after-init-hook #'org-social-realtime-maybe-connect))
 
 (provide 'org-social-realtime)
 
