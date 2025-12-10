@@ -116,12 +116,12 @@ EVENT is an event object from the `plz-event-source' library."
     (message "Org Social [DEBUG]: Received SSE event type: %s" event-type)
     (cond
      ;; Connection established
-     ((string= event-type "connected")
+     ((eq event-type 'connected)
       (message "Org Social: Connected to real-time notifications")
       (setq org-social-realtime--connected t))
 
      ;; Notification event
-     ((string= event-type "notification")
+     ((eq event-type 'notification)
       (condition-case err
           (let ((notification (json-read-from-string event-data)))
             (message "Org Social [DEBUG]: Notification data: %S" notification)
