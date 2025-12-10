@@ -182,8 +182,7 @@ Also clears cached state (feeds, profile, queue, etc.)."
 
   ;; Reconnect real-time notifications if enabled
   (when (and (boundp 'org-social-realtime-notifications)
-             org-social-realtime-notifications
-             (featurep 'org-social-realtime))
+             org-social-realtime-notifications)
     (require 'org-social-realtime)
     (org-social-realtime-connect)))
 

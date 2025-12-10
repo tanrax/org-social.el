@@ -13,7 +13,9 @@
 
 ;;; Code:
 
-(require 'url)
+(require 'plz)
+(require 'plz-event-source)
+(require 'plz-media-type)
 (require 'json)
 (require 'notifications)
 (require 'org-social-variables)
@@ -23,14 +25,11 @@
 
 ;;; Variables
 
-(defvar org-social-realtime--process nil
-  "Process handle for the SSE connection.")
+(defvar org-social-realtime--request nil
+  "PLZ request object for the SSE connection.")
 
-(defvar org-social-realtime--buffer nil
-  "Buffer for the SSE connection.")
-
-(defvar org-social-realtime--partial-data ""
-  "Buffer for partial SSE data.")
+(defvar org-social-realtime--connected nil
+  "Whether the SSE connection is currently active.")
 
 ;;; Helper functions
 
@@ -109,50 +108,30 @@ NOTIFICATION-DATA is a parsed JSON object from the SSE event."
     (require 'org-social-ui-thread)
     (org-social-ui-thread post-url)))
 
-(defun org-social-realtime--process-sse-data (data)
-  "Process SSE DATA string and extract event and data fields."
-  (let ((lines (split-string data "\n"))
-        (event nil)
-        (json-data nil))
-    (dolist (line lines)
-      (cond
-       ((string-prefix-p "event: " line)
-        (setq event (substring line 7)))
-       ((string-prefix-p "data: " line)
-        (setq json-data (substring line 6)))))
+(defun org-social-realtime--handle-sse-event (event)
+  "Handle an SSE EVENT from the relay.
+EVENT is an event object from the `plz-event-source' library."
+  (let* ((event-type (plz-event-source-event-type event))
+         (event-data (plz-event-source-event-data event)))
+    (message "Org Social [DEBUG]: Received SSE event type: %s" event-type)
+    (cond
+     ;; Connection established
+     ((string= event-type "connected")
+      (message "Org Social: Connected to real-time notifications")
+      (setq org-social-realtime--connected t))
 
-    ;; Process notification events
-    (when (and (string= event "notification") json-data)
+     ;; Notification event
+     ((string= event-type "notification")
       (condition-case err
-          (let ((notification (json-read-from-string json-data)))
+          (let ((notification (json-read-from-string event-data)))
+            (message "Org Social [DEBUG]: Notification data: %S" notification)
             (org-social-realtime--show-notification notification))
         (error
-         (message "Error parsing SSE notification: %s" (error-message-string err)))))))
+         (message "Org Social [ERROR]: Failed to parse notification: %s" (error-message-string err)))))
 
-(defun org-social-realtime--filter (_proc string)
-  "Process filter for SSE connection.
-_PROC is the process, STRING is the received data."
-  ;; Append new data to partial buffer
-  (setq org-social-realtime--partial-data
-        (concat org-social-realtime--partial-data string))
-
-  ;; Process complete events (separated by double newline)
-  (while (string-match "\n\n" org-social-realtime--partial-data)
-    (let ((event-data (substring org-social-realtime--partial-data
-                                 0 (match-beginning 0))))
-      ;; Process this event
-      (org-social-realtime--process-sse-data event-data)
-
-      ;; Remove processed data
-      (setq org-social-realtime--partial-data
-            (substring org-social-realtime--partial-data (match-end 0))))))
-
-(defun org-social-realtime--sentinel (proc event)
-  "Process sentinel for SSE connection.
-PROC is the process, EVENT is the event description."
-  (unless (process-live-p proc)
-    (message "Org Social: Real-time notifications disconnected - %s" event)
-    (setq org-social-realtime--process nil)))
+     ;; Unknown event type
+     (t
+      (message "Org Social [DEBUG]: Unknown event type: %s" event-type)))))
 
 ;;; Public functions
 
@@ -167,59 +146,50 @@ Requires `org-social-relay' and `org-social-my-public-url' to be configured."
     (user-error "Both org-social-relay and org-social-my-public-url must be configured"))
 
   ;; Disconnect if already connected
-  (when org-social-realtime--process
+  (when org-social-realtime--request
     (org-social-realtime-disconnect))
 
   ;; Build SSE URL
   (let* ((feed-encoded (url-hexify-string org-social-my-public-url))
-         (sse-url (format "%s/sse/notifications/?feed=%s" org-social-relay feed-encoded))
-         (url-request-method "GET")
-         (url-request-extra-headers '(("Accept" . "text/event-stream"))))
+         (sse-url (format "%s/sse/notifications/?feed=%s" org-social-relay feed-encoded)))
 
     (message "Org Social: Connecting to real-time notifications...")
 
-    ;; Create buffer for SSE connection
-    (setq org-social-realtime--buffer
-          (generate-new-buffer " *org-social-sse*"))
-
-    ;; Reset partial data buffer
-    (setq org-social-realtime--partial-data "")
-
-    ;; Start connection using url-retrieve
-    (url-retrieve
-     sse-url
-     (lambda (status)
-       ;; Check for errors
-       (if (plist-get status :error)
-           (message "Org Social: Failed to connect to real-time notifications: %s"
-                    (plist-get status :error))
-         ;; Connection successful - setup process
-         (let ((proc (get-buffer-process (current-buffer))))
-           (when proc
-             (setq org-social-realtime--process proc)
-             (set-process-filter proc #'org-social-realtime--filter)
-             (set-process-sentinel proc #'org-social-realtime--sentinel)
-             (message "Org Social: Connected to real-time notifications")))))
-     nil
-     t))) ; silent, no-cookies
+    ;; Start SSE connection using plz-event-source
+    (condition-case err
+        (setq org-social-realtime--request
+              (plz-media-type-request
+               'get sse-url
+               :as `(media-types
+                     ((text/event-stream
+                       . ,(plz-event-source:text/event-stream
+                           :events `((message . ,#'org-social-realtime--handle-sse-event))))))
+               :then (lambda (_)
+                       (message "Org Social [DEBUG]: Request completed"))
+               :else (lambda (error)
+                       (message "Org Social: Failed to connect to real-time notifications: %S" error)
+                       (setq org-social-realtime--connected nil)
+                       (setq org-social-realtime--request nil))))
+      (error
+       (message "Org Social [ERROR]: Exception during connection: %s" (error-message-string err))
+       (setq org-social-realtime--connected nil)
+       (setq org-social-realtime--request nil)))))
 
 ;;;###autoload
 (defun org-social-realtime-disconnect ()
   "Disconnect from the relay's SSE endpoint."
   (interactive)
-  (when org-social-realtime--process
-    (delete-process org-social-realtime--process)
-    (setq org-social-realtime--process nil)
-    (message "Org Social: Disconnected from real-time notifications"))
-  (when org-social-realtime--buffer
-    (kill-buffer org-social-realtime--buffer)
-    (setq org-social-realtime--buffer nil)))
+  (when org-social-realtime--request
+    ;; plz-event-source handles cleanup automatically when request is cancelled
+    (setq org-social-realtime--request nil)
+    (setq org-social-realtime--connected nil)
+    (message "Org Social: Disconnected from real-time notifications")))
 
 ;;;###autoload
 (defun org-social-realtime-toggle ()
   "Toggle real-time notifications connection."
   (interactive)
-  (if org-social-realtime--process
+  (if org-social-realtime--connected
       (org-social-realtime-disconnect)
     (org-social-realtime-connect)))
 
@@ -227,8 +197,7 @@ Requires `org-social-relay' and `org-social-my-public-url' to be configured."
 (defun org-social-realtime-status ()
   "Show the status of the real-time notifications connection."
   (interactive)
-  (if (and org-social-realtime--process
-           (process-live-p org-social-realtime--process))
+  (if org-social-realtime--connected
       (message "Org Social: Real-time notifications CONNECTED")
     (message "Org Social: Real-time notifications DISCONNECTED")))
 
@@ -241,8 +210,7 @@ Automatically called on Emacs startup when realtime notifications enabled."
   (interactive)
   (cond
    ;; Already connected
-   ((and org-social-realtime--process
-         (process-live-p org-social-realtime--process))
+   (org-social-realtime--connected
     (message "Org Social: Real-time notifications already connected"))
 
    ;; Feature not enabled
