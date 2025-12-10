@@ -242,14 +242,12 @@ Requires `org-social-relay' and `org-social-my-public-url' to be configured."
           (set-process-sentinel proc #'org-social-realtime--sentinel)
           (set-process-coding-system proc 'utf-8 'utf-8)
 
-          ;; Send HTTP GET request
+          ;; Send HTTP GET request (minimal headers like curl)
           (process-send-string
            proc
            (format (concat "GET %s HTTP/1.1\r\n"
                            "Host: %s\r\n"
                            "Accept: text/event-stream\r\n"
-                           "Cache-Control: no-cache\r\n"
-                           "Connection: keep-alive\r\n"
                            "\r\n")
                    path host))
 
