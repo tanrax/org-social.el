@@ -50,7 +50,7 @@ Returns the absolute path to org-social-logo.png in the package directory."
 
 (defun org-social-realtime--get-author-nick (post-url)
   "Extract author feed URL from POST-URL and get their nick.
-POST-URL format: https://example.com/social.org#timestamp"
+POST-URL format: https://example.com/username/social.org#timestamp"
   (when (string-match "\\(.*\\)#" post-url)
     (let* ((author-url (match-string 1 post-url))
            (feed (seq-find (lambda (f)
@@ -59,8 +59,8 @@ POST-URL format: https://example.com/social.org#timestamp"
                              org-social-variables--feeds))))
       (if feed
           (alist-get 'nick feed)
-        ;; Fallback to domain name
-        (when (string-match "://\\([^/]+\\)" author-url)
+        ;; Fallback: extract username from URL path
+        (when (string-match "://[^/]+/\\([^/]+\\)/" author-url)
           (match-string 1 author-url))))))
 
 (defun org-social-realtime--show-notification (notification-data)
@@ -178,6 +178,8 @@ Returns a cons cell (EVENT-TYPE . EVENT-DATA) or nil if incomplete."
 
 (defun org-social-realtime--sentinel (proc event)
   "Process sentinel for SSE connection PROC with EVENT."
+  (message "Org Social [DEBUG]: Sentinel called - process-live: %s, event: %S"
+           (process-live-p proc) event)
   (unless (process-live-p proc)
     (message "Org Social: Real-time notifications disconnected - %s" event)
     (setq org-social-realtime--process nil)))
