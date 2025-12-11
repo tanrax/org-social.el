@@ -114,7 +114,6 @@ NOTIFICATION-DATA is a parsed JSON object from the SSE event."
 
 (defun org-social-realtime--process-sse-event (event-type event-data)
   "Process an SSE event with EVENT-TYPE and EVENT-DATA."
-  (message "Org Social [DEBUG]: Received SSE event type: %s" event-type)
   (cond
    ;; Connection established
    ((string= event-type "connected")
@@ -124,14 +123,9 @@ NOTIFICATION-DATA is a parsed JSON object from the SSE event."
    ((string= event-type "notification")
     (condition-case err
         (let ((notification (json-read-from-string event-data)))
-          (message "Org Social [DEBUG]: Notification data: %S" notification)
           (org-social-realtime--show-notification notification))
       (error
-       (message "Org Social [ERROR]: Failed to parse notification: %s" (error-message-string err)))))
-
-   ;; Unknown event type
-   (t
-    (message "Org Social [DEBUG]: Unknown event type: %s" event-type))))
+       (message "Org Social [ERROR]: Failed to parse notification: %s" (error-message-string err)))))))
 
 (defun org-social-realtime--parse-sse-data (data)
   "Parse SSE DATA and extract event type and data fields.
@@ -156,32 +150,31 @@ Returns a cons cell (EVENT-TYPE . EVENT-DATA) or nil if incomplete."
 
   ;; Skip HTTP headers on first data
   (unless org-social-realtime--headers-received
-    (when (string-match "\r\n\r\n\\(.*\\)" org-social-realtime--partial-data)
-      ;; Headers received, keep only body
-      (setq org-social-realtime--partial-data (match-string 1 org-social-realtime--partial-data))
-      (setq org-social-realtime--headers-received t)
-      (message "Org Social [DEBUG]: HTTP headers skipped, processing SSE events")))
+    (when (string-match "\r\n\r\n" org-social-realtime--partial-data)
+      ;; Headers received, keep everything after them
+      (setq org-social-realtime--partial-data
+            (substring org-social-realtime--partial-data (match-end 0)))
+      (setq org-social-realtime--headers-received t)))
 
   ;; Process complete events (separated by double newline) only after headers
   (when org-social-realtime--headers-received
     (while (string-match "\n\n" org-social-realtime--partial-data)
       (let* ((event-str (substring org-social-realtime--partial-data
-                                   0 (match-beginning 0)))
-             (parsed (org-social-realtime--parse-sse-data event-str)))
-        ;; Process this event
-        (when parsed
-          (org-social-realtime--process-sse-event (car parsed) (cdr parsed)))
-
-        ;; Remove processed data
+                                   0 (match-beginning 0))))
+        ;; Remove processed data first
         (setq org-social-realtime--partial-data
-              (substring org-social-realtime--partial-data (match-end 0)))))))
+              (substring org-social-realtime--partial-data (match-end 0)))
 
-(defun org-social-realtime--sentinel (proc event)
+        ;; Only parse and process if event-str is not empty
+        (unless (string-empty-p (string-trim event-str))
+          (let ((parsed (org-social-realtime--parse-sse-data event-str)))
+            (when parsed
+              (org-social-realtime--process-sse-event (car parsed) (cdr parsed)))))))))
+
+(defun org-social-realtime--sentinel (proc _event)
   "Process sentinel for SSE connection PROC with EVENT."
-  (message "Org Social [DEBUG]: Sentinel called - process-live: %s, event: %S"
-           (process-live-p proc) event)
   (unless (process-live-p proc)
-    (message "Org Social: Real-time notifications disconnected - %s" event)
+    (message "Org Social: Real-time notifications disconnected")
     (setq org-social-realtime--process nil)))
 
 ;;; Public functions
@@ -244,17 +237,17 @@ Requires `org-social-relay' and `org-social-my-public-url' to be configured."
           (set-process-sentinel proc #'org-social-realtime--sentinel)
           (set-process-coding-system proc 'utf-8 'utf-8)
 
-          ;; Send HTTP GET request (minimal headers like curl)
+          ;; Send HTTP GET request with same headers as curl
           (process-send-string
            proc
            (format (concat "GET %s HTTP/1.1\r\n"
                            "Host: %s\r\n"
-                           "Accept: text/event-stream\r\n"
+                           "User-Agent: Emacs/%s org-social\r\n"
+                           "Accept: */*\r\n"
                            "\r\n")
-                   path host))
+                   path host emacs-version))
 
-          (setq org-social-realtime--process proc)
-          (message "Org Social [DEBUG]: SSE connection initiated"))
+          (setq org-social-realtime--process proc))
 
       (error
        (message "Org Social [ERROR]: Failed to connect: %s" (error-message-string err))
