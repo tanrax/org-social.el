@@ -235,12 +235,12 @@ Requires `org-social-relay' and `org-social-my-public-url' to be configured."
 
     ;; Create buffer for connection
     (setq org-social-realtime--buffer
-          (generate-new-buffer " *org-social-sse*"))
+          (generate-new-buffer " *org-social-notifications*"))
 
     ;; Start network process
     (condition-case err
         (let ((proc (make-network-process
-                     :name "org-social-sse"
+                     :name "org-social-notifications"
                      :buffer org-social-realtime--buffer
                      :host host
                      :service port
