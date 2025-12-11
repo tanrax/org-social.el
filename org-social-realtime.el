@@ -244,7 +244,7 @@ Requires `org-social-relay' and `org-social-my-public-url' to be configured."
                      :buffer org-social-realtime--buffer
                      :host host
                      :service port
-                     :type (if use-tls 'tls 'plain)
+                     :type (if use-tls 'tls nil)
                      :coding 'utf-8
                      :nowait nil
                      :keepalive t)))
