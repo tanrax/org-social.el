@@ -1,9 +1,9 @@
 # 📝 Changelog
 
-## dev
+## 2.8
 
-- Improvement: `org-social-mention-user` - Now uses async cache system that loads all users from relay without blocking Emacs. Cache updates automatically and silently after timeline is displayed
-- Feature: Real-time desktop notifications via SSE from relay server (optional, disabled by default via `org-social-realtime-notifications`)
+- Improvement: `org-social-mention-user`
+- Feature: Real-time desktop notifications (optional, disabled by default via `org-social-realtime-notifications`)
 - Fix: Poll voting now works correctly with vfile URLs by using local cache file
 
 ## 2.7

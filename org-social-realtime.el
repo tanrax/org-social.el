@@ -255,11 +255,7 @@ Requires `org-social-relay' and `org-social-my-public-url' to be configured."
           ;; Send HTTP GET request with same headers as curl
           (process-send-string
            proc
-           (format (concat "GET %s HTTP/1.1\r\n"
-                           "Host: %s\r\n"
-                           "User-Agent: Emacs/%s org-social\r\n"
-                           "Accept: */*\r\n"
-                           "\r\n")
+           (format "GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: Emacs/%s org-social\r\nAccept: */*\r\n\r\n"
                    path host emacs-version))
 
           (setq org-social-realtime--process proc))
