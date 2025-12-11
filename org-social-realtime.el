@@ -177,10 +177,10 @@ Returns a cons cell (EVENT-TYPE . EVENT-DATA) or nil if incomplete."
             (when parsed
               (org-social-realtime--process-sse-event (car parsed) (cdr parsed)))))))))
 
-(defun org-social-realtime--sentinel (proc _event)
+(defun org-social-realtime--sentinel (proc event)
   "Process sentinel for SSE connection PROC with EVENT."
   (unless (process-live-p proc)
-    (message "Org Social: Real-time notifications disconnected")
+    (message "Org Social: Real-time notifications disconnected (reason: %s)" (string-trim event))
     (setq org-social-realtime--process nil)
 
     ;; Schedule automatic reconnection if enabled
@@ -239,21 +239,15 @@ Requires `org-social-relay' and `org-social-my-public-url' to be configured."
 
     ;; Start network process
     (condition-case err
-        (let ((proc (if use-tls
-                        (open-network-stream
-                         "org-social-sse"
-                         org-social-realtime--buffer
-                         host
-                         port
-                         :type 'tls
-                         :nowait nil)
-                      (make-network-process
-                       :name "org-social-sse"
-                       :buffer org-social-realtime--buffer
-                       :host host
-                       :service port
-                       :coding 'utf-8
-                       :nowait nil))))
+        (let ((proc (make-network-process
+                     :name "org-social-sse"
+                     :buffer org-social-realtime--buffer
+                     :host host
+                     :service port
+                     :type (if use-tls 'tls 'plain)
+                     :coding 'utf-8
+                     :nowait nil
+                     :keepalive t)))
 
           ;; Set process handlers
           (set-process-filter proc #'org-social-realtime--filter)
