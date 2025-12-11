@@ -66,7 +66,7 @@
 
       ;; Navigation buttons
       (widget-create 'push-button
-                     :notify (lambda (&rest _) (org-social-ui-timeline))
+                     :notify (lambda (&rest _) (org-social-ui--switch-to-timeline))
                      :help-echo "View timeline"
                      " 📰 Timeline ")
 
@@ -113,7 +113,7 @@
           (progn
             ;; Display the main post (reactions fetched automatically by component)
             (org-social-ui--insert-formatted-text "━━━ Main Post ━━━\n\n" 1.2 "#4a90e2")
-            (org-social-ui--post-component post-data nil)
+            (org-social-ui--post-component post-data nil t)
 
             ;; Fetch and display replies synchronously
             (let ((replies-data (org-social-ui--fetch-replies-sync post-url)))

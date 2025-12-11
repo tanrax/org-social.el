@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 2.7
+;; Version: 2.8
 ;; URL: https://github.com/tanrax/org-social.el
 
 ;; This file is NOT part of GNU Emacs.
@@ -157,6 +157,11 @@ Includes a 5-second timeout to prevent hanging downloads."
                            (message "Timeout fetching user from %s (5 seconds)" url)
                            ;; Kill the url-retrieve buffer if it exists
                            (when (and url-buffer (buffer-live-p url-buffer))
+                             ;; First kill the process to avoid interactive prompt
+                             (let ((proc (get-buffer-process url-buffer)))
+                               (when (and proc (process-live-p proc))
+                                 (delete-process proc)))
+                             ;; Now kill the buffer safely
                              (kill-buffer url-buffer))
                            (funcall error-callback)))))))
 

@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 2.7
+;; Version: 2.8
 ;; URL: https://github.com/tanrax/org-social.el
 
 ;; This file is NOT part of GNU Emacs.
@@ -35,12 +35,15 @@
 (defvar org-social-file)
 (defvar org-social-relay)
 (defvar org-social-my-public-url)
+(defvar org-social-default-lang)
 (defvar org-social-after-save-file-hook)
 (defvar org-social-after-fetch-posts-hook)
 (defvar org-social-variables--feeds)
 (defvar org-social-variables--my-profile)
 (defvar org-social-variables--queue)
 (defvar org-social-variables--posts-with-replies)
+(defvar org-social-realtime-notifications)
+(declare-function org-social-realtime-connect "org-social-realtime" ())
 (declare-function org-social-timeline "org-social" ())
 
 ;; Account storage
@@ -59,6 +62,7 @@ When nil, uses backward-compatible mode with global variables.")
 ;; :file - Path to social.org file (string)
 ;; :relay - Relay server URL (string or nil)
 ;; :public-url - Public URL of the feed (string or nil)
+;; :default-lang - Default language code for posts (string or nil)
 ;; :after-save-file-hook - Hook function to run after saving (function or nil)
 ;; :after-fetch-posts-hook - Hook function to run after fetching (function or nil)
 
@@ -72,6 +76,7 @@ Required properties:
 Optional properties:
   :relay URL          - Relay server URL
   :public-url URL     - Public URL where your feed is accessible
+  :default-lang CODE  - Default language code for posts (e.g., \"en\", \"es\")
   :after-save-file-hook FUNCTION - Function to run after saving the file
   :after-fetch-posts-hook FUNCTION - Function to run after fetching posts
 
@@ -80,6 +85,7 @@ Example:
                           :file \"~/social-personal.org\"
                           :relay \"https://relay.org-social.org/\"
                           :public-url \"https://example.com/personal.org\"
+                          :default-lang \"en\"
                           :after-save-file-hook (lambda ()
                                                    (message \"Personal saved!\")))"
   (unless name
@@ -156,6 +162,7 @@ Also clears cached state (feeds, profile, queue, etc.)."
     (setq org-social-file (plist-get account :file))
     (setq org-social-relay (plist-get account :relay))
     (setq org-social-my-public-url (plist-get account :public-url))
+    (setq org-social-default-lang (plist-get account :default-lang))
 
     ;; Clear existing hooks
     (setq org-social-after-save-file-hook nil)
@@ -171,7 +178,13 @@ Also clears cached state (feeds, profile, queue, etc.)."
     (setq org-social-variables--feeds nil)
     (setq org-social-variables--my-profile nil)
     (setq org-social-variables--queue nil)
-    (setq org-social-variables--posts-with-replies nil)))
+    (setq org-social-variables--posts-with-replies nil))
+
+  ;; Reconnect real-time notifications if enabled
+  (when (and (boundp 'org-social-realtime-notifications)
+             org-social-realtime-notifications)
+    (require 'org-social-realtime)
+    (org-social-realtime-connect)))
 
 (defun org-social-get-current-account ()
   "Get the currently active account name.

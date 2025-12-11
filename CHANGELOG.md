@@ -1,8 +1,10 @@
 # 📝 Changelog
 
-## dev
+## 2.8
 
 - Improvement: `org-social-mention-user` - Now uses async cache system that loads all users from relay without blocking Emacs. Cache updates automatically and silently after timeline is displayed
+- Feature: Real-time desktop notifications (optional, disabled by default via `org-social-realtime-notifications`)
+- Feature: Post preview length control with `org-social-post-preview-length` (default 400 characters). Long posts show truncated content with "Read more" button to open in thread view. Set to `nil` to disable truncation
 - Fix: Poll voting now works correctly with vfile URLs by using local cache file
 
 ## 2.7

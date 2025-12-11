@@ -236,6 +236,12 @@ When using vfiles with multi-account:
 ;; Examples: '("en") for English only, '("en" "es") for English and Spanish
 (setq org-social-language-filter nil)  ; or '("en" "es"), '("en"), etc.
 
+;; Enable real-time desktop notifications (requires relay and public URL)
+;; When enabled, you'll receive instant notifications for mentions, reactions, replies, and boosts
+;; Uses Server-Sent Events (SSE) from the relay server
+;; Automatically connects when Emacs starts up
+(setq org-social-realtime-notifications t)  ; set to t to enable
+
 ;; Optionally, configure global keybindings
 (keymap-global-set "C-c s t" #'org-social-timeline)
 (keymap-global-set "C-c s n" #'org-social-new-post)
@@ -272,6 +278,7 @@ For best performance with partial downloads, host your `social.org` file on a tr
 | `org-social-relay` | URL of the Org Social Relay server for registering your feed and discovering mentions, replies, and social interactions. | `"https://relay.org-social.org"` | ✅ | `string` |
 | `org-social-my-public-url` | Public URL of your social.org file where others can access your feed. | `nil` | ✅ | `string` |
 | `org-social-hide-post-buttons` | Hide Reply, Vote, and Profile buttons from timeline posts for a cleaner view. Keyboard shortcuts still work. | `nil` | ❌ | `boolean` |
+| `org-social-post-preview-length` | Maximum number of characters to show in a post before truncating. If a post exceeds this length, it will be truncated and a "Read more" button will appear to open the full post in thread view. Set to `nil` to disable truncation and always show full posts. | `400` | ❌ | `integer` or `nil` |
 | `org-social-live-preview-url` | Base URL for live post previews. When set, a Share button appears in post buttons that opens the post preview in the system browser with URL-encoded post URL. Set to `nil` to hide the Share button. | `"https://preview.org-social.org/?post="` | ❌ | `string` |
 | `org-social-only-relay-followers-p` | When non-nil, use only feeds from the relay server. Requires relay configuration. | `nil` | ❌ | `boolean` |
 | `org-social-default-lang` | Default language code for new posts and polls. When set, automatically fills the `:LANG:` property with a two-letter ISO 639-1 language code (e.g., "en", "es", "fr"). When `nil` or empty string, the `:LANG:` field remains empty. | `nil` | ❌ | `string` |

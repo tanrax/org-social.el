@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 2.7
+;; Version: 2.8
 ;; URL: https://github.com/tanrax/org-social.el
 
 ;; This file is NOT part of GNU Emacs.
@@ -48,6 +48,15 @@ and view profiles (P)."
   :type 'boolean
   :group 'org-social)
 
+(defcustom org-social-post-preview-length 400
+  "Maximum number of characters to show in a post before truncating.
+If a post exceeds this length, it will be truncated and a \\'Read more\\' button
+will appear to view the full post.  Set to nil to disable truncation and
+always show full posts."
+  :type '(choice (integer :tag "Character limit")
+                 (const :tag "No limit" nil))
+  :group 'org-social)
+
 (defcustom org-social-live-preview-url "https://preview.org-social.org/?post="
   "Base URL for live post previews.
 When set to a non-nil value, a Share button will appear in the post buttons row
@@ -66,6 +75,14 @@ replies, and other social interactions.
 Default is set to the public relay server."
   :type '(choice (const :tag "No relay server" nil)
                  (string :tag "Relay server URL"))
+  :group 'org-social)
+
+(defcustom org-social-realtime-notifications nil
+  "When non-nil, receive real-time notifications via SSE from the relay.
+Requires `org-social-relay' and `org-social-my-public-url' to be configured.
+When enabled, you'll receive desktop notifications for mentions, reactions,
+replies, and boosts as they happen."
+  :type 'boolean
   :group 'org-social)
 
 (defcustom org-social-my-public-url nil
