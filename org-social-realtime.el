@@ -35,6 +35,12 @@
 (defvar org-social-realtime--headers-received nil
   "Whether HTTP response headers have been received and skipped.")
 
+(defvar org-social-realtime--reconnect-timer nil
+  "Timer for automatic reconnection after disconnect.")
+
+(defvar org-social-realtime--reconnect-delay 5
+  "Seconds to wait before attempting to reconnect after disconnect.")
+
 ;;; Helper functions
 
 (defun org-social-realtime--get-logo-path ()
@@ -175,7 +181,19 @@ Returns a cons cell (EVENT-TYPE . EVENT-DATA) or nil if incomplete."
   "Process sentinel for SSE connection PROC with EVENT."
   (unless (process-live-p proc)
     (message "Org Social: Real-time notifications disconnected")
-    (setq org-social-realtime--process nil)))
+    (setq org-social-realtime--process nil)
+
+    ;; Schedule automatic reconnection if enabled
+    (when (and (boundp 'org-social-realtime-notifications)
+               org-social-realtime-notifications
+               org-social-relay
+               org-social-my-public-url)
+      (message "Org Social: Reconnecting in %d seconds..." org-social-realtime--reconnect-delay)
+      (when org-social-realtime--reconnect-timer
+        (cancel-timer org-social-realtime--reconnect-timer))
+      (setq org-social-realtime--reconnect-timer
+            (run-at-time org-social-realtime--reconnect-delay nil
+                         #'org-social-realtime-connect)))))
 
 ;;; Public functions
 
@@ -184,6 +202,11 @@ Returns a cons cell (EVENT-TYPE . EVENT-DATA) or nil if incomplete."
   "Connect to the relay's SSE endpoint for real-time notifications.
 Requires `org-social-relay' and `org-social-my-public-url' to be configured."
   (interactive)
+
+  ;; Cancel any pending reconnection timer
+  (when org-social-realtime--reconnect-timer
+    (cancel-timer org-social-realtime--reconnect-timer)
+    (setq org-social-realtime--reconnect-timer nil))
 
   ;; Check requirements
   (unless (and org-social-relay org-social-my-public-url)
@@ -260,6 +283,11 @@ Requires `org-social-relay' and `org-social-my-public-url' to be configured."
 (defun org-social-realtime-disconnect ()
   "Disconnect from the relay's SSE endpoint."
   (interactive)
+  ;; Cancel any pending reconnection timer
+  (when org-social-realtime--reconnect-timer
+    (cancel-timer org-social-realtime--reconnect-timer)
+    (setq org-social-realtime--reconnect-timer nil))
+
   (when org-social-realtime--process
     (delete-process org-social-realtime--process)
     (setq org-social-realtime--process nil)
