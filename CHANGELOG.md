@@ -4,6 +4,7 @@
 
 - Improvement: `org-social-mention-user`
 - Feature: Real-time desktop notifications (optional, disabled by default via `org-social-realtime-notifications`)
+- Feature: Post preview length control with `org-social-post-preview-length` (default 400 characters). Long posts show truncated content with "Read more" button to open in thread view. Set to `nil` to disable truncation
 - Fix: Poll voting now works correctly with vfile URLs by using local cache file
 
 ## 2.7

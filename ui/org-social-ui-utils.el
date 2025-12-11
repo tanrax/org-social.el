@@ -2,7 +2,7 @@
 
 ;; SPDX-License-Identifier: GPL-3.0
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 2.7
+;; Version: 2.8
 ;; URL: https://github.com/tanrax/org-social.el
 
 ;;; Commentary:
@@ -29,7 +29,7 @@
 (declare-function org-social-parser--get-posts-from-feed "org-social-parser" (feed))
 (declare-function org-social-parser--get-value "org-social-parser" (feed key))
 (declare-function org-social-ui-thread "org-social-ui-thread" (post-url))
-(declare-function org-social-ui--post-component "org-social-ui-components" (post &optional full-timeline))
+(declare-function org-social-ui--post-component "org-social-ui-components" (post &optional full-timeline no-truncate))
 (declare-function json-read-from-string "json" (string))
 (declare-function org-ctrl-c-ctrl-c "org" (&optional arg))
 (declare-function org-table-recalculate "org-table" (&optional all noalign))
@@ -1103,6 +1103,16 @@ Each element in REPLIES-TREE is an alist with \\='post, \\='children, and \\='mo
                                                 (append children nil)
                                               children))))))
 
+(defun org-social-ui--switch-to-timeline ()
+  "Switch to timeline buffer if it exists, otherwise load timeline."
+  (interactive)
+  (let ((timeline-buffer (get-buffer org-social-ui--timeline-buffer-name)))
+    (if timeline-buffer
+        ;; Buffer exists, just switch to it
+        (switch-to-buffer timeline-buffer)
+      ;; Buffer doesn't exist, load timeline
+      (org-social-ui-timeline))))
+
 (defun org-social-ui--thread-go-back ()
   "Go back to previous thread level or timeline and kill current buffer."
   (interactive)
@@ -1122,7 +1132,7 @@ Each element in REPLIES-TREE is an alist with \\='post, \\='children, and \\='mo
       ;; If at top level, go back to timeline and clear stack
       (setq org-social-ui--thread-stack nil)
       (setq org-social-ui--thread-level 0)
-      (org-social-ui-timeline))
+      (org-social-ui--switch-to-timeline))
     ;; Always kill the buffer we came from
     (when (buffer-live-p current-buffer)
       (kill-buffer current-buffer))))

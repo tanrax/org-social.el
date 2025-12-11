@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 2.7
+;; Version: 2.8
 ;; URL: https://github.com/tanrax/org-social.el
 
 ;; This file is NOT part of GNU Emacs.
@@ -46,6 +46,15 @@ This creates a cleaner timeline view by removing the interactive buttons
 at the end of each post.  You can still use keyboard shortcuts to reply (r)
 and view profiles (P)."
   :type 'boolean
+  :group 'org-social)
+
+(defcustom org-social-post-preview-length 400
+  "Maximum number of characters to show in a post before truncating.
+If a post exceeds this length, it will be truncated and a \\'Read more\\' button
+will appear to view the full post.  Set to nil to disable truncation and
+always show full posts."
+  :type '(choice (integer :tag "Character limit")
+                 (const :tag "No limit" nil))
   :group 'org-social)
 
 (defcustom org-social-live-preview-url "https://preview.org-social.org/?post="
