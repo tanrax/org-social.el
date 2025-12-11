@@ -239,21 +239,13 @@ Requires `org-social-relay' and `org-social-my-public-url' to be configured."
 
     ;; Start network process
     (condition-case err
-        (let ((proc (if use-tls
-                        (open-network-stream
-                         "org-social-notifications"
-                         org-social-realtime--buffer
-                         host
-                         port
-                         :type 'tls
-                         :nowait nil)
-                      (make-network-process
-                       :name "org-social-notifications"
-                       :buffer org-social-realtime--buffer
-                       :host host
-                       :service port
-                       :coding 'utf-8
-                       :nowait nil))))
+        (let ((proc (open-network-stream
+                     "org-social-notifications"
+                     org-social-realtime--buffer
+                     host
+                     port
+                     :type (if use-tls 'tls 'plain)
+                     :nowait nil)))
 
           ;; Set process handlers
           (set-process-filter proc #'org-social-realtime--filter)
