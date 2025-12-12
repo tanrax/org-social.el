@@ -131,7 +131,8 @@ If START-DATE is nil, returns CONTENT unchanged."
               ;; Parse and filter posts
               (goto-char header-end)
               (let ((filtered-posts '()))
-                (while (re-search-forward "^\\*\\*.*$" nil t)
+                ;; Match only level-2 posts (** followed by non-asterisk or newline)
+                (while (re-search-forward "^\\*\\*\\($\\|[^*]\\)" nil t)
                   (let ((post-start (line-beginning-position)))
                     ;; Find post ID
                     (when (re-search-forward ":ID:\\s-*\\(.+\\)$" nil t)
@@ -141,8 +142,9 @@ If START-DATE is nil, returns CONTENT unchanged."
                         (when (and (not (string< post-id start-date))
                                    (string< post-id (format-time-string "%FT%T%z")))
                           ;; Find post end (next ** or end of buffer)
+                          ;; Use ($|[^*]) to match ** at end of line or followed by non-asterisk
                           (let ((post-end (save-excursion
-                                            (if (re-search-forward "^\\*\\*.*$" nil t)
+                                            (if (re-search-forward "^\\*\\*\\($\\|[^*]\\)" nil t)
 						(line-beginning-position)
                                               (point-max)))))
                             (push (buffer-substring-no-properties post-start post-end)
