@@ -244,15 +244,18 @@ nil otherwise."
   (if org-social-mode
       (progn
         (org-mode)
-        (add-hook 'before-save-hook #'org-social-file--before-save nil t)
+        ;; Use depth 90 to run AFTER delete-trailing-whitespace (depth 0)
+        (add-hook 'before-save-hook #'org-social-file--before-save 90 t)
         (add-hook 'after-save-hook #'org-social-file--auto-save nil t))
     (remove-hook 'before-save-hook #'org-social-file--before-save t)
     (remove-hook 'after-save-hook #'org-social-file--auto-save t)))
 
 (defun org-social-file--normalize-empty-headers ()
-  "Add a space after empty headers (**, ***, ****, etc.) in the current buffer.
-This ensures that lines containing only asterisks become properly formatted.
-For example, '**' becomes '** ', '***' becomes '*** ', etc.
+  "Add a space after empty headers (**, ***, etc.) in the current buffer.
+This ensures lines with only asterisks become properly formatted.
+For example, \\='**\\=' becomes \\='** \\=', \\='***\\=' becomes \\='*** \\='.
+This function runs with depth 90 in `before-save-hook', executing AFTER
+`delete-trailing-whitespace', ensuring the space survives.
 Does NOT save the buffer - modifications happen in memory only."
   (save-excursion
     (goto-char (point-min))
