@@ -10,6 +10,16 @@ An Emacs client for [Org Social](https://github.com/tanrax/org-social), a decent
 
 ## 🎯 Getting Started
 
+### Quick and easy start
+
+Are you new to Org Social? Follow this quick tutorial to get started without needing to know all the technical details:
+
+**[Quick Tutorial to Get Started on Org Social](https://en.andros.dev/blog/ddd78757/quick-tutorial-to-get-started-on-org-social/)**
+
+This guide will walk you through the basics in a simple, step-by-step way.
+
+---
+
 **Important note!**: The [Relay server](https://github.com/tanrax/org-social-relay/) is required for `org-social.el` to work. You can think of it as the client's backend, or software that synchronizes data. You can use:
 
 - [Official instance](https://relay.org-social.org/)
@@ -96,6 +106,47 @@ To use the old version 1, you need to use the `v1` branch:
   :vc ( :url "https://github.com/tanrax/org-social.el"
         :rev "v1"))
 ```
+
+#### Complete setup example
+
+If you want a minimal working configuration to get started quickly, add this to your init.el:
+
+```elisp
+;; Configure package archives
+(require 'package)
+(add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
+(package-initialize)
+
+;; Install use-package if not already installed
+(unless (package-installed-p 'use-package)
+  (package-refresh-contents)
+  (package-install 'use-package))
+
+(require 'use-package)
+(setq use-package-always-ensure t)
+
+;; Install dependencies and org-social
+(use-package request)
+(use-package emojify)
+
+(use-package org-social
+  :config
+  ;; Option 1: Local file + your own hosting
+  (setq org-social-file "~/social.org")
+  (setq org-social-relay "https://relay.org-social.org/")
+  (setq org-social-my-public-url "https://example.com/social.org")
+
+  ;; Option 2: Using Org Social Host (uncomment and use your credentials)
+  ;; (setq org-social-file "http://host.org-social.org/vfile?token=YOUR_TOKEN&ts=TIMESTAMP&sig=SIGNATURE")
+  ;; (setq org-social-relay "https://relay.org-social.org/")
+  ;; (setq org-social-my-public-url "http://host.org-social.org/your-nick/social.org")
+
+  ;; Optional: Add global keybindings
+  (keymap-global-set "C-c s t" #'org-social-timeline)
+  (keymap-global-set "C-c s n" #'org-social-new-post))
+```
+
+After adding this configuration, restart Emacs or evaluate the code. Then use `M-x org-social-timeline` to get started.
 
 #### Update version
 
