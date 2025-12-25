@@ -72,15 +72,23 @@ M-x package-install RET org-social RET
 
 ### use-package
 
-#### Stable release
-
-Add the following to your Emacs config:
+**Note:** Make sure you have MELPA configured in your Emacs. If not, add this to your init.el:
 
 ```elisp
-(use-package request)
+(require 'package)
+(add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
+(package-initialize)
+```
+
+#### Stable release
+
+Install from MELPA with use-package:
+
+```elisp
+(use-package request
+  :ensure t)
 (use-package org-social
-  :vc ( :url "https://github.com/tanrax/org-social.el"
-        :rev :newest))
+  :ensure t)
 ```
 
 #### Development version
