@@ -8,116 +8,17 @@ An Emacs client for [Org Social](https://github.com/tanrax/org-social), a decent
 ![Screenshot groups](screenshots/screenshot-4.png)
 ![Screenshot poll](screenshots/screenshot-5.png)
 
-## 🎯 Getting Started
+## 🚀 Quick Start
 
-### Quick and easy start
+### New to Org Social?
 
-Are you new to Org Social? Follow this quick tutorial to get started without needing to know all the technical details:
+Follow this quick tutorial to get started without needing to know all the technical details:
 
 **[Quick Tutorial to Get Started on Org Social](https://en.andros.dev/blog/ddd78757/quick-tutorial-to-get-started-on-org-social/)**
 
-This guide will walk you through the basics in a simple, step-by-step way.
+### Complete Setup Example
 
----
-
-**Important note!**: The [Relay server](https://github.com/tanrax/org-social-relay/) is required for `org-social.el` to work. You can think of it as the client's backend, or software that synchronizes data. You can use:
-
-- [Official instance](https://relay.org-social.org/)
-- [unofficial instances](https://raw.githubusercontent.com/tanrax/org-social/refs/heads/main/org-social-relay-list.txt)
-- A [Relay instance](https://github.com/tanrax/org-social-relay/) on your local machine.
-
-It is your decision.
-
-### Required Configuration
-
-**Option 1: Local file + Your own hosting**
-
-1. Create your [social.org](https://github.com/tanrax/org-social) file
-2. Upload it to a web server so others can access it
-3. Configure org-social.el with the required settings:
-
-```elisp
-(setq org-social-file "~/social.org")  ;; Path to your local file
-(setq org-social-relay "https://relay.org-social.org/")  ;; Relay server
-(setq org-social-my-public-url "https://example.com/social.org")  ;; Your public URL
-```
-
-**Option 2: Using Org Social Host (simplified hosting)**
-
-If you don't have your own web server, you can use [Org Social Host](https://github.com/tanrax/org-social-host) for automatic hosting:
-
-1. Sign up at the [public host](https://host.org-social.org/signup) to get your `vfile URL` and `public URL`
-2. Configure org-social.el with:
-
-```elisp
-(setq org-social-file "http://host.org-social.org/vfile?token=YOUR_TOKEN&ts=TIMESTAMP&sig=SIGNATURE")
-(setq org-social-relay "https://relay.org-social.org/")
-(setq org-social-my-public-url "http://host.org-social.org/your-nick/social.org")
-```
-
-### Basic Usage
-
-- View timeline: `M-x org-social-timeline`
-- Create new post: `M-x org-social-new-post`
-- Reply to posts in timeline: Press `r` on a post
-- Interact with the entire community through the relay server
-
-## 📦 Installation
-
-### MELPA
-
-```
-M-x package-install RET org-social RET
-```
-
-### use-package
-
-**Note:** Make sure you have MELPA configured in your Emacs. If not, add this to your init.el:
-
-```elisp
-(require 'package)
-(add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
-(package-initialize)
-```
-
-#### Stable release
-
-Install from MELPA with use-package:
-
-```elisp
-(use-package request
-  :ensure t)
-(use-package org-social
-  :ensure t)
-```
-
-#### Development version
-
-You can install the development version from the `develop` branch.
-
-Add the following to your Emacs config:
-
-```elisp
-(use-package request)
-(use-package org-social
-  :vc ( :url "https://github.com/tanrax/org-social.el"
-        :rev "develop"))
-```
-
-#### Old version (v1)
-
-To use the old version 1, you need to use the `v1` branch:
-
-```elisp
-(use-package request)
-(use-package org-social
-  :vc ( :url "https://github.com/tanrax/org-social.el"
-        :rev "v1"))
-```
-
-#### Complete setup example
-
-If you want a minimal working configuration to get started quickly, add this to your init.el:
+If you want a minimal working configuration, add this to your `init.el`:
 
 ```elisp
 ;; Configure package archives
@@ -154,7 +55,68 @@ If you want a minimal working configuration to get started quickly, add this to 
   (keymap-global-set "C-c s n" #'org-social-new-post))
 ```
 
-After adding this configuration, restart Emacs or evaluate the code. Then use `M-x org-social-timeline` to get started.
+After adding this configuration, restart Emacs or evaluate the code.
+
+### First Steps
+
+Once installed and configured:
+
+- **View timeline**: `M-x org-social-timeline` or `C-c s t`
+- **Create new post**: `M-x org-social-new-post` or `C-c s n`
+- **Navigate posts**: Press `n` (next) / `p` (previous) in the timeline
+- **Reply to posts**: Press `r` on a post in the timeline
+- **Discover users**: Press `D` to browse and follow users from the relay
+
+## 📦 Installation
+
+### MELPA
+
+```
+M-x package-install RET org-social RET
+```
+
+### use-package
+
+**Note:** Make sure you have MELPA configured in your Emacs. If not, add this to your init.el:
+
+```elisp
+(require 'package)
+(add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
+(package-initialize)
+```
+
+#### Stable release
+
+Install from MELPA with use-package:
+
+```elisp
+(use-package request
+  :ensure t)
+(use-package org-social
+  :ensure t)
+```
+
+#### Development version
+
+Install the development version from the `develop` branch:
+
+```elisp
+(use-package request)
+(use-package org-social
+  :vc (:url "https://github.com/tanrax/org-social.el"
+       :rev "develop"))
+```
+
+#### Old version (v1)
+
+To use the old version 1, use the `v1` branch:
+
+```elisp
+(use-package request)
+(use-package org-social
+  :vc (:url "https://github.com/tanrax/org-social.el"
+       :rev "v1"))
+```
 
 #### Update version
 
@@ -164,15 +126,25 @@ M-x package-reinstall RET org-social RET restart-emacs RET
 
 ## ⚙️ Configuration
 
-### Required
+**Important**: The [Relay server](https://github.com/tanrax/org-social-relay/) is required for org-social.el to work. You can think of it as the client's backend, or software that synchronizes data. You can use:
 
-#### Single Account Configuration
+- [Official instance](https://relay.org-social.org/)
+- [Unofficial instances](https://raw.githubusercontent.com/tanrax/org-social/refs/heads/main/org-social-relay-list.txt)
+- A [Relay instance](https://github.com/tanrax/org-social-relay/) on your local machine
 
-**Option 1: Local File**
+### Required Configuration
+
+#### Single Account
+
+**Option 1: Local File + Your Own Hosting**
+
+1. Create your [social.org](https://github.com/tanrax/org-social) file
+2. Upload it to a web server so others can access it
+3. Configure org-social.el:
 
 ```elisp
 ;; Required: Set the path to your social feed file
-(setq org-social-file "~/my-social-feed.org")
+(setq org-social-file "~/social.org")
 
 ;; Required: Configure Org Social Relay server
 ;; See public relay list: https://github.com/tanrax/org-social/blob/main/org-social-relay-list.txt
@@ -184,7 +156,10 @@ M-x package-reinstall RET org-social RET restart-emacs RET
 
 **Option 2: Using vfile (Org Social Host)**
 
-If you're using [Org Social Host](https://github.com/tanrax/org-social-host), you can use a vfile URL instead of a local file path. The client will automatically download and sync your file with the host.
+If you don't have your own web server, you can use [Org Social Host](https://github.com/tanrax/org-social-host) for automatic hosting:
+
+1. Sign up at the [public host](https://host.org-social.org/signup) to get your `vfile URL` and `public URL`
+2. Configure org-social.el:
 
 ```elisp
 ;; Use your vfile URL from the host signup
@@ -235,8 +210,6 @@ org-social.el supports multiple accounts, allowing you to manage different socia
 ```
 
 **Using vfiles (Org Social Host):**
-
-You can also use vfile URLs for multi-account setups. Each account will have its own cache file:
 
 ```elisp
 (require 'org-social-accounts)
@@ -309,7 +282,13 @@ When using vfiles with multi-account:
 (keymap-global-set "C-c s m" #'org-social-mention-user)
 ```
 
-### ⚠️ Known Limitations with hosting platforms
+You can also customize variables through Emacs' customization interface:
+
+```
+M-x customize-group RET org-social RET
+```
+
+### Known Limitations with Hosting Platforms
 
 The optimized partial download feature (`org-social-max-post-age-days`) works best with traditional web servers. Some hosting platforms have limitations:
 
@@ -329,154 +308,22 @@ The optimized partial download feature (`org-social-max-post-age-days`) works be
 
 For best performance with partial downloads, host your `social.org` file on a traditional web server (Apache, Nginx, etc.) or GitHub/GitLab raw content URLs. The client handles all cases gracefully with automatic fallbacks.
 
-## Customization Variables
+## 📖 Usage
 
-| Variable | Description | Default | Required | Type |
-|----------|-------------|---------|----------|------|
-| `org-social-file` | Path to your Org-social feed file | `"~/social.org"` | ✅ | `file` |
-| `org-social-relay` | URL of the Org Social Relay server for registering your feed and discovering mentions, replies, and social interactions. | `"https://relay.org-social.org"` | ✅ | `string` |
-| `org-social-my-public-url` | Public URL of your social.org file where others can access your feed. | `nil` | ✅ | `string` |
-| `org-social-hide-post-buttons` | Hide Reply, Vote, and Profile buttons from timeline posts for a cleaner view. Keyboard shortcuts still work. | `nil` | ❌ | `boolean` |
-| `org-social-post-preview-length` | Maximum number of characters to show in a post before truncating. If a post exceeds this length, it will be truncated and a "Read more" button will appear to open the full post in thread view. Set to `nil` to disable truncation and always show full posts. | `400` | ❌ | `integer` or `nil` |
-| `org-social-live-preview-url` | Base URL for live post previews. When set, a Share button appears in post buttons that opens the post preview in the system browser with URL-encoded post URL. Set to `nil` to hide the Share button. | `"https://preview.org-social.org/?post="` | ❌ | `string` |
-| `org-social-only-relay-followers-p` | When non-nil, use only feeds from the relay server. Requires relay configuration. | `nil` | ❌ | `boolean` |
-| `org-social-default-lang` | Default language code for new posts and polls. When set, automatically fills the `:LANG:` property with a two-letter ISO 639-1 language code (e.g., "en", "es", "fr"). When `nil` or empty string, the `:LANG:` field remains empty. | `nil` | ❌ | `string` |
-| `org-social-max-post-age-days` | Maximum age of posts to fetch from feeds, in days. Uses optimized partial downloads with HTTP Range requests (saves up to 89% bandwidth). Each feed is downloaded in a separate thread for parallel execution without blocking Emacs. For servers supporting Range requests (87.5%), only recent posts are downloaded. For others, the full feed is downloaded and filtered. Set to `nil` to disable filtering and download all posts. | `14` | ❌ | `integer` or `nil` |
-| `org-social-max-concurrent-downloads` | Maximum number of concurrent feed downloads. When loading the timeline, feeds are downloaded in parallel. This setting limits simultaneous downloads to avoid overwhelming system resources or triggering rate limits on remote servers. Recommended range: 10-30. Higher values = faster but more resource intensive. | `20` | ❌ | `integer` |
-| `org-social-language-filter` | List of language codes to filter timeline posts. Only posts with `:LANG:` property matching these codes will be shown. When `nil`, all posts are shown regardless of language. Posts without a `:LANG:` property or with empty `:LANG:` are hidden when filter is active. Uses ISO 639-1 two-letter language codes. | `nil` | ❌ | `list` of `string` or `nil` |
+### Workflow
 
-You can customize these variables through Emacs' customization interface:
+1. **Setup**: Configure `org-social-file`, `org-social-relay`, and `org-social-my-public-url`
+2. **View timeline**: Use `M-x org-social-timeline` or `C-c s t`
+3. **Navigate**: Use `n`/`p` to move between posts in the timeline
+4. **Reply**: Press `r` when positioned on a post to create a reply
+5. **Vote on polls**: Press `v` when positioned on a poll to vote
+6. **Create posts**: Use `M-x org-social-new-post` or `C-c s n`
+7. **Create polls**: Use `M-x org-social-new-poll` or `C-c s p`
+8. **Save and sync**: Use `C-x C-s` to save with hooks
 
-```elisp
-M-x customize-group RET org-social RET
-```
+### Keybindings
 
-## 🔧 Functions
-
-### Account Management
-
-#### `org-social-add-account`
-
-Register a new Org Social account with a name and properties.
-
-**Required properties:**
-- `:file` - Path to the social.org file for this account
-
-**Optional properties:**
-- `:relay` - Relay server URL
-- `:public-url` - Public URL where your feed is accessible
-- `:after-save-file-hook` - Function to run after saving the file
-- `:after-fetch-posts-hook` - Function to run after fetching posts
-
-#### `org-social-switch-account`
-
-Switch to a different Org Social account. You can call this interactively with `M-x org-social-switch-account` and select from your configured accounts.
-
-#### `org-social-list-accounts`
-
-Return a list of all registered account names.
-
-#### `org-social-remove-account`
-
-Remove an account from the registry. If you remove the currently active account, org-social.el will switch to backward-compatible mode using global variables.
-
-### Timeline and Posts
-
-#### `org-social-timeline`
-
-Downloads feeds from people you follow and displays a unified timeline with enhanced navigation and reply functionality. The timeline follows the Org Social specification including:
-- Proper `* Posts` section with post metadata
-- `:PROPERTIES:` drawers with metadata (ID, LANG, TAGS, CLIENT, MOOD, etc.)
-- Author information as comments
-- Original content preservation with multiline support
-
-#### `org-social-new-post`
-
-Make a new post in your social feed.
-
-#### `org-social-new-poll`
-
-Create a new poll in your Org-social feed.
-
-#### `org-social-new-migration`
-
-Create a migration post to notify followers that your feed has moved to a new URL. This function prompts for:
-- Old URL: The previous location of your social.org file
-- New URL: The new location where your social.org file is hosted
-
-**Automatic Migration Processing:**
-
-org-social.el automatically detects and processes migrations in two scenarios:
-
-1. **Local migrations** - When you open your social.org file or view the timeline, the latest migration post in YOUR file is detected and applied
-2. **Remote migrations** - When downloading feeds from followers, if someone has migrated their URL, org-social.el automatically updates all references in your social.org file
-
-This includes updating:
-- `#+FOLLOW:` entries
-- `:REPLY_TO:` properties
-- `:INCLUDE:` properties (boosts)
-- Mention links `[[org-social:...]]`
-
-**Important notes:**
-- Only the most recent migration (based on timestamp) from each feed is processed
-- Remote migrations are only applied if the feed's URL matches the old URL in the migration post
-- Your social.org file is automatically saved after applying remote migrations
-- You'll see a message indicating how many updates were made
-
-**Example migration post**:
-```org
-**
-:PROPERTIES:
-:ID: 2025-11-23T12:15:04+0100
-:CLIENT: org-social.el
-:MIGRATION: https://old-site.com/social.org https://new-site.com/social.org
-:END:
-```
-
-#### `org-social-mention-user`
-
-Insert a mention of a user in your post.
-
-#### `org-social-check-relay-mentions`
-
-Check and display mentions from the relay server in a separate buffer. Only works when relay is configured.
-
-#### `org-social-discover`
-
-Browse and follow users from the relay server. Opens a buffer showing all users registered in the relay with their avatars, descriptions, and follow/unfollow buttons. Allows you to:
-- View all users from the relay with their profile information
-- Follow new users with the "+ Follow" button
-- Unfollow existing users with the "− Unfollow" button
-- View user profiles with the "👤 Profile" button
-- Automatically updates your social.org file when you follow/unfollow users
-
-#### `org-social-validate-file`
-
-Verifies that your file has the correct structure.
-
-#### `org-social-open-file`
-
-Open the Org-social feed file and enable org-social-mode.
-
-#### `org-social-setup`
-
-Set up Org-social for first-time use.
-
-#### `org-social-reply-to-post`
-
-Creates a reply to a post in the timeline (available when viewing the timeline).
-
-#### `org-social-view-profile`
-
-View the profile of the post author at current position (available when viewing the timeline).
-
-#### `org-social-save-file`
-
-Save the current Org-social file and run associated hooks.
-
-## ⌨️ Keybindings
-
-### In the timeline buffer
+#### In the timeline buffer
 
 | Keybinding | Function | Description |
 |------------|----------|-------------|
@@ -496,7 +343,7 @@ Save the current Org-social file and run associated hooks.
 | `b`        | Kill buffer | Close the current buffer |
 | `q`        | Quit | Quit Org Social UI |
 
-### In post content (Interactive Org Mode)
+#### In post content (Interactive Org Mode)
 
 When your cursor is positioned in the content area of a post, you can use Org mode commands:
 
@@ -506,11 +353,9 @@ When your cursor is positioned in the content area of a post, you can use Org mo
 | `C-c *`       | org-table-recalculate | Force recalculation of table formulas |
 | `C-c C-v C-e` | org-babel-execute-src-block | Execute source code block |
 
-## 🧮 Interactive Org Mode Content
+### Interactive Org Mode Features
 
 Posts in org-social.el support **interactive Org mode features**, allowing tables with formulas, executable code blocks, and other dynamic content to work directly in the timeline and thread views.
-
-### Supported Features
 
 #### Tables with Formulas
 
@@ -571,12 +416,137 @@ All standard Org mode formatting works in posts:
 - Links: `[[url][description]]`
 - Lists, checkboxes, and more
 
-### Current Limitations
+#### Current Limitations
 
 - TAB-based folding is not fully implemented yet
 - Some advanced Org features may not work perfectly in the widget context
 
-## 🪝 Hooks
+## 🔧 Reference
+
+### Functions
+
+#### Account Management
+
+##### `org-social-add-account`
+
+Register a new Org Social account with a name and properties.
+
+**Required properties:**
+- `:file` - Path to the social.org file for this account
+
+**Optional properties:**
+- `:relay` - Relay server URL
+- `:public-url` - Public URL where your feed is accessible
+- `:after-save-file-hook` - Function to run after saving the file
+- `:after-fetch-posts-hook` - Function to run after fetching posts
+
+##### `org-social-switch-account`
+
+Switch to a different Org Social account. You can call this interactively with `M-x org-social-switch-account` and select from your configured accounts.
+
+##### `org-social-list-accounts`
+
+Return a list of all registered account names.
+
+##### `org-social-remove-account`
+
+Remove an account from the registry. If you remove the currently active account, org-social.el will switch to backward-compatible mode using global variables.
+
+#### Timeline and Posts
+
+##### `org-social-timeline`
+
+Downloads feeds from people you follow and displays a unified timeline with enhanced navigation and reply functionality. The timeline follows the Org Social specification including:
+- Proper `* Posts` section with post metadata
+- `:PROPERTIES:` drawers with metadata (ID, LANG, TAGS, CLIENT, MOOD, etc.)
+- Author information as comments
+- Original content preservation with multiline support
+
+##### `org-social-new-post`
+
+Make a new post in your social feed.
+
+##### `org-social-new-poll`
+
+Create a new poll in your Org-social feed.
+
+##### `org-social-new-migration`
+
+Create a migration post to notify followers that your feed has moved to a new URL. This function prompts for:
+- Old URL: The previous location of your social.org file
+- New URL: The new location where your social.org file is hosted
+
+**Automatic Migration Processing:**
+
+org-social.el automatically detects and processes migrations in two scenarios:
+
+1. **Local migrations** - When you open your social.org file or view the timeline, the latest migration post in YOUR file is detected and applied
+2. **Remote migrations** - When downloading feeds from followers, if someone has migrated their URL, org-social.el automatically updates all references in your social.org file
+
+This includes updating:
+- `#+FOLLOW:` entries
+- `:REPLY_TO:` properties
+- `:INCLUDE:` properties (boosts)
+- Mention links `[[org-social:...]]`
+
+**Important notes:**
+- Only the most recent migration (based on timestamp) from each feed is processed
+- Remote migrations are only applied if the feed's URL matches the old URL in the migration post
+- Your social.org file is automatically saved after applying remote migrations
+- You'll see a message indicating how many updates were made
+
+**Example migration post**:
+```org
+**
+:PROPERTIES:
+:ID: 2025-11-23T12:15:04+0100
+:CLIENT: org-social.el
+:MIGRATION: https://old-site.com/social.org https://new-site.com/social.org
+:END:
+```
+
+##### `org-social-mention-user`
+
+Insert a mention of a user in your post.
+
+##### `org-social-check-relay-mentions`
+
+Check and display mentions from the relay server in a separate buffer. Only works when relay is configured.
+
+##### `org-social-discover`
+
+Browse and follow users from the relay server. Opens a buffer showing all users registered in the relay with their avatars, descriptions, and follow/unfollow buttons. Allows you to:
+- View all users from the relay with their profile information
+- Follow new users with the "+ Follow" button
+- Unfollow existing users with the "− Unfollow" button
+- View user profiles with the "👤 Profile" button
+- Automatically updates your social.org file when you follow/unfollow users
+
+##### `org-social-validate-file`
+
+Verifies that your file has the correct structure.
+
+##### `org-social-open-file`
+
+Open the Org-social feed file and enable org-social-mode.
+
+##### `org-social-setup`
+
+Set up Org-social for first-time use.
+
+##### `org-social-reply-to-post`
+
+Creates a reply to a post in the timeline (available when viewing the timeline).
+
+##### `org-social-view-profile`
+
+View the profile of the post author at current position (available when viewing the timeline).
+
+##### `org-social-save-file`
+
+Save the current Org-social file and run associated hooks.
+
+### Hooks
 
 You can use the following hooks to perform additional actions automatically:
 
@@ -585,7 +555,7 @@ You can use the following hooks to perform additional actions automatically:
 | `org-social-after-save-file-hook` | Runs after saving the social file. Useful for automating tasks like uploading to a remote server or syncing with other services. |
 | `org-social-after-fetch-posts-hook` | Runs after all feeds have been fetched and processed. |
 
-### Global Hooks (Single Account Mode)
+#### Global Hooks (Single Account Mode)
 
 For traditional single-account configuration, you can add hooks globally:
 
@@ -599,7 +569,7 @@ For traditional single-account configuration, you can add hooks globally:
              nil 0)))
 ```
 
-### Per-Account Hooks (Multi-Account Mode)
+#### Per-Account Hooks (Multi-Account Mode)
 
 When using multi-account configuration, you can specify hooks for each account individually:
 
@@ -627,16 +597,21 @@ When using multi-account configuration, you can specify hooks for each account i
                                                     :body "New blog posts available")))
 ```
 
-## 🔄 Workflow
+### Customization Variables
 
-1. **Setup**: Configure `org-social-file` and create your social.org file
-2. **View timeline**: Use `M-x org-social-timeline` or `C-c s t`
-3. **Navigate**: Use `n`/`p` to move between posts in the timeline
-4. **Reply**: Press `r` when positioned on a post to create a reply
-5. **Vote on polls**: Press `v` when positioned on a poll to vote
-6. **Create posts**: Use `M-x org-social-new-post` or `C-c s n`
-7. **Create polls**: Use `M-x org-social-new-poll` or `C-c s p`
-8. **Save and sync**: Use `C-x C-s` to save with hooks
+| Variable | Description | Default | Required | Type |
+|----------|-------------|---------|----------|------|
+| `org-social-file` | Path to your Org-social feed file | `"~/social.org"` | ✅ | `file` |
+| `org-social-relay` | URL of the Org Social Relay server for registering your feed and discovering mentions, replies, and social interactions. | `"https://relay.org-social.org"` | ✅ | `string` |
+| `org-social-my-public-url` | Public URL of your social.org file where others can access your feed. | `nil` | ✅ | `string` |
+| `org-social-hide-post-buttons` | Hide Reply, Vote, and Profile buttons from timeline posts for a cleaner view. Keyboard shortcuts still work. | `nil` | ❌ | `boolean` |
+| `org-social-post-preview-length` | Maximum number of characters to show in a post before truncating. If a post exceeds this length, it will be truncated and a "Read more" button will appear to open the full post in thread view. Set to `nil` to disable truncation and always show full posts. | `400` | ❌ | `integer` or `nil` |
+| `org-social-live-preview-url` | Base URL for live post previews. When set, a Share button appears in post buttons that opens the post preview in the system browser with URL-encoded post URL. Set to `nil` to hide the Share button. | `"https://preview.org-social.org/?post="` | ❌ | `string` |
+| `org-social-only-relay-followers-p` | When non-nil, use only feeds from the relay server. Requires relay configuration. | `nil` | ❌ | `boolean` |
+| `org-social-default-lang` | Default language code for new posts and polls. When set, automatically fills the `:LANG:` property with a two-letter ISO 639-1 language code (e.g., "en", "es", "fr"). When `nil` or empty string, the `:LANG:` field remains empty. | `nil` | ❌ | `string` |
+| `org-social-max-post-age-days` | Maximum age of posts to fetch from feeds, in days. Uses optimized partial downloads with HTTP Range requests (saves up to 89% bandwidth). Each feed is downloaded in a separate thread for parallel execution without blocking Emacs. For servers supporting Range requests (87.5%), only recent posts are downloaded. For others, the full feed is downloaded and filtered. Set to `nil` to disable filtering and download all posts. | `14` | ❌ | `integer` or `nil` |
+| `org-social-max-concurrent-downloads` | Maximum number of concurrent feed downloads. When loading the timeline, feeds are downloaded in parallel. This setting limits simultaneous downloads to avoid overwhelming system resources or triggering rate limits on remote servers. Recommended range: 10-30. Higher values = faster but more resource intensive. | `20` | ❌ | `integer` |
+| `org-social-language-filter` | List of language codes to filter timeline posts. Only posts with `:LANG:` property matching these codes will be shown. When `nil`, all posts are shown regardless of language. Posts without a `:LANG:` property or with empty `:LANG:` are hidden when filter is active. Uses ISO 639-1 two-letter language codes. | `nil` | ❌ | `list` of `string` or `nil` |
 
 ## 📄 License
 
