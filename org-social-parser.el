@@ -211,9 +211,9 @@ Validates format according to specification - ignores invalid values."
                                   (cons 'text text))))
 
                   ;; Extract only official properties according to Org Social specification
-                  ;; Official properties: LANG, TAGS, CLIENT, REPLY_TO, POLL_END, POLL_OPTION, GROUP, MOOD, INCLUDE
+                  ;; Official properties: LANG, TAGS, CLIENT, REPLY_TO, POLL_END, POLL_OPTION, GROUP, MOOD, INCLUDE, VISIBILITY
                   (dolist (prop '("LANG" "TAGS" "CLIENT" "REPLY_TO" "POLL_END"
-                                  "POLL_OPTION" "GROUP" "MOOD" "INCLUDE"))
+                                  "POLL_OPTION" "GROUP" "MOOD" "INCLUDE" "VISIBILITY"))
                     (let ((value (org-social-parser--extract-property properties-text prop)))
                       (when value
                         (setq post-data (cons (cons (intern (downcase prop)) value) post-data)))))
@@ -254,6 +254,10 @@ Returns t if valid, nil if invalid (should be ignored)."
    ((member prop-name '("CLIENT" "POLL_OPTION" "MOOD"))
     (and (< (length value) 200)  ; Reasonable length limit
          (null (string-match-p "[\n\r]" value))))  ; No newlines
+   ;; VISIBILITY must be either "public" or "mention"
+   ((string= prop-name "VISIBILITY")
+    (or (string= value "public")
+        (string= value "mention")))
    ;; Default: accept other properties
    (t t)))
 
@@ -263,6 +267,18 @@ Accepts formats: ####-##-##T##:##:##+##:## or ####-##-##T##:##:##-####"
   (when (stringp id)
     (or (string-match-p "^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}[+-][0-9]\{2\}:[0-9]\{2\}$" id)
         (string-match-p "^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}T[0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\}[+-][0-9]\{4\}$" id))))
+
+(defun org-social-parser--extract-mentioned-urls (text)
+  "Extract all org-social URLs mentioned in TEXT.
+Returns a list of URLs from [[org-social:URL][name]] links."
+  (when (stringp text)
+    (let ((urls '())
+          (pos 0))
+      (while (string-match "\\[\\[org-social:\\([^]]+\\)\\]\\[\\([^]]+\\)\\]\\]" text pos)
+        (let ((url (match-string 1 text)))
+          (push url urls)
+          (setq pos (match-end 0))))
+      (reverse urls))))
 
 (provide 'org-social-parser)
 ;;; org-social-parser.el ends here
