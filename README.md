@@ -318,8 +318,37 @@ For best performance with partial downloads, host your `social.org` file on a tr
 4. **Reply**: Press `r` when positioned on a post to create a reply
 5. **Vote on polls**: Press `v` when positioned on a poll to vote
 6. **Create posts**: Use `M-x org-social-new-post` or `C-c s n`
+   - When creating a new post, you'll be prompted to choose visibility:
+     - **public** (default): Post visible to everyone
+     - **mention**: Post only visible to you and users you mention with `[[org-social:URL][username]]` links
 7. **Create polls**: Use `M-x org-social-new-poll` or `C-c s p`
 8. **Save and sync**: Use `C-x C-s` to save with hooks
+
+### Post Visibility Control
+
+org-social.el supports the VISIBILITY property from Org Social specification v1.5, allowing you to control who can see your posts:
+
+- **Public posts** (default): Visible to everyone in their timeline
+- **Mention-only posts**: Only visible to the post author and mentioned users
+
+When creating a new post, you'll be prompted to choose the visibility level. If you select "mention", the post will include the `VISIBILITY:mention` property and will only appear in the timeline for:
+- You (the post author)
+- Users mentioned in the post body via `[[org-social:URL][username]]` links
+
+**Note**: This is a UI display preference for clients, not a security feature. Your `social.org` file remains publicly accessible. For true privacy, use HTTP authentication on your web server.
+
+**Example mention-only post**:
+```org
+**
+:PROPERTIES:
+:ID: 2025-12-29T15:30:00+0100
+:VISIBILITY: mention
+:END:
+
+Hey [[org-social:https://alice.com/social.org][Alice]] and [[org-social:https://bob.org/social.org][Bob]], what do you think about this idea?
+```
+
+This post will only be visible to you, Alice, and Bob.
 
 ### Keybindings
 
