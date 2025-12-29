@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 2.8
+;; Version: 2.9
 ;; URL: https://github.com/tanrax/org-social.el
 
 ;; This file is NOT part of GNU Emacs.
@@ -306,10 +306,11 @@ Does NOT save the buffer - modifications happen in memory only."
     (insert "\n* Posts")
     (point)))
 
-(defun org-social-file--insert-post-template (&optional reply-url reply-id group-context)
+(defun org-social-file--insert-post-template (&optional reply-url reply-id group-context visibility)
   "Insert a new post template at the current position.
 If REPLY-URL and REPLY-ID are provided, create a reply post.
-If GROUP-CONTEXT is provided, add GROUP property to the post."
+If GROUP-CONTEXT is provided, add GROUP property to the post.
+If VISIBILITY is \"mention\", add VISIBILITY property to the post."
   (let ((timestamp (org-social-parser--generate-timestamp))
         (lang-value (if (and (boundp 'org-social-default-lang)
                              org-social-default-lang
@@ -349,6 +350,9 @@ If GROUP-CONTEXT is provided, add GROUP property to the post."
             (relay-url (alist-get 'relay-url group-context)))
         (when (and group-name relay-url)
           (insert (format ":GROUP: %s %s\n" group-name relay-url)))))
+    ;; Add VISIBILITY property if visibility is "mention"
+    (when (and visibility (string= visibility "mention"))
+      (insert ":VISIBILITY: mention\n"))
     (insert ":MOOD: \n")
     (insert ":END:\n\n")
     (goto-char (point-max))))
@@ -497,20 +501,28 @@ If REPLY-URL and REPLY-ID are provided, create a reply post.
 If GROUP-CONTEXT is provided, add GROUP property to the post."
   (let ((target-file (if (org-social-file--is-vfile-p org-social-file)
                          (org-social-file--get-local-file-path org-social-file)
-                       org-social-file)))
+                       org-social-file))
+        (visibility nil))
     (unless (and (buffer-file-name)
                  (string= (expand-file-name (buffer-file-name))
                           (expand-file-name target-file)))
-      (org-social-file--open)))
-  (save-excursion
-    (org-social-file--find-posts-section)
+      (org-social-file--open))
+    ;; Ask for visibility only if it's a new post (not a reply or group post)
+    (when (and (not reply-url) (not group-context))
+      (let ((choice (completing-read "Post visibility: "
+                                     '("public" "mention")
+                                     nil t nil nil "public")))
+        (when (string= choice "mention")
+          (setq visibility "mention"))))
+    (save-excursion
+      (org-social-file--find-posts-section)
+      (goto-char (point-max))
+      (org-social-file--insert-post-template reply-url reply-id group-context visibility))
     (goto-char (point-max))
-    (org-social-file--insert-post-template reply-url reply-id group-context))
-  (goto-char (point-max))
-  ;; Validate file after adding post
-  (when (fboundp 'org-social-validator-validate-and-display)
-    (require 'org-social-validator)
-    (org-social-validator-validate-and-display)))
+    ;; Validate file after adding post
+    (when (fboundp 'org-social-validator-validate-and-display)
+      (require 'org-social-validator)
+      (org-social-validator-validate-and-display))))
 
 (defun org-social-file--new-poll ()
   "Create a new poll in your Org-social feed.

@@ -1,5 +1,15 @@
 # 📝 Changelog
 
+## 2.9
+
+- Feature: VISIBILITY property support (Org Social specification v1.5)
+  - Posts can now have `VISIBILITY:mention` to restrict visibility to mentioned users
+  - When creating a new post, the user is prompted to choose between "public" or "mention" visibility
+  - Posts with `VISIBILITY:mention` are only visible to the post author and users mentioned via `[[org-social:URL][name]]` links
+  - Posts with GROUP property ignore VISIBILITY (always visible to group members)
+  - New `org-social-parser--extract-mentioned-urls` function to extract mentions from post body
+  - New `org-social-feed--should-show-post` function to filter posts by visibility in timeline
+
 ## 2.8
 
 - Improvement: `org-social-mention-user`
