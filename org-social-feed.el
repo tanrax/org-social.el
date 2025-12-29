@@ -46,6 +46,9 @@
 ;; Declare functions from org-social-relay
 (declare-function org-social-relay--fetch-feeds "org-social-relay" (callback))
 
+;; Declare functions from org-social-parser
+(declare-function org-social-parser--extract-mentioned-urls "org-social-parser" (text))
+
 ;; Declare variables to avoid compilation warnings
 (defvar org-social-max-post-age-days)
 (defvar org-social-max-concurrent-downloads)
@@ -346,6 +349,37 @@ When a download completes, the next pending item is automatically started."
       (message "All feeds downloaded!")
       (run-hooks 'org-social-after-fetch-posts-hook))))
 
+(defun org-social-feed--should-show-post (post)
+  "Determine if POST should be visible to the current user.
+Returns t if the post should be shown, nil otherwise.
+According to Org Social specification v1.5:
+- Posts without VISIBILITY property are public (always visible)
+- Posts with VISIBILITY:public are always visible
+- Posts with VISIBILITY:mention are only visible if:
+  * The user is the author, OR
+  * The user is mentioned in the post body
+- Posts with GROUP property ignore VISIBILITY (always visible to group members)"
+  (let ((visibility (alist-get 'visibility post))
+        (author-url (alist-get 'author-url post))
+        (text (alist-get 'text post))
+        (group (alist-get 'group post))
+        (my-url (alist-get 'url org-social-variables--my-profile)))
+    ;; Posts with GROUP property ignore VISIBILITY
+    (if group
+        t
+      ;; If no VISIBILITY property or VISIBILITY is "public", show the post
+      (if (or (not visibility)
+              (string= visibility "public"))
+          t
+        ;; If VISIBILITY is "mention", check if we're the author or mentioned
+        (when (string= visibility "mention")
+          (or
+           ;; We are the author
+           (and my-url author-url (string= my-url author-url))
+           ;; We are mentioned in the post body
+           (and my-url text
+                (member my-url (org-social-parser--extract-mentioned-urls text)))))))))
+
 (defun org-social-feed--get-timeline ()
   "Get all posts from all feeds sorted by date."
   (let* ((timeline (mapcan (lambda (feed)
@@ -370,6 +404,7 @@ When a download completes, the next pending item is automatically started."
                                           ;; Exclude group posts (posts with GROUP property)
                                           ;; Exclude reactions (posts with reply_to + mood)
                                           ;; Filter by language if org-social-language-filter is set
+                                          ;; Filter by visibility (VISIBILITY:mention)
                                           (let ((text (alist-get 'text post))
                                                 (group (alist-get 'group post))
                                                 (mood (alist-get 'mood post))
@@ -387,7 +422,9 @@ When a download completes, the next pending item is automatically started."
                                                  (or (null org-social-language-filter)
                                                      (and lang
                                                           (not (string-empty-p lang))
-                                                          (member lang org-social-language-filter))))))
+                                                          (member lang org-social-language-filter)))
+                                                 ;; Filter by visibility
+                                                 (org-social-feed--should-show-post post))))
                                         timeline))
          (timeline-sorted (sort timeline-filtered
                                 (lambda (a b)
