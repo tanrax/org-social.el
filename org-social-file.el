@@ -999,7 +999,8 @@ NEW-URL is the new account URL."
 
 (defun org-social-file--find-latest-migration ()
   "Find the latest migration post in the current buffer.
-Returns an alist with keys 'old-url, 'new-url, and 'id, or nil if no migration found."
+Returns an alist with keys \\='old-url\\=', \\='new-url\\=', and \\='id\\=',
+or nil if no migration found."
   (save-excursion
     (goto-char (point-min))
     (let ((latest-migration nil)
@@ -1093,7 +1094,8 @@ This function is called automatically when opening the social.org file."
 
 (defun org-social-file--find-migration-in-feed (feed-content)
   "Find the latest migration in FEED-CONTENT string.
-Returns an alist with keys 'old-url, 'new-url, and 'id, or nil if no migration found."
+Returns an alist with keys \\='old-url\\=', \\='new-url\\=', and \\='id\\=',
+or nil if no migration found."
   (when (and feed-content (stringp feed-content))
     (with-temp-buffer
       (insert feed-content)

@@ -429,7 +429,7 @@ prefer-utf-8-unix."
 (defun org-social-validator--parse-post-manually (post-begin)
   "Parse and validate a post starting at POST-BEGIN using regex.
 This is used when org-element cannot parse the headline
-(e.g., \\='**\\=' without space)."
+\(e.g., \\='**\\=' without space)."
   (let ((post-line (line-number-at-pos post-begin))
         (post-data '())
         (found-properties '())

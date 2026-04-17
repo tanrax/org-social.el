@@ -2,7 +2,7 @@
 ;; Author: Andros Fenollosa <hi@andros.dev>
 ;; Version: 2.11
 ;; URL: https://github.com/tanrax/org-social.el
-;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (emojify "1.2"))
+;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (emojify "1.2") (async-http-queue "0.1"))
 ;; SPDX-License-Identifier: GPL-3.0
 ;; This file is NOT part of GNU Emacs.
 ;; This program is free software; you can redistribute it and/or
@@ -53,9 +53,6 @@
 (declare-function org-social-notifications--is-feed-followed-p "org-social-notifications" (url))
 (declare-function org-social-parser--get-my-profile "org-social-parser" ())
 (declare-function org-social-parser--format-timestamp "org-social-parser" (timestamp))
-(declare-function org-social-feed--process-queue "org-social-feed" ())
-(declare-function org-social-feed--initialize-queue "org-social-feed" ())
-(declare-function org-social-feed--initialize-queue-from-relay "org-social-feed" ())
 (declare-function org-social-feed--get-timeline "org-social-feed" ())
 (declare-function org-social-file--read-my-profile "org-social-file" ())
 

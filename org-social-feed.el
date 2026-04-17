@@ -31,6 +31,7 @@
 (require 'org-social-variables)
 (require 'org-social-parser)
 (require 'org-social-partial-fetch)
+(require 'async-http-queue)
 (require 'seq)
 (require 'cl-lib)
 
@@ -52,60 +53,6 @@
 ;; Declare variables to avoid compilation warnings
 (defvar org-social-max-post-age-days)
 (defvar org-social-max-concurrent-downloads)
-
-;; Concurrency control - tracks number of in-flight requests
-(defvar org-social-feed--active-downloads 0
-  "Number of currently active download requests.")
-
-(defun org-social-feed--initialize-queue ()
-  "Initialize the download queue with follower feeds."
-  (setq org-social-variables--queue
-        (mapcar (lambda (follow)
-                  `((:url . ,(alist-get 'url follow))
-                    (:status . :pending)
-                    (:response . nil)))
-                (alist-get 'follow org-social-variables--my-profile))))
-
-(defun org-social-feed--initialize-queue-from-relay ()
-  "Initialize the download queue with feeds from relay server."
-  (message "Fetching feed list from relay...")
-  (when (fboundp 'org-social-relay--fetch-feeds)
-    (org-social-relay--fetch-feeds
-     (lambda (feeds-list)
-       (if feeds-list
-           (progn
-             (message "Retrieved %d feeds from relay" (length feeds-list))
-             (setq org-social-variables--queue
-                   (mapcar (lambda (feed-url)
-                             `((:url . ,feed-url)
-                               (:status . :pending)
-                               (:response . nil)))
-                           feeds-list))
-             (org-social-feed--process-queue))
-         (message "No feeds retrieved from relay, falling back to local followers")
-         (org-social-feed--initialize-queue)
-         (org-social-feed--process-queue))))))
-
-(defun org-social-feed--queue-update-status-by-url (queue url status)
-  "Update the status of a QUEUE item by URL to STATUS."
-  (mapcar (lambda (item)
-            (if (string= (alist-get :url item) url)
-                (let ((new-item (copy-tree item)))
-                  (setcdr (assoc :status new-item) status)
-                  new-item)
-              item))
-          (copy-tree queue)))
-
-(defun org-social-feed--queue-update-response-by-url (queue url new-response)
-  "Update the response of a QUEUE item by URL.
-Argument NEW-RESPONSE"
-  (mapcar (lambda (item)
-            (if (string= (alist-get :url item) url)
-                (let ((new-item (copy-tree item)))
-                  (setcdr (assoc :response new-item) new-response)
-                  new-item)
-              item))
-          (copy-tree queue)))
 
 (defun org-social-feed--calculate-start-date ()
   "Calculate start date for fetching posts based on `org-social-max-post-age-days'.
@@ -183,123 +130,48 @@ format (ID in properties)."
        ;; If filtering fails, return original content
        content))))
 
-(defun org-social-feed--fetch-feed-optimized (url callback error-callback)
-  "Fetch feed from URL using optimized partial download asynchronously.
-Uses `org-social-partial-fetch-by-date' with HTTP Range requests when available.
-Executes asynchronously using `url-retrieve' without blocking Emacs.
-Calls CALLBACK with the downloaded content on success.
-Calls ERROR-CALLBACK on error.
-Includes a 5-second timeout to prevent hanging downloads."
-  (let ((start-date (org-social-feed--calculate-start-date))
-        (timeout-timer nil)
-        (callback-called nil)
-        (url-buffer nil))
-    (setq url-buffer
-          (url-retrieve
-           url
-           (lambda (status)
-             ;; Cancel timeout timer if it exists
-             (when timeout-timer
-               (cancel-timer timeout-timer))
+(defun org-social-feed--run-queue (urls)
+  "Fetch URLS asynchronously using `async-http-queue' and process results."
+  (if (null urls)
+      (progn
+        (setq org-social-variables--queue nil)
+        (org-social-feed--check-queue))
+    (let ((start-date (org-social-feed--calculate-start-date)))
+      (async-http-queue
+       urls
+       :max-concurrent org-social-max-concurrent-downloads
+       :timeout 5
+       :parser (lambda ()
+                 (decode-coding-string (buffer-string) 'utf-8))
+       :callback (lambda (results)
+                   (setq org-social-variables--queue
+                         (cl-mapcar
+                          (lambda (url content)
+                            (list (cons :url url)
+                                  (cons :status (if content :done :error))
+                                  (cons :response
+                                        (when content
+                                          (if start-date
+                                              (org-social-feed--filter-by-date content start-date)
+                                            content)))))
+                          urls
+                          (append results nil)))
+                   (org-social-feed--check-queue))))))
 
-             ;; Only execute callback once
-             (unless callback-called
-               (setq callback-called t)
-
-               ;; This callback is executed in the main thread (no race conditions)
-               (let ((result nil))
-                 (condition-case err
-                     (progn
-                       ;; Check for errors first
-                       (when (plist-get status :error)
-                         (error "Download failed: %S" (plist-get status :error)))
-
-                       ;; Extract content from buffer
-                       (goto-char (point-min))
-                       (when (re-search-forward "\r\n\r\n\\|\n\n" nil t)
-                         (let ((content (decode-coding-string
-                                         (buffer-substring-no-properties (point) (point-max))
-                                         'utf-8)))
-                           ;; Apply date filtering if needed
-                           (setq result
-                                 (if start-date
-                                     (org-social-feed--filter-by-date content start-date)
-                                   content)))))
-                   (error
-                    (message "Error downloading %s: %s" url (error-message-string err))
-                    (setq result nil)))
-
-                 ;; Kill buffer to avoid accumulation
-                 (kill-buffer (current-buffer))
-
-                 ;; Call appropriate callback
-                 (if result
-                     (funcall callback result)
-                   (funcall error-callback)))))
-           nil t))
-
-    ;; Set up timeout timer (5 seconds)
-    (setq timeout-timer
-          (run-at-time 5 nil
-                       (lambda ()
-                         (unless callback-called
-                           (setq callback-called t)
-                           (message "Timeout downloading %s (5 seconds)" url)
-                           ;; Kill both the process and buffer to prevent hanging
-                           (when (and url-buffer (buffer-live-p url-buffer))
-                             (let ((proc (get-buffer-process url-buffer)))
-                               (when (and proc (process-live-p proc))
-                                 (delete-process proc)))
-                             (kill-buffer url-buffer))
-                           (funcall error-callback)))))))
-
-
-
-(defun org-social-feed--process-next-pending ()
-  "Process the next pending item in the queue if download slots available."
-  (when (< org-social-feed--active-downloads org-social-max-concurrent-downloads)
-    (let ((pending-item (seq-find (lambda (item) (eq (alist-get :status item) :pending))
-                                  org-social-variables--queue)))
-      (when pending-item
-        (let ((url (alist-get :url pending-item)))
-          ;; Mark as processing and increment counter
-          (setq org-social-variables--queue
-                (org-social-feed--queue-update-status-by-url org-social-variables--queue url :processing))
-          (setq org-social-feed--active-downloads (1+ org-social-feed--active-downloads))
-
-          ;; Start the async download
-          (org-social-feed--fetch-feed-optimized
-           url
-           ;; Success callback
-           (lambda (data)
-             (setq org-social-variables--queue
-                   (org-social-feed--queue-update-status-by-url org-social-variables--queue url :done))
-             (setq org-social-variables--queue
-                   (org-social-feed--queue-update-response-by-url org-social-variables--queue url data))
-             (setq org-social-feed--active-downloads (1- org-social-feed--active-downloads))
-             ;; Process next pending item
-             (org-social-feed--process-next-pending)
-             (org-social-feed--check-queue))
-           ;; Error callback
-           (lambda ()
-             (setq org-social-variables--queue
-                   (org-social-feed--queue-update-status-by-url org-social-variables--queue url :error))
-             (setq org-social-feed--active-downloads (1- org-social-feed--active-downloads))
-             ;; Process next pending item
-             (org-social-feed--process-next-pending)
-             (org-social-feed--check-queue))))))))
-
-(defun org-social-feed--process-queue ()
-  "Process the download queue asynchronously with limited concurrency.
-Launches up to `org-social-max-concurrent-downloads' downloads in parallel.
-All downloads execute asynchronously in the main thread using `url-retrieve'.
-When a download completes, the next pending item is automatically started."
-  ;; Reset active downloads counter
-  (setq org-social-feed--active-downloads 0)
-
-  ;; Launch initial batch (up to max concurrent)
-  (dotimes (_ org-social-max-concurrent-downloads)
-    (org-social-feed--process-next-pending)))
+(defun org-social-feed--initialize-queue-from-relay ()
+  "Fetch feeds from relay server and start downloading."
+  (message "Fetching feed list from relay...")
+  (when (fboundp 'org-social-relay--fetch-feeds)
+    (org-social-relay--fetch-feeds
+     (lambda (feeds-list)
+       (if feeds-list
+           (progn
+             (message "Retrieved %d feeds from relay" (length feeds-list))
+             (org-social-feed--run-queue feeds-list))
+         (message "No feeds retrieved from relay, falling back to local followers")
+         (org-social-feed--run-queue
+          (mapcar (lambda (follow) (alist-get 'url follow))
+                  (alist-get 'follow org-social-variables--my-profile))))))))
 
 (defun org-social-feed--fetch-all-feeds-async ()
   "Fetch all follower feeds asynchronously."
@@ -308,69 +180,55 @@ When a download completes, the next pending item is automatically started."
            org-social-relay
            (not (string-empty-p org-social-relay)))
       (org-social-feed--initialize-queue-from-relay)
-    (org-social-feed--initialize-queue)
-    (org-social-feed--process-queue)))
+    (org-social-feed--run-queue
+     (mapcar (lambda (follow) (alist-get 'url follow))
+             (alist-get 'follow org-social-variables--my-profile)))))
 
 (defun org-social-feed--check-queue ()
-  "Check if the download queue is complete."
-  (let* ((total (length org-social-variables--queue))
-         (done (length (seq-filter (lambda (i) (eq (alist-get :status i) :done))
-                                   org-social-variables--queue)))
-         (failed (length (seq-filter (lambda (i) (eq (alist-get :status i) :error))
-                                     org-social-variables--queue)))
-         (in-progress (seq-filter
-                       (lambda (i) (or
-                                    (eq (alist-get :status i) :processing)
-                                    (eq (alist-get :status i) :pending)))
-                       org-social-variables--queue)))
-    ;; Show progress
-    (unless (= (length in-progress) 0)
-      (message "Loading feeds... %d/%d completed (%d failed)" done total failed))
+  "Process the completed download queue."
+  ;; Remove failed downloads
+  (setq org-social-variables--queue
+        (seq-filter (lambda (i) (not (eq (alist-get :status i) :error))) org-social-variables--queue))
 
-    (when (= (length in-progress) 0)
-      ;; Remove failed downloads
-      (setq org-social-variables--queue
-            (seq-filter (lambda (i) (not (eq (alist-get :status i) :error))) org-social-variables--queue))
+  ;; Check for remote migrations before processing feeds
+  (when (fboundp 'org-social-file--check-and-apply-remote-migrations)
+    (let ((feeds-data (mapcar (lambda (item)
+                                (cons (alist-get :url item)
+                                      (alist-get :response item)))
+                              org-social-variables--queue)))
+      (org-social-file--check-and-apply-remote-migrations feeds-data)))
 
-      ;; Check for remote migrations before processing feeds
-      (when (fboundp 'org-social-file--check-and-apply-remote-migrations)
-        (let ((feeds-data (mapcar (lambda (item)
-                                    (cons (alist-get :url item)
-                                          (alist-get :response item)))
-                                  org-social-variables--queue)))
-          (org-social-file--check-and-apply-remote-migrations feeds-data)))
+  ;; Process the feeds
+  (setq org-social-variables--feeds
+        (mapcar (lambda (item)
+                  (let* ((feed (alist-get :response item))
+                         (url (alist-get :url item))
+                         (nick (or (org-social-parser--get-value feed "NICK") "Unknown"))
+                         (title (org-social-parser--get-value feed "TITLE"))
+                         (avatar (org-social-parser--get-value feed "AVATAR"))
+                         (posts (org-social-parser--get-posts-from-feed feed)))
+                    (list
+                     (cons 'id (gensym))
+                     (cons 'nick nick)
+                     (cons 'title title)
+                     (cons 'avatar avatar)
+                     (cons 'url url)
+                     (cons 'posts posts))))
+                org-social-variables--queue))
 
-      ;; Process the feeds
-      (setq org-social-variables--feeds
-            (mapcar (lambda (item)
-                      (let* ((feed (alist-get :response item))
-                             (url (alist-get :url item))
-                             (nick (or (org-social-parser--get-value feed "NICK") "Unknown"))
-                             (title (org-social-parser--get-value feed "TITLE"))
-                             (avatar (org-social-parser--get-value feed "AVATAR"))
-                             (posts (org-social-parser--get-posts-from-feed feed)))
-                        (list
-                         (cons 'id (gensym))
-                         (cons 'nick nick)
-                         (cons 'title title)
-                         (cons 'avatar avatar)
-                         (cons 'url url)
-                         (cons 'posts posts))))
-                    org-social-variables--queue))
+  ;; Load my profile fresh each time to avoid stale data
+  (when (fboundp 'org-social-parser--get-my-profile)
+    (setq org-social-variables--my-profile (org-social-parser--get-my-profile)))
 
-      ;; Load my profile fresh each time to avoid stale data
-      (when (fboundp 'org-social-parser--get-my-profile)
-        (setq org-social-variables--my-profile (org-social-parser--get-my-profile)))
-
-      ;; Add own profile only if not already in feeds (relay might have already included it)
-      (when (and org-social-variables--my-profile
-                 (not (seq-find (lambda (feed)
-                                  (string= (alist-get 'url feed)
-                                           (alist-get 'url org-social-variables--my-profile)))
-                                org-social-variables--feeds)))
-        (setq org-social-variables--feeds (cons org-social-variables--my-profile org-social-variables--feeds)))
-      (message "All feeds downloaded!")
-      (run-hooks 'org-social-after-fetch-posts-hook))))
+  ;; Add own profile only if not already in feeds (relay might have already included it)
+  (when (and org-social-variables--my-profile
+             (not (seq-find (lambda (feed)
+                              (string= (alist-get 'url feed)
+                                       (alist-get 'url org-social-variables--my-profile)))
+                            org-social-variables--feeds)))
+    (setq org-social-variables--feeds (cons org-social-variables--my-profile org-social-variables--feeds)))
+  (message "All feeds downloaded!")
+  (run-hooks 'org-social-after-fetch-posts-hook))
 
 (defun org-social-feed--should-show-post (post)
   "Determine if POST should be visible to the current user.
