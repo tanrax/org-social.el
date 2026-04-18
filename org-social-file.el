@@ -763,26 +763,34 @@ Returns a list of cons cells (NICK . URL), or nil if cache doesn't exist."
          nil)))))
 
 (defun org-social-file--update-mentions-cache-async ()
-  "Update mentions cache asynchronously from relay without blocking Emacs.
-This fetches ALL users from relay in background and saves them to cache."
-  (when (and (boundp 'org-social-relay)
-             org-social-relay
-             (not (string-empty-p org-social-relay)))
-    ;; Fetch ALL feed URLs from relay (just URLs, not full feeds)
-    (require 'org-social-relay)
-    (org-social-relay--fetch-feeds
-     (lambda (feeds-list)
-       (when feeds-list
-         ;; Now fetch user info for ALL feeds from relay
-         (org-social-user-queue-fetch-users
-          feeds-list
-          (lambda (users)
-            (when users
-              (let ((user-list (mapcar (lambda (user)
-                                         (cons (alist-get 'nick user)
-                                               (alist-get 'url user)))
-                                       users)))
-                (org-social-file--save-mentions-cache user-list))))))))))
+  "Update mentions cache asynchronously without blocking Emacs.
+Reuses already-downloaded feed data when available, avoiding a second
+network round-trip."
+  (if (and (boundp 'org-social-variables--feeds)
+           org-social-variables--feeds)
+      ;; Feeds already downloaded: extract user info directly
+      (let ((user-list (mapcar (lambda (feed)
+                                 (cons (alist-get 'nick feed)
+                                       (alist-get 'url feed)))
+                               org-social-variables--feeds)))
+        (org-social-file--save-mentions-cache user-list))
+    ;; Feeds not available: fall back to fetching from relay
+    (when (and (boundp 'org-social-relay)
+               org-social-relay
+               (not (string-empty-p org-social-relay)))
+      (require 'org-social-relay)
+      (org-social-relay--fetch-feeds
+       (lambda (feeds-list)
+         (when feeds-list
+           (org-social-user-queue-fetch-users
+            feeds-list
+            (lambda (users)
+              (when users
+                (let ((user-list (mapcar (lambda (user)
+                                           (cons (alist-get 'nick user)
+                                                 (alist-get 'url user)))
+                                         users)))
+                  (org-social-file--save-mentions-cache user-list)))))))))))
 
 (defun org-social-file--get-relay-users (callback)
   "Get list of users from relay server and call CALLBACK with results.

@@ -21,6 +21,7 @@
 (declare-function org-social-ui-timeline "org-social-ui-timeline" ())
 (declare-function org-social-ui-groups "org-social-ui-groups" ())
 (declare-function org-social-ui-search "org-social-ui-search" ())
+(declare-function org-social-ui-discover "org-social-ui-discover" ())
 (declare-function org-social-ui-profile "org-social-ui-profile" (feed-url))
 (declare-function org-social-ui-thread "org-social-ui-thread" (post-url))
 (declare-function org-social-file--new-post "org-social-file" (reply-to-url &optional reply-to-timestamp))
@@ -57,11 +58,55 @@
                  :help-echo "Search posts"
                  " 🔍 Search ")
 
+  (org-social-ui--insert-formatted-text " ")
+
+  (widget-create 'push-button
+                 :notify (lambda (&rest _) (org-social-ui-discover))
+                 :help-echo "Discover users"
+                 " 🌍 Discover ")
+
+  (org-social-ui--insert-formatted-text "\n\n")
+
+  ;; Action buttons
+  (widget-create 'push-button
+                 :notify (lambda (&rest _)
+                           (when org-social-variables--my-profile
+                             (let ((my-url (alist-get 'url org-social-variables--my-profile)))
+                               (when my-url
+                                 (org-social-ui-profile my-url)))))
+                 :help-echo "View your profile"
+                 " 👤 Profile ")
+
+  (org-social-ui--insert-formatted-text " ")
+
+  (widget-create 'push-button
+                 :notify (lambda (&rest _)
+                           (browse-url "https://liberapay.com/org-social/"))
+                 :help-echo "Support Org Social development"
+                 " ❤ Donate ")
+
+  (org-social-ui--insert-formatted-text " ")
+
+  (widget-create 'push-button
+                 :notify (lambda (&rest _)
+                           (let ((buffer (get-buffer-create "*Org Social Contributions*")))
+                             (with-current-buffer buffer
+                               (let ((inhibit-read-only t))
+                                 (erase-buffer)
+                                 (insert "Contributions are welcome! Please see the contribution guidelines for instructions on how to submit issues or pull requests:\n\n")
+                                 (insert "https://git.andros.dev/andros/contribute\n")
+                                 (goto-char (point-min))
+                                 (special-mode)))
+                             (let ((window (display-buffer-at-bottom buffer '((window-height . 6)))))
+                               (select-window window))))
+                 :help-echo "View contribution guidelines"
+                 " 🤝 Issue/PR ")
+
   (org-social-ui--insert-formatted-text "\n\n")
 
   ;; Help text
-  (org-social-ui--insert-formatted-text "Navigation:\n" nil "#666666")
-  (org-social-ui--insert-formatted-text "(n) Next | (p) Previous | (T) Timeline | (G) Groups\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Navigation: (n) Next | (p) Previous | (t) Thread | (P) Profile\n" nil "#666666")
+  (org-social-ui--insert-formatted-text "Actions: (T) Timeline | (G) Groups | (S) Search\n" nil "#666666")
   (org-social-ui--insert-formatted-text "Other: (q) Quit\n" nil "#666666")
 
   (org-social-ui--insert-separator))

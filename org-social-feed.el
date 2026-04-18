@@ -136,27 +136,32 @@ format (ID in properties)."
       (progn
         (setq org-social-variables--queue nil)
         (org-social-feed--check-queue))
-    (let ((start-date (org-social-feed--calculate-start-date)))
+    (let ((start-date (org-social-feed--calculate-start-date))
+          (callback-called nil))
       (async-http-queue
        urls
        :max-concurrent org-social-max-concurrent-downloads
        :timeout 5
        :parser (lambda ()
-                 (decode-coding-string (buffer-string) 'utf-8))
+                 (decode-coding-string
+                  (buffer-substring-no-properties (point) (point-max))
+                  'utf-8))
        :callback (lambda (results)
-                   (setq org-social-variables--queue
-                         (cl-mapcar
-                          (lambda (url content)
-                            (list (cons :url url)
-                                  (cons :status (if content :done :error))
-                                  (cons :response
-                                        (when content
-                                          (if start-date
-                                              (org-social-feed--filter-by-date content start-date)
-                                            content)))))
-                          urls
-                          (append results nil)))
-                   (org-social-feed--check-queue))))))
+                   (unless callback-called
+                     (setq callback-called t)
+                     (setq org-social-variables--queue
+                           (cl-mapcar
+                            (lambda (url content)
+                              (list (cons :url url)
+                                    (cons :status (if content :done :error))
+                                    (cons :response
+                                          (when content
+                                            (if start-date
+                                                (org-social-feed--filter-by-date content start-date)
+                                              content)))))
+                            urls
+                            (append results nil)))
+                     (org-social-feed--check-queue)))))))
 
 (defun org-social-feed--initialize-queue-from-relay ()
   "Fetch feeds from relay server and start downloading."

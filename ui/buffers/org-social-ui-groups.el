@@ -255,102 +255,42 @@ RELAY-GROUPS is a list of alists with \\='name, \\='href, and \\='method from th
 
 (defun org-social-ui-groups ()
   "Display groups screen.
-Queries all relay servers that have subscribed groups and displays them."
+Fetches all available groups from the configured relay server."
   (interactive)
   (setq org-social-ui--current-screen 'groups)
 
-  ;; Show message in minibuffer
   (message "Building groups...")
 
-  (let ((buffer-name org-social-ui--groups-buffer-name))
-    ;; Prepare buffer in background (don't switch yet)
-    (with-current-buffer (get-buffer-create buffer-name)
-      (kill-all-local-variables)
+  (if (not (and (boundp 'org-social-relay)
+                org-social-relay
+                (not (string-empty-p org-social-relay))))
+      (message "No relay configured")
+    (let ((buffer-name org-social-ui--groups-buffer-name))
+      ;; Prepare buffer
+      (with-current-buffer (get-buffer-create buffer-name)
+        (kill-all-local-variables)
+        (setq buffer-read-only nil)
+        (let ((inhibit-read-only t))
+          (erase-buffer))
+        (remove-overlays)
+        (org-social-ui--insert-groups-header)
+        (org-social-ui--setup-centered-buffer)
+        (goto-char (point-min)))
 
-      ;; Disable read-only mode before modifying buffer
-      (setq buffer-read-only nil)
-
-      (let ((inhibit-read-only t))
-        (erase-buffer))
-      (remove-overlays)
-
-      ;; Insert header
-      (org-social-ui--insert-groups-header)
-
-      ;; Set up the buffer with centering
-      (org-social-ui--setup-centered-buffer)
-      (goto-char (point-min)))
-
-    ;; Get user's subscribed groups from their social.org
-    (let* ((my-profile (org-social-parser--get-my-profile))
-           (subscribed-groups (alist-get 'group my-profile)))
-
-      (if (not subscribed-groups)
-          ;; No subscribed groups at all
-          (progn
-            (with-current-buffer buffer-name
-              (let ((inhibit-read-only t))
-                (goto-char (point-max))
-                (org-social-ui--insert-formatted-text "No groups subscribed.\n" nil "#666666")
-                (org-social-ui--insert-formatted-text "Add groups to your social.org file using #+GROUP: syntax.\n" nil "#666666")
-                (setq buffer-read-only t)))
-            (switch-to-buffer buffer-name)
-            (message "No subscribed groups"))
-
-        ;; Group subscribed groups by relay URL
-        (let ((groups-by-relay (make-hash-table :test 'equal)))
-          (dolist (group subscribed-groups)
-            (let ((relay-url (alist-get 'relay-url group)))
-              (when (and relay-url (not (string-empty-p relay-url)))
-                (let ((current-groups (gethash relay-url groups-by-relay)))
-                  (puthash relay-url (cons group current-groups) groups-by-relay)))))
-
-          (if (= (hash-table-count groups-by-relay) 0)
-              ;; No valid relay URLs found
-              (progn
-                (with-current-buffer buffer-name
-                  (let ((inhibit-read-only t))
-                    (goto-char (point-max))
-                    (org-social-ui--insert-formatted-text "No valid relay URLs found in subscribed groups.\n" nil "#666666")
-                    (setq buffer-read-only t)))
-                (switch-to-buffer buffer-name)
-                (message "No valid relay URLs"))
-
-            ;; Fetch groups from each relay
-            (let ((total-relays (hash-table-count groups-by-relay))
-                  (completed-relays 0)
-                  (all-filtered-groups '()))
-
-              (maphash
-               (lambda (relay-url subscribed-group-list)
-                 (org-social-relay--fetch-groups-from-url
-                  relay-url
-                  (lambda (relay-groups)
-                    (setq completed-relays (1+ completed-relays))
-
-                    ;; Filter relay groups to only include subscribed ones
-                    (when relay-groups
-                      (dolist (relay-group relay-groups)
-                        (let ((relay-group-name (alist-get 'name relay-group)))
-                          (when (seq-some
-                                 (lambda (subscribed-group)
-                                   (string= relay-group-name (alist-get 'name subscribed-group)))
-                                 subscribed-group-list)
-                            (push relay-group all-filtered-groups)))))
-
-                    ;; When all relays have responded, display results
-                    (when (= completed-relays total-relays)
-                      (if all-filtered-groups
-                          (org-social-ui--fetch-and-display-groups all-filtered-groups buffer-name)
-                        ;; No matching groups found
-                        (with-current-buffer buffer-name
-                          (let ((inhibit-read-only t))
-                            (goto-char (point-max))
-                            (org-social-ui--insert-formatted-text "No matching groups found in relays.\n" nil "#666666")
-                            (setq buffer-read-only t)))
-                        (switch-to-buffer buffer-name)
-                        (message "No matching groups found"))))))
-               groups-by-relay))))))))
+      ;; Fetch all groups from relay
+      (org-social-relay--fetch-groups-from-url
+       org-social-relay
+       (lambda (relay-groups)
+         (if (not relay-groups)
+             (progn
+               (with-current-buffer buffer-name
+                 (let ((inhibit-read-only t))
+                   (goto-char (point-max))
+                   (org-social-ui--insert-formatted-text "No groups found in relay.\n" nil "#666666")
+                   (setq buffer-read-only t)))
+               (switch-to-buffer buffer-name)
+               (message "No groups found"))
+           (org-social-ui--fetch-and-display-groups relay-groups buffer-name)))))))
 
 (defun org-social-ui--process-and-display-group-posts (posts-data _group-name buffer-name)
   "Process POSTS-DATA from relay and display them in _GROUP-NAME buffer.

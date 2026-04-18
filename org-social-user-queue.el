@@ -51,29 +51,34 @@ Returns immediately and processes feeds in parallel."
         (message "No feed URLs provided")
         (funcall callback nil))
     (message "Fetching user information from %d feeds..." (length feed-urls))
-    (async-http-queue
-     feed-urls
-     :max-concurrent 3
-     :timeout 5
-     :parser (lambda ()
-               (decode-coding-string (buffer-string) 'utf-8))
-     :callback (lambda (results)
-                 (let* ((users
-                         (seq-filter
-                          #'identity
-                          (cl-mapcar
-                           (lambda (url content)
-                             (when content
-                               (list (cons 'nick (or (org-social-parser--get-value content "NICK") "Unknown"))
-                                     (cons 'url url)
-                                     (cons 'avatar (org-social-parser--get-value content "AVATAR"))
-                                     (cons 'description (org-social-parser--get-value content "DESCRIPTION")))))
-                           feed-urls
-                           (append results nil))))
-                        (sorted-users (sort users (lambda (a b)
-                                                    (string< (alist-get 'nick a)
-                                                             (alist-get 'nick b))))))
-                   (funcall callback sorted-users))))))
+    (let ((callback-called nil))
+      (async-http-queue
+       feed-urls
+       :max-concurrent 3
+       :timeout 5
+       :parser (lambda ()
+                 (decode-coding-string
+                  (buffer-substring-no-properties (point) (point-max))
+                  'utf-8))
+       :callback (lambda (results)
+                   (unless callback-called
+                     (setq callback-called t)
+                     (let* ((users
+                             (seq-filter
+                              #'identity
+                              (cl-mapcar
+                               (lambda (url content)
+                                 (when content
+                                   (list (cons 'nick (or (org-social-parser--get-value content "NICK") "Unknown"))
+                                         (cons 'url url)
+                                         (cons 'avatar (org-social-parser--get-value content "AVATAR"))
+                                         (cons 'description (org-social-parser--get-value content "DESCRIPTION")))))
+                               feed-urls
+                               (append results nil))))
+                            (sorted-users (sort users (lambda (a b)
+                                                        (string< (alist-get 'nick a)
+                                                                 (alist-get 'nick b))))))
+                       (funcall callback sorted-users))))))))
 
 (provide 'org-social-user-queue)
 ;;; org-social-user-queue.el ends here
