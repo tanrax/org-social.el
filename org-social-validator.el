@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 2.11
+;; Version: 2.12
 ;; URL: https://github.com/tanrax/org-social.el
 
 ;; This file is NOT part of GNU Emacs.
@@ -429,7 +429,7 @@ prefer-utf-8-unix."
 (defun org-social-validator--parse-post-manually (post-begin)
   "Parse and validate a post starting at POST-BEGIN using regex.
 This is used when org-element cannot parse the headline
-(e.g., \\='**\\=' without space)."
+\(e.g., \\='**\\=' without space)."
   (let ((post-line (line-number-at-pos post-begin))
         (post-data '())
         (found-properties '())
