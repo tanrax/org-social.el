@@ -117,7 +117,7 @@ echo "[5/5] Compiling all Emacs Lisp files..."
 compile_file() {
     local file="$1"
     echo "  Compiling $file..."
-    if emacs --batch -L . -L ui -L ui/buffers --eval "(setq byte-compile-error-on-warn nil)" -f batch-byte-compile "$file" 2>&1 | grep -i "error\|warning" | grep -v "Loading"; then
+    if emacs --batch -L . -L ui -L ui/buffers -L ~/.emacs.d/elpa/async-http-queue-20260316.755 --eval "(setq byte-compile-error-on-warn nil)" -f batch-byte-compile "$file" 2>&1 | grep -i "error\|warning" | grep -v "Loading"; then
         echo "  ⚠ Compilation warnings/errors in $file"
         OVERALL_STATUS=1
     else
