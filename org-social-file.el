@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 2.12
+;; Version: 2.13
 ;; URL: https://github.com/tanrax/org-social.el
 
 ;; This file is NOT part of GNU Emacs.
@@ -1263,9 +1263,51 @@ It is recommended to save your file before running this command."
       (when (> count 0)
         (message "Successfully migrated %d post(s).  Remember to save the buffer." count)))))
 
+(defun org-social-file--get-post-id-at-point ()
+  "Get the post ID (timestamp) from the post at point.
+Supports both v1.6 format (ID in header) and legacy format (ID in properties).
+Returns the timestamp string, or nil if no post is found at point."
+  (save-excursion
+    (let ((found-heading nil))
+      (if (looking-at "^\\*\\*\\($\\|[^*]\\)")
+          (setq found-heading t)
+        (when (re-search-backward "^\\*\\*\\($\\|[^*]\\)" nil t)
+          (setq found-heading t)))
+      (when found-heading
+        (beginning-of-line)
+        (or (when (looking-at
+                   (concat "^\\*\\*\\s-+"
+                           "\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}"
+                           "T[0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}"
+                           "[+-][0-9]\\{2\\}\\(?::[0-9]\\{2\\}\\|[0-9]\\{2\\}\\)\\)"))
+              (match-string-no-properties 1))
+            (let ((post-end (save-excursion
+                              (forward-line 1)
+                              (if (re-search-forward "^\\*\\*\\($\\|[^*]\\)" nil t)
+                                  (line-beginning-position)
+                                (point-max)))))
+              (when (re-search-forward "^:ID:\\s-*\\(.+\\)$" post-end t)
+                (string-trim (match-string-no-properties 1)))))))))
+
+(defun org-social-file--new-reply-at-point ()
+  "Create a reply to the post at point in the social.org file.
+Reads the post ID from the heading at point and creates a new post
+with REPLY_TO pointing to it.  Requires `org-social-my-public-url'
+to be configured."
+  (interactive)
+  (unless (and (boundp 'org-social-my-public-url)
+               org-social-my-public-url
+               (not (string-empty-p org-social-my-public-url)))
+    (user-error "Variable `org-social-my-public-url' is not configured"))
+  (let ((post-id (org-social-file--get-post-id-at-point)))
+    (unless post-id
+      (user-error "No post found at point.  Place cursor inside a post heading"))
+    (org-social-file--new-post org-social-my-public-url post-id)))
+
 ;; Interactive functions with proper naming
 (defalias 'org-social-save-file #'org-social-file--save)
 (defalias 'org-social-mention-user #'org-social-file--mention-user)
+(defalias 'org-social-reply-at-point #'org-social-file--new-reply-at-point)
 
 (provide 'org-social-file)
 ;;; org-social-file.el ends here

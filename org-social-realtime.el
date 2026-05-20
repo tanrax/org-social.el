@@ -2,7 +2,7 @@
 
 ;; SPDX-License-Identifier: GPL-3.0
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 2.12
+;; Version: 2.13
 ;; URL: https://github.com/tanrax/org-social.el
 
 ;;; Commentary:
@@ -328,12 +328,7 @@ Automatically called on Emacs startup when realtime notifications enabled."
    (t
     (org-social-realtime-connect))))
 
-;; Auto-connect when Emacs starts if configuration is enabled
-;; Using after-init-hook instead of emacs-startup-hook for better timing
-;; (runs after init files are loaded, ensuring account configuration is present)
-;;;###autoload
-(with-eval-after-load 'org-social
-  (add-hook 'after-init-hook #'org-social-realtime-maybe-connect))
+(add-hook 'after-init-hook #'org-social-realtime-maybe-connect)
 
 (provide 'org-social-realtime)
 

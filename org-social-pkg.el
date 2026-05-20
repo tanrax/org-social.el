@@ -1,4 +1,5 @@
-(define-package "org-social" "2.11"
+;; SPDX-License-Identifier: GPL-3.0
+(define-package "org-social" "2.13"
 		"An Org-social client for Emacs"
 		'((emacs "30.1")
 		  (org "9.0")

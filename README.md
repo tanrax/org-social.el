@@ -52,7 +52,8 @@ If you want a minimal working configuration, add this to your `init.el`:
 
   ;; Optional: Add global keybindings
   (keymap-global-set "C-c s t" #'org-social-timeline)
-  (keymap-global-set "C-c s n" #'org-social-new-post))
+  (keymap-global-set "C-c s n" #'org-social-new-post)
+  (keymap-global-set "C-c s r" #'org-social-new-reply))
 ```
 
 After adding this configuration, restart Emacs or evaluate the code.
@@ -63,6 +64,7 @@ Once installed and configured:
 
 - **View timeline**: `M-x org-social-timeline` or `C-c s t`
 - **Create new post**: `M-x org-social-new-post` or `C-c s n`
+- **Reply to your own post**: `M-x org-social-new-reply` while cursor is on a post in `social.org`
 - **Navigate posts**: Press `n` (next) / `p` (previous) in the timeline
 - **Reply to posts**: Press `r` on a post in the timeline
 - **Discover users**: Press `D` to browse and follow users from the relay
@@ -277,6 +279,7 @@ When using vfiles with multi-account:
 ;; Optionally, configure global keybindings
 (keymap-global-set "C-c s t" #'org-social-timeline)
 (keymap-global-set "C-c s n" #'org-social-new-post)
+(keymap-global-set "C-c s r" #'org-social-new-reply)
 (keymap-global-set "C-c s o" #'org-social-open-file)
 (keymap-global-set "C-c s p" #'org-social-new-poll)
 (keymap-global-set "C-c s m" #'org-social-mention-user)
@@ -316,13 +319,14 @@ For best performance with partial downloads, host your `social.org` file on a tr
 2. **View timeline**: Use `M-x org-social-timeline` or `C-c s t`
 3. **Navigate**: Use `n`/`p` to move between posts in the timeline
 4. **Reply**: Press `r` when positioned on a post to create a reply
-5. **Vote on polls**: Press `v` when positioned on a poll to vote
-6. **Create posts**: Use `M-x org-social-new-post` or `C-c s n`
+5. **Reply to your own post**: Use `M-x org-social-new-reply` while the cursor is on any post in `social.org` to create a self-reply thread
+6. **Vote on polls**: Press `v` when positioned on a poll to vote
+7. **Create posts**: Use `M-x org-social-new-post` or `C-c s n`
    - When creating a new post, you'll be prompted to choose visibility:
      - **public** (default): Post visible to everyone
      - **mention**: Post only visible to you and users you mention with `[[org-social:URL][username]]` links
-7. **Create polls**: Use `M-x org-social-new-poll` or `C-c s p`
-8. **Save and sync**: Use `C-x C-s` to save with hooks
+8. **Create polls**: Use `M-x org-social-new-poll` or `C-c s p`
+9. **Save and sync**: Use `C-x C-s` to save with hooks
 
 ### Post Visibility Control
 
@@ -602,6 +606,28 @@ Open the Org-social feed file and enable org-social-mode.
 ##### `org-social-setup`
 
 Set up Org-social for first-time use.
+
+##### `org-social-new-reply`
+
+Creates a reply to the post at point in your `social.org` file.  Call this command while the cursor is positioned within any post (on the heading or inside the body) to create a new post with `:REPLY_TO:` pointing to it.  This allows you to build a thread of your own posts, where each post links back to the previous one.
+
+**Use cases:**
+- Add a follow-up to a previous post without editing the original (which would keep it buried at its old timestamp)
+- Build a thread where followers can easily navigate between posts using the thread view
+- Enable correct thread representation in third-party bridges (e.g., Mastodon)
+
+Supports both v1.6 format (ID in heading) and legacy format (ID in `:PROPERTIES:`).
+
+**Example result in `social.org`:**
+```org
+** 2025-06-10T09:00:00+01:00
+:PROPERTIES:
+:CLIENT: org-social.el
+:REPLY_TO: https://example.com/social.org#2025-06-09T18:30:00+01:00
+:END:
+
+Continuing the thread from yesterday...
+```
 
 ##### `org-social-reply-to-post`
 
