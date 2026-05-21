@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 2.13
+;; Version: 2.14
 ;; URL: https://github.com/tanrax/org-social.el
 
 ;; This file is NOT part of GNU Emacs.
@@ -289,17 +289,21 @@ According to Org Social specification v1.5:
                                           ;; Keep boosts (posts with INCLUDE property)
                                           ;; Exclude group posts (posts with GROUP property)
                                           ;; Exclude reactions (posts with reply_to + mood but NO text)
+                                          ;; Exclude bot posts (posts with BOT property)
                                           ;; Filter by language if org-social-language-filter is set
                                           ;; Filter by visibility (VISIBILITY:mention)
                                           (let ((text (alist-get 'text post))
                                                 (group (alist-get 'group post))
+                                                (bot (alist-get 'bot post))
                                                 (mood (alist-get 'mood post))
                                                 (reply-to (alist-get 'reply_to post))
                                                 (include (alist-get 'include post))
                                                 (lang (alist-get 'lang post)))
                                             ;; Exclude posts with GROUP property from timeline
+                                            ;; Exclude bot posts (BOT property present)
                                             ;; Exclude reactions (reply_to + mood + NO text)
                                             (and (not group)
+                                                 (not bot)
                                                  (not (and reply-to
                                                            mood
                                                            (not (string-empty-p mood))

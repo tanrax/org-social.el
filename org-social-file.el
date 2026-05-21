@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 2.13
+;; Version: 2.14
 ;; URL: https://github.com/tanrax/org-social.el
 
 ;; This file is NOT part of GNU Emacs.
@@ -290,11 +290,13 @@ nil otherwise."
     (insert "\n* Posts")
     (point)))
 
-(defun org-social-file--insert-post-template (&optional reply-url reply-id group-context visibility)
+(defun org-social-file--insert-post-template (&optional reply-url reply-id group-context visibility extra-properties)
   "Insert a new post template at the current position.
 If REPLY-URL and REPLY-ID are provided, create a reply post.
 If GROUP-CONTEXT is provided, add GROUP property to the post.
-If VISIBILITY is \"mention\", add VISIBILITY property to the post."
+If VISIBILITY is \"mention\", add VISIBILITY property to the post.
+EXTRA-PROPERTIES is an optional alist of additional properties to insert,
+e.g. \\='((\"BOT\" . \"chess 1.e4 e5\"))."
   (let ((timestamp (org-social-parser--generate-timestamp))
         (lang-value (if (and (boundp 'org-social-default-lang)
                              org-social-default-lang
@@ -336,6 +338,9 @@ If VISIBILITY is \"mention\", add VISIBILITY property to the post."
     ;; Add VISIBILITY property if visibility is "mention"
     (when (and visibility (string= visibility "mention"))
       (insert ":VISIBILITY: mention\n"))
+    ;; Insert any extra properties (e.g. BOT)
+    (dolist (prop extra-properties)
+      (insert (format ":%s: %s\n" (car prop) (cdr prop))))
     (insert ":MOOD: \n")
     (insert ":END:\n\n")
     (goto-char (point-max))))
@@ -477,10 +482,12 @@ If `org-social-file' is a vfile URL, downloads it first to local cache."
           (require 'org-social-validator)
           (org-social-validator-validate-and-display))))))
 
-(defun org-social-file--new-post (&optional reply-url reply-id group-context)
+(defun org-social-file--new-post (&optional reply-url reply-id group-context extra-properties)
   "Create a new post in your Org-social feed.
 If REPLY-URL and REPLY-ID are provided, create a reply post.
-If GROUP-CONTEXT is provided, add GROUP property to the post."
+If GROUP-CONTEXT is provided, add GROUP property to the post.
+EXTRA-PROPERTIES is an optional alist of additional properties,
+e.g. \\='((\"BOT\" . \"chess 1.e4 e5\"))."
   (let ((target-file (if (org-social-file--is-vfile-p org-social-file)
                          (org-social-file--get-local-file-path org-social-file)
                        org-social-file))
@@ -489,8 +496,8 @@ If GROUP-CONTEXT is provided, add GROUP property to the post."
                  (string= (expand-file-name (buffer-file-name))
                           (expand-file-name target-file)))
       (org-social-file--open))
-    ;; Ask for visibility only if it's a new post (not a reply or group post)
-    (when (and (not reply-url) (not group-context))
+    ;; Ask for visibility only for interactive public posts (not replies, group posts, or bot posts)
+    (when (and (not reply-url) (not group-context) (not extra-properties))
       (let ((choice (completing-read "Post visibility: "
                                      '("public" "mention")
                                      nil t nil nil "public")))
@@ -499,12 +506,22 @@ If GROUP-CONTEXT is provided, add GROUP property to the post."
     (save-excursion
       (org-social-file--find-posts-section)
       (goto-char (point-max))
-      (org-social-file--insert-post-template reply-url reply-id group-context visibility))
+      (org-social-file--insert-post-template reply-url reply-id group-context visibility extra-properties))
     (goto-char (point-max))
     ;; Validate file after adding post
     (when (fboundp 'org-social-validator-validate-and-display)
       (require 'org-social-validator)
       (org-social-validator-validate-and-display))))
+
+(defun org-social-file--new-bot-post (bot-type &optional bot-params reply-url reply-id)
+  "Create a new bot post with a :BOT: property.
+BOT-TYPE is the bot identifier string (e.g. \"chess\").
+BOT-PARAMS is an optional string of space-separated parameters.
+REPLY-URL and REPLY-ID are optional for bot reply posts."
+  (let ((bot-value (if (and bot-params (not (string-empty-p bot-params)))
+                       (concat bot-type " " bot-params)
+                     bot-type)))
+    (org-social-file--new-post reply-url reply-id nil `(("BOT" . ,bot-value)))))
 
 (defun org-social-file--new-poll ()
   "Create a new poll in your Org-social feed.

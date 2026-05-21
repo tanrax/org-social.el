@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 2.13
+;; Version: 2.14
 ;; URL: https://github.com/tanrax/org-social.el
 
 ;; This file is NOT part of GNU Emacs.
@@ -228,9 +228,9 @@ Validates format according to specification - ignores invalid values."
                                   (cons 'text text))))
 
                   ;; Extract only official properties according to Org Social specification
-                  ;; Official properties: LANG, TAGS, CLIENT, REPLY_TO, POLL_END, POLL_OPTION, GROUP, MOOD, INCLUDE, VISIBILITY
+                  ;; Official properties: LANG, TAGS, CLIENT, REPLY_TO, POLL_END, POLL_OPTION, GROUP, MOOD, INCLUDE, VISIBILITY, BOT
                   (dolist (prop '("LANG" "TAGS" "CLIENT" "REPLY_TO" "POLL_END"
-                                  "POLL_OPTION" "GROUP" "MOOD" "INCLUDE" "VISIBILITY"))
+                                  "POLL_OPTION" "GROUP" "MOOD" "INCLUDE" "VISIBILITY" "BOT"))
                     (let ((value (org-social-parser--extract-property properties-text prop)))
                       (when value
                         (setq post-data (cons (cons (intern (downcase prop)) value) post-data)))))

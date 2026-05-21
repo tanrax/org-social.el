@@ -641,6 +641,47 @@ View the profile of the post author at current position (available when viewing 
 
 Save the current Org-social file and run associated hooks.
 
+#### Bot Integration API
+
+These functions are intended for programmatic use by external packages that need to publish bot-generated posts (e.g. a chess bot, a weather bot, a quote-of-the-day bot).
+
+##### `org-social-file--new-bot-post`
+
+Create a new post with a `:BOT:` property, without any interactive prompts.
+
+```
+(org-social-file--new-bot-post BOT-TYPE &optional BOT-PARAMS REPLY-URL REPLY-ID)
+```
+
+- `BOT-TYPE`: identifies the kind of bot, e.g. `"chess"`, `"weather"`.
+- `BOT-PARAMS`: optional space-separated parameters specific to that bot type.
+- `REPLY-URL`, `REPLY-ID`: optional, to create a bot reply to an existing post.
+
+```elisp
+;; Chess bot publishes a move
+(org-social-file--new-bot-post "chess" "1.e4 e5")
+
+;; Bot reply to a specific post
+(org-social-file--new-bot-post "chess" "2.Nf3" "https://example.com/social.org" "2025-05-01T12:00:00+0100")
+```
+
+The post body should contain a human-readable representation of the bot data.  Clients that do not recognise the bot type will render it as a regular post.
+
+##### `org-social-file--new-post` with `extra-properties`
+
+The lower-level `org-social-file--new-post` and `org-social-file--insert-post-template` both accept an optional `extra-properties` alist for arbitrary additional properties:
+
+```elisp
+(org-social-file--new-post REPLY-URL REPLY-ID GROUP-CONTEXT EXTRA-PROPERTIES)
+```
+
+```elisp
+;; Example from a chess integration package
+(org-social-file--new-post nil nil nil '(("BOT" . "chess 1.e4 e5")))
+```
+
+**Bot posts in the timeline:** posts that contain a `:BOT:` property are automatically excluded from the main timeline.  They are still stored in `social.org` and visible to clients that know how to interpret them.
+
 ### Hooks
 
 You can use the following hooks to perform additional actions automatically:

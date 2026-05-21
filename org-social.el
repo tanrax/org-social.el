@@ -1,6 +1,6 @@
 ;;; org-social.el --- An Org-social client -*- lexical-binding: t -*- -*- coding: utf-8 -*-
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 2.13
+;; Version: 2.14
 ;; URL: https://github.com/tanrax/org-social.el
 ;; Package-Requires: ((emacs "30.1") (org "9.0") (request "0.3.0") (seq "2.20") (emojify "1.2") (async-http-queue "0.1"))
 ;; SPDX-License-Identifier: GPL-3.0
@@ -43,7 +43,8 @@
 
 ;; Forward declarations to avoid compiler warnings
 (declare-function org-social-file--open "org-social-file" ())
-(declare-function org-social-file--new-post "org-social-file" (reply-url reply-id))
+(declare-function org-social-file--new-post "org-social-file" (&optional reply-url reply-id group-context extra-properties))
+(declare-function org-social-file--new-bot-post "org-social-file" (bot-type &optional bot-params reply-url reply-id))
 (declare-function org-social-file--new-reply-at-point "org-social-file" ())
 (declare-function org-social-file--new-poll "org-social-file" ())
 (declare-function org-social-file--new-migration "org-social-file" ())
