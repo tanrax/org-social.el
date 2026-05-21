@@ -3,7 +3,7 @@
 ;; SPDX-License-Identifier: GPL-3.0
 
 ;; Author: Andros Fenollosa <hi@andros.dev>
-;; Version: 2.13
+;; Version: 2.14
 ;; URL: https://github.com/tanrax/org-social.el
 
 ;; This file is NOT part of GNU Emacs.
@@ -130,7 +130,7 @@ integration with other `org-mode' tools and export features.")
 
 (defconst org-social-validator--known-properties
   '("ID" "LANG" "TAGS" "CLIENT" "REPLY_TO" "POLL_END" "POLL_OPTION" "GROUP" "MOOD"
-    "TITLE" "CATEGORY" "URL")
+    "TITLE" "CATEGORY" "URL" "VISIBILITY" "INCLUDE" "BOT")
   "List of known Org Social properties that will be validated.
 Properties not in this list will be ignored (not validated), allowing
 integration with other `org-mode' tools and features.")

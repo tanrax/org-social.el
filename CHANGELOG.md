@@ -1,5 +1,14 @@
 # 📝 Changelog
 
+## 2.14
+
+- **Bot post support** (Org Social specification - `:BOT:` property):
+  - New `org-social-file--new-bot-post` function for programmatic bot post creation
+  - `org-social-file--new-post` and `org-social-file--insert-post-template` accept a new optional `extra-properties` alist parameter to insert arbitrary properties (e.g. `'(("BOT" . "chess 1.e4 e5"))`)
+  - Bot posts (posts with `:BOT:` property) are automatically excluded from the main timeline
+  - Validator now recognises `:BOT:`, `:VISIBILITY:` and `:INCLUDE:` as known properties
+  - Parser extracts the `BOT` property into post data for clients that consume it
+
 ## 2.11
 
 - **Bug Fixes**:
