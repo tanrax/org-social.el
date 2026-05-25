@@ -404,52 +404,48 @@ and POLL-END is the RFC 3339 formatted end time."
   (search-forward "YourNick")
   (message "New Org-social feed created! Please update your profile information."))
 
+(defun org-social-file--open-after-download (local-path)
+  "Open LOCAL-PATH with `org-social-mode' after a successful vfile download.
+Reverts the buffer if already visiting the file."
+  (let ((existing-buf (find-buffer-visiting local-path)))
+    (when existing-buf
+      (with-current-buffer existing-buf
+        (revert-buffer t t t))))
+  (find-file local-path)
+  (org-social-mode 1)
+  (org-social-file--process-migrations)
+  (goto-char (point-max))
+  (when (fboundp 'org-social-validator-validate-and-display)
+    (require 'org-social-validator)
+    (org-social-validator-validate-and-display)))
+
 (defun org-social-file--open ()
   "Open the Org-social feed file and enable `org-social-mode'.
-If `org-social-file' is a vfile URL, downloads it first to local cache."
+For vfile URLs, the remote is always the source of truth: the file is
+always downloaded before opening.  If the download fails, the local
+cache is used as a fallback."
   (if (org-social-file--is-vfile-p org-social-file)
-      ;; Handle vfile URL
+      ;; Handle vfile URL: remote is authoritative
       (let ((local-path (org-social-file--get-local-file-path org-social-file)))
-        (if (file-exists-p local-path)
-            ;; Local cached file exists, open it
-            (progn
-              (find-file local-path)
-              (org-social-mode 1)
-              ;; Process migrations before moving to end
-              (org-social-file--process-migrations)
-              (goto-char (point-max))
-              (message "Opened cached vfile. Save to sync with host.")
-              ;; Validate file
-              (when (fboundp 'org-social-validator-validate-and-display)
-                (require 'org-social-validator)
-                (org-social-validator-validate-and-display)))
-          ;; Download from host first (using public URL)
-          (if (not (and (boundp 'org-social-my-public-url) org-social-my-public-url))
-              (error "Org-social-my-public-url must be set to download vfile")
-            (message "Downloading file from public URL...")
-            (org-social-file--download-vfile
-             org-social-my-public-url
-             (lambda (content)
-               (if content
+        (if (not (and (boundp 'org-social-my-public-url) org-social-my-public-url))
+            (error "Org-social-my-public-url must be set to use vfile")
+          (message "Downloading from remote...")
+          (org-social-file--download-vfile
+           org-social-my-public-url
+           (lambda (content)
+             (if content
+                 (progn
+                   (with-temp-file local-path
+                     (insert content)
+                     (set-buffer-file-coding-system 'utf-8-unix))
+                   (org-social-file--open-after-download local-path)
+                   (message "Loaded from remote. Save to sync changes back."))
+               ;; Download failed: fall back to cache or offer to create new file
+               (if (file-exists-p local-path)
                    (progn
-                     ;; Save downloaded content to local file
-                     (with-temp-file local-path
-                       (insert content)
-                       ;; Set correct encoding
-                       (set-buffer-file-coding-system 'utf-8-unix))
-                     ;; Open the file
-                     (find-file local-path)
-                     (org-social-mode 1)
-                     ;; Process migrations before moving to end
-                     (org-social-file--process-migrations)
-                     (goto-char (point-max))
-                     (message "vfile downloaded successfully. Save to sync with host.")
-                     ;; Validate file
-                     (when (fboundp 'org-social-validator-validate-and-display)
-                       (require 'org-social-validator)
-                       (org-social-validator-validate-and-display)))
-		 ;; Download failed, offer to create new file
-		 (when (y-or-n-p "Failed to download vfile.  Create new local file? ")
+                     (message "Warning: remote unreachable, opening local cache.")
+                     (org-social-file--open-after-download local-path))
+                 (when (y-or-n-p "Failed to download vfile and no local cache.  Create new local file? ")
                    (with-temp-file local-path
                      (insert "#+TITLE: My Social Feed\n")
                      (insert "#+NICK: YourNick\n")
