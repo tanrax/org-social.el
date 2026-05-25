@@ -478,20 +478,50 @@ cache is used as a fallback."
           (require 'org-social-validator)
           (org-social-validator-validate-and-display))))))
 
+(defun org-social-file--ensure-open-and-fresh ()
+  "Ensure the social file is open and current before any write operation.
+For vfile URLs, always downloads from remote synchronously so concurrent
+edits from other clients are incorporated before inserting new content.
+Falls back to the local cache if the remote is unreachable.
+For local files, opens the file if not already visiting."
+  (let ((target-file (if (org-social-file--is-vfile-p org-social-file)
+                         (org-social-file--get-local-file-path org-social-file)
+                       org-social-file)))
+    (if (org-social-file--is-vfile-p org-social-file)
+        (if (not (and (boundp 'org-social-my-public-url) org-social-my-public-url))
+            (error "Org-social-my-public-url must be set to use vfile")
+          (message "Syncing from remote...")
+          (let ((content (org-social-file--download-vfile-sync org-social-my-public-url)))
+            (if content
+                (progn
+                  (with-temp-file target-file
+                    (insert content)
+                    (set-buffer-file-coding-system 'utf-8-unix))
+                  (let ((buf (find-buffer-visiting target-file)))
+                    (if buf
+                        (with-current-buffer buf
+                          (revert-buffer t t t))
+                      (find-file target-file)
+                      (org-social-mode 1)
+                      (org-social-file--process-migrations))))
+              (message "Warning: remote unreachable, using local version.")
+              (unless (find-buffer-visiting target-file)
+                (when (file-exists-p target-file)
+                  (find-file target-file)
+                  (org-social-mode 1))))))
+      (unless (and (buffer-file-name)
+                   (string= (expand-file-name (buffer-file-name))
+                            (expand-file-name target-file)))
+        (org-social-file--open)))))
+
 (defun org-social-file--new-post (&optional reply-url reply-id group-context extra-properties)
   "Create a new post in your Org-social feed.
 If REPLY-URL and REPLY-ID are provided, create a reply post.
 If GROUP-CONTEXT is provided, add GROUP property to the post.
 EXTRA-PROPERTIES is an optional alist of additional properties,
 e.g. \\='((\"BOT\" . \"chess 1.e4 e5\"))."
-  (let ((target-file (if (org-social-file--is-vfile-p org-social-file)
-                         (org-social-file--get-local-file-path org-social-file)
-                       org-social-file))
-        (visibility nil))
-    (unless (and (buffer-file-name)
-                 (string= (expand-file-name (buffer-file-name))
-                          (expand-file-name target-file)))
-      (org-social-file--open))
+  (org-social-file--ensure-open-and-fresh)
+  (let ((visibility nil))
     ;; Ask for visibility only for interactive public posts (not replies, group posts, or bot posts)
     (when (and (not reply-url) (not group-context) (not extra-properties))
       (let ((choice (completing-read "Post visibility: "
@@ -523,13 +553,7 @@ REPLY-URL and REPLY-ID are optional for bot reply posts."
   "Create a new poll in your Org-social feed.
 Interactively prompts for the poll question, options, and duration."
   (interactive)
-  (let ((target-file (if (org-social-file--is-vfile-p org-social-file)
-                         (org-social-file--get-local-file-path org-social-file)
-                       org-social-file)))
-    (unless (and (buffer-file-name)
-                 (string= (expand-file-name (buffer-file-name))
-                          (expand-file-name target-file)))
-      (org-social-file--open)))
+  (org-social-file--ensure-open-and-fresh)
 
   ;; Prompt for poll question
   (let ((question (read-string "Poll question: ")))
@@ -578,13 +602,7 @@ This creates an empty post with only the MOOD field set to EMOJI and REPLY_TO.
 REPLY-URL is the URL of the post being reacted to.
 REPLY-ID is the timestamp ID of the post being reacted to.
 EMOJI is the reaction emoji to add."
-  (let ((target-file (if (org-social-file--is-vfile-p org-social-file)
-                         (org-social-file--get-local-file-path org-social-file)
-                       org-social-file)))
-    (unless (and (buffer-file-name)
-                 (string= (expand-file-name (buffer-file-name))
-                          (expand-file-name target-file)))
-      (org-social-file--open)))
+  (org-social-file--ensure-open-and-fresh)
   (save-excursion
     (org-social-file--find-posts-section)
     (goto-char (point-max))
@@ -640,13 +658,7 @@ This creates a post with the INCLUDE property pointing to the original post.
 POST-URL is the URL of the post being boosted.
 POST-ID is the timestamp ID of the post being boosted.
 Optional COMMENT is a text comment to add to the boost."
-  (let ((target-file (if (org-social-file--is-vfile-p org-social-file)
-                         (org-social-file--get-local-file-path org-social-file)
-                       org-social-file)))
-    (unless (and (buffer-file-name)
-                 (string= (expand-file-name (buffer-file-name))
-                          (expand-file-name target-file)))
-      (org-social-file--open)))
+  (org-social-file--ensure-open-and-fresh)
   (save-excursion
     (org-social-file--find-posts-section)
     (goto-char (point-max))
@@ -957,13 +969,7 @@ TIMESTAMP is the post ID (e.g., '2025-04-28T12:00:00+0100')."
   "Create a new migration post in your Org-social feed.
 Interactively prompts for the old URL and new URL."
   (interactive)
-  (let ((target-file (if (org-social-file--is-vfile-p org-social-file)
-                         (org-social-file--get-local-file-path org-social-file)
-                       org-social-file)))
-    (unless (and (buffer-file-name)
-                 (string= (expand-file-name (buffer-file-name))
-                          (expand-file-name target-file)))
-      (org-social-file--open)))
+  (org-social-file--ensure-open-and-fresh)
 
   ;; Prompt for old URL
   (let ((old-url (read-string "Old URL: ")))
